@@ -1,9 +1,8 @@
 import { imul } from "lib0/math";
 import { map } from "lib0/object";
 import { RuntimeError } from "../errors";
-import { javaHash } from "../utils";
 import { extractSymbolName, isValuePattern, Thing, ThingType, typecheck } from "../objects/thing";
-import { rotate32 } from "../utils";
+import { javaHash, rotate32 } from "../utils";
 
 
 const x23 = (a: number, b: number) => imul((a + 0x1a2b3c4d) ^ b, rotate32(b, 23));
@@ -24,12 +23,12 @@ export class NFASubstate {
         /** binding source symbols */
         public readonly bs: Record<string, Thing<ThingType.name>> = {},
     ) {
-        var hash = p.map(p => p[0].h! ^ rotate32(p[1], 19)).reduce(x23, 0) ^ rotate32(s, 22);
+        var hash = p.map(p => p[0].h! ^ rotate32(p[1], 19)).reduce(x23, 0) ^ (rotate32(s, 22) + 0xFEDCBA98);
         hash ^= map(b, (val, key) => rotate32(javaHash(key) + val[0] ^ (val[1] ?? 0x12345678), 29)).reduce(x23, 0);
         this._hash = hash;
     }
 
-    a(input: Thing | null, inputIndex: number, isAtEnd: boolean, debug?: boolean): NFASubstate[] {
+    a(input: Thing | null, inputIndex: number, isAtEnd: boolean): NFASubstate[] {
         // Handle atomic commands (no children)
         const { _thing: cmd, _index: pIndex } = this.c(1);
         const { _thing: cmd2, _index: pIndex2 } = this.c(2);
@@ -45,7 +44,6 @@ export class NFASubstate {
             return new RuntimeError("Non-pattern in pattern!!", src.loc);
         }
         if (cmd === null) {
-            if (debug) console.log("cmd is null", "cmd2", ThingType[cmd2!.t]);
             // We fell off the end of the group. Go back up one.
             if (this.p.length === 1) {
                 // No parent = we're done.
@@ -82,7 +80,6 @@ export class NFASubstate {
 
         const firstChild = cmd.c[0]!;
         const secondChild = cmd.c[1]!;
-        if (debug) console.log("cmd", ThingType[cmd.t]);
         switch (cmd.t) {
             case ThingType.sequence:
             case ThingType.repeat:

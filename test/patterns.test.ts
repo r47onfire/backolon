@@ -139,7 +139,7 @@ describe("step pattern NFA substates", () => {
             new NFASubstate(0, [[lazypattern, 0], [lazypattern.c[0]!, 0]]),
             new NFASubstate(0, [[lazypattern, 0], [lazypattern.c[0]!, 1]]),
         ]);
-        expect(stepped[0]!.a(null, 0, false, true)[0]!.a(null, 0, false, true)[0]!.a(null, 0, false, true))
+        expect(stepped[0]!.a(null, 0, false))
             .toEqual([new NFASubstate(0, [], {}, true)]);
         expect(stepped[1]!.a(null, 0, false))
             .toEqual([stepped[1]!]);
