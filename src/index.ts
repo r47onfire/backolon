@@ -49,7 +49,8 @@ export {
     MatchResult
 } from "./patterns/match";
 export {
-    parsePattern
+    parsePattern,
+    pattern
 } from "./patterns/meta";
 export {
     newEnv

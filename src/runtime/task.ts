@@ -10,11 +10,17 @@ import { type Scheduler } from "./scheduler";
 
 export class StackEntry {
     constructor(
+        /** current value being evaluated */
         public readonly v: Thing,
+        /** arguments in-progress being evaluated */
         public readonly a: readonly Thing[],
+        /** current environment */
         public readonly e: Thing<ThingType.env | ThingType.nil>,
+        /** current index in evaluating args */
         public readonly i = 0,
+        /** internal state for evaluation */
         public readonly s: number = 0,
+        /** arbitrary data */
         public readonly d: any = null,
     ) { }
     sd(index: number, state: number, data: any) {
@@ -72,16 +78,16 @@ export class Task {
                             const patterns = env.c[2]?.c ?? [];
                             for (var i = 0; i < patterns.length; i++) {
                                 const pair = patterns[i]!,
-                                    pat = pair.c[0]!,
+                                    pat = pair.c[0]! as Thing<ThingType.pattern>,
                                     impl = pair.c[1]!,
                                     when = pair.c[2]?.c;
                                 if (when && !typecheck(...when.map(v => v.v))(val)) continue;
                                 const result = matchPattern(top.a, pat, false)[0];
                                 if (result) {
                                     this.usd(0, BlockEvalState.waiting_for_pattern_result, result.span);
-                                    this.e(impl, newEnv(this.i(pat.loc, flatToVarMap(result, loc), {
+                                    this.a(top.a[result.span[0]!]!, [impl, this.i(loc, flatToVarMap(result, loc), {
                                         // TODO: inject block type variable
-                                    }), boxList([], loc), loc, top.e));
+                                    })]);
                                     return true;
                                 }
                             }

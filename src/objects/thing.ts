@@ -1,4 +1,5 @@
 import { LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
+import { Pattern } from "../patterns/internals";
 import { StackEntry } from "../runtime/task";
 import { javaHash, rotate32 } from "../utils";
 
@@ -34,21 +35,8 @@ export enum ThingType {
     continuation,
     /** children[0] is the bind target object (the "self" value), children[1] is the method */
     boundmethod,
-    /** value=true means anchor to start, value=false means anchor to end */
-    anchor,
-    /** value is string enum of ThingType */
-    matchtype,
-    /** child[0] is compared to */
-    matchvalue,
-    matchany,
-    /** children[0] is the symbol, children[1] is the thing to capture */
-    group,
-    /** each child is an alternatives inside separately, leftmost takes precedence */
-    alternatives,
-    /** try each child in sequence */
-    sequence,
-    /** repeat children (as sequence) one or more times, greedy or not */
-    repeat,
+    /** pattern program in data, child nodes are just for reconstruction */
+    pattern,
     list,
     map,
     pair,
@@ -67,33 +55,26 @@ type ThingInternalTypes<T extends ThingType> = {
     [ThingType.newline]: [string, []],
     [ThingType.number]: [number, []],
     [ThingType.string]: [string, []],
-    [ThingType.roundblock]: [null, Thing[]],
-    [ThingType.squareblock]: [null, Thing[]],
-    [ThingType.curlyblock]: [null, Thing[]],
-    [ThingType.topblock]: [null, Thing[]],
-    [ThingType.stringblock]: [null, Thing<ThingType.string | ThingType.roundblock>[]],
-    [ThingType.apply]: [null, Thing[]],
-    [ThingType.func]: [null, [Thing<ThingType.roundblock>, Thing]],
+    [ThingType.roundblock]: [null, readonly Thing[]],
+    [ThingType.squareblock]: [null, readonly Thing[]],
+    [ThingType.curlyblock]: [null, readonly Thing[]],
+    [ThingType.topblock]: [null, readonly Thing[]],
+    [ThingType.stringblock]: [null, readonly Thing<ThingType.string | ThingType.roundblock>[]],
+    [ThingType.apply]: [null, readonly Thing[]],
+    [ThingType.func]: [null, readonly [Thing<ThingType.roundblock>, Thing]],
     [ThingType.nativefunc]: [string, []],
-    [ThingType.implicitfunc]: [Thing<ThingType.env | ThingType.nil>, [Thing]],
-    [ThingType.paramdescriptor]: [boolean, [Thing<ThingType.name>, Thing<ThingType.list>] | [Thing<ThingType.name>, Thing<ThingType.list>, Thing]],
+    [ThingType.implicitfunc]: [Thing<ThingType.env | ThingType.nil>, readonly [Thing]],
+    [ThingType.paramdescriptor]: [boolean, readonly [Thing<ThingType.name>, Thing<ThingType.list>] | readonly [Thing<ThingType.name>, Thing<ThingType.list>, Thing]],
     [ThingType.continuation]: [readonly StackEntry[], []],
-    [ThingType.boundmethod]: [null, [Thing, Thing<ThingType.func>]],
-    [ThingType.anchor]: [boolean, []],
-    [ThingType.matchtype]: [ThingType, []],
-    [ThingType.matchvalue]: [null, [Thing]],
-    [ThingType.matchany]: [null, []],
-    [ThingType.group]: [null, [Thing<ThingType.name>, ...Thing[]]],
-    [ThingType.alternatives]: [null, Thing[]],
-    [ThingType.sequence]: [null, Thing[]],
-    [ThingType.repeat]: [boolean, Thing[]],
+    [ThingType.boundmethod]: [null, readonly [Thing, Thing<ThingType.func>]],
+    [ThingType.pattern]: [Pattern, readonly Thing[]],
     [ThingType.list]: [null, Thing[]],
     [ThingType.map]: [null, Thing<ThingType.pair>[]],
-    [ThingType.pair]: [null, [Thing, Thing]],
-    [ThingType.triple]: [null, [Thing, Thing, Thing]],
-    [ThingType.env]: [null, [Thing<ThingType.env | ThingType.nil>, Thing<ThingType.map>, Thing<ThingType.list>]]
-    [ThingType.macroized]: [null, [Thing]],
-    [ThingType.splat]: [null, [Thing]],
+    [ThingType.pair]: [null, readonly [Thing, Thing]],
+    [ThingType.triple]: [null, readonly [Thing, Thing, Thing]],
+    [ThingType.env]: [null, readonly [Thing<ThingType.env | ThingType.nil>, Thing<ThingType.map>, Thing<ThingType.list>]]
+    [ThingType.macroized]: [null, readonly [Thing]],
+    [ThingType.splat]: [null, readonly [Thing]],
 }[T];
 
 const unhashable = [ThingType.list, ThingType.map];
@@ -155,8 +136,7 @@ export function typecheck<T extends ThingType>(...types: T[]) {
 export const isBlock = typecheck(ThingType.roundblock, ThingType.squareblock, ThingType.curlyblock, ThingType.stringblock, ThingType.topblock);
 export const isSymbol = typecheck(ThingType.name, ThingType.operator, ThingType.space);
 export const isCallable = typecheck(ThingType.func, ThingType.nativefunc, ThingType.implicitfunc, ThingType.continuation, ThingType.boundmethod);
-export const isPattern = typecheck(ThingType.alternatives, ThingType.anchor, ThingType.group, ThingType.matchtype, ThingType.matchvalue, ThingType.matchany, ThingType.repeat, ThingType.sequence);
-export const isValuePattern = typecheck(ThingType.matchtype, ThingType.matchvalue);
+export const isPattern = typecheck(ThingType.pattern);
 export const isAtom = typecheck(ThingType.nil, ThingType.end, ThingType.name, ThingType.operator, ThingType.space, ThingType.number, ThingType.string, ThingType.func, ThingType.boundmethod, ThingType.implicitfunc, ThingType.nativefunc, ThingType.continuation, ThingType.list, ThingType.map, ThingType.splat, ThingType.macroized);
 
 export type CheckedType<T extends (thing: Thing<any>) => thing is Thing<any>> = T extends (thing: Thing<any>) => thing is Thing<infer U> ? U : never;

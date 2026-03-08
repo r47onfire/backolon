@@ -4,11 +4,17 @@ import { LocationTrace, ParseError } from "../errors";
 import { CheckedType, isBlock, Thing, ThingType, typecheck } from "../objects/thing";
 
 export interface BlockRule {
+    /** type to wrap the block in */
     t: CheckedType<typeof isBlock>,
+    /** ending string sequences (null means EOF) */
     e: (string | null)[],
+    /** greedy (does it consume the end tokens) */
     g?: boolean,
+    /** inner blocks allowed */
     i: Record<string, string>,
+    /** escapes to override end or inner blocks */
     x: string[],
+    /** process full block */
     p(items: Thing[], start: string, end: string, loc: LocationTrace): Thing;
 }
 

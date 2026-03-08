@@ -77,6 +77,11 @@ describe("strings", () => {
                         makespec(ThingType.operator, "+"),
                         makespec(ThingType.string, "another string")))));
     });
+    test("parses string with escaped curlies", () => {
+        expectParse("\"hello\\{\"",
+            makespec(ThingType.topblock, null,
+                makespec(ThingType.string, "hello{")));
+    })
 });
 describe("symbols", () => {
     test("operators and words", () => {

@@ -1,6 +1,6 @@
-import { is } from "lib0/function";
 import { map } from "lib0/object";
 import { Thing, ThingType } from "../objects/thing";
+import { compile, PatternProgram } from "./compile";
 import { NFASubstate } from "./internals";
 
 
@@ -22,11 +22,12 @@ export class MatchResult {
  * @param findAll Whether to find all matches, if true, or stop early when the leftmost match is found, if false. (Default true)
  */
 
-export function matchPattern(source: readonly Thing[], pattern: Thing, findAll = true): MatchResult[] {
+export function matchPattern(source: readonly Thing[], pattern: Thing<ThingType.pattern>, findAll = true): MatchResult[] {
     const queue: (NFASubstate | MatchResult)[] = [];
+    const program: PatternProgram = compile(pattern);
     const addIfNotAlreadySeen = (item: NFASubstate, hashSet: Record<number, true>, i: number) => {
-        if (hashSet[item._hash]) return;
-        hashSet[item._hash] = true;
+        if (hashSet[item.h]) return;
+        hashSet[item.h] = true;
         queue.splice(i, 0, item);
     }
     const zippy = (index: number, input: Thing | null, end: boolean) => {
@@ -34,7 +35,7 @@ export function matchPattern(source: readonly Thing[], pattern: Thing, findAll =
         const progressHashes = {};
         for (var i = 0; i < queue.length; i++) {
             const orig = queue[i]!;
-            if (is(orig, MatchResult)) continue;
+            if (orig instanceof MatchResult) continue;
             var k = i;
             queue.splice(i--, 1);
             const result = orig.a(input, index, end);
@@ -43,7 +44,7 @@ export function matchPattern(source: readonly Thing[], pattern: Thing, findAll =
                 if (newItem.x) {
                     queue.splice(k++, 0, new MatchResult(
                         map(newItem.b, (value, key) => [newItem.bs[key]!, newItem.ab.includes(key) ? source[value[0]]! : source.slice(value[0], value[1]!)]),
-                        [newItem.s, index],
+                        [newItem.s, index + +(input !== null)],
                     ));
                     if (k === 1 && !findAll) return true;
                 }
@@ -59,14 +60,15 @@ export function matchPattern(source: readonly Thing[], pattern: Thing, findAll =
     };
     b: {
         for (var inputIndex = 0; inputIndex < source.length; inputIndex++) {
-            queue.push(new NFASubstate(inputIndex, [[pattern, 0]]));
+            const item = new NFASubstate(inputIndex, program, 0);
+            queue.push(item);
             if (zippy(inputIndex, null, false)) break b;
             if (zippy(inputIndex, source[inputIndex]!, false)) break b;
         }
         zippy(inputIndex, null, true);
     }
     for (var i = 0; i < queue.length; i++) {
-        if (is(queue[i], NFASubstate)) queue.splice(i--, 1);
+        if (queue[i] instanceof NFASubstate) queue.splice(i--, 1);
     }
     return queue as MatchResult[];
 }

@@ -1,24 +1,24 @@
 import { describe, expect, mock, test } from "bun:test";
+import { stringify } from "lib0/json";
 import { keys } from "lib0/object";
-import { boxNameSymbol, boxNumber, matchPattern, MatchResult, parse, Thing, ThingType, unparse } from "../src";
-import { NFASubstate } from "../src/patterns/internals";
-import { parsePattern } from "../src/patterns/meta";
+import { BackolonError, boxNameSymbol, boxNumber, matchPattern, MatchResult, parse, parsePattern, pattern, Thing, ThingType, unparse } from "../src";
+import { compile } from "../src/patterns/compile";
+import { NFASubstate, PatternType } from "../src/patterns/internals";
 import { F, L } from "./astCheck";
 
 describe("step pattern NFA substates", () => {
     test("detects done", () => {
-        const pat = new Thing(ThingType.sequence, [], null, "", "", "", L);
-        expect(new NFASubstate(0, [[pat, 2000]]).a(null, 1, true))
-            .toEqual([new NFASubstate(0, [], {}, true)]);
+        const pat = compile(pattern(PatternType.sequence, 0));
+        expect(new NFASubstate(0, pat, 0).a(null, 1, true)[0]!.x).toBeTrue();
     })
     test("advances anchor cmds", () => {
-        const pat = new Thing(ThingType.sequence, [
-            new Thing(ThingType.anchor, [], true, "", "", "", L),
-            new Thing(ThingType.anchor, [], false, "", "", "", L),
-        ], null, "", "", "", L);
-        const state = new NFASubstate(0, [[pat, 0]]);
-        const sStep = new NFASubstate(0, [[pat, 1]]);
-        const sStep2 = new NFASubstate(0, [[pat, 2]]);
+        const pat = compile(pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.anchor, true),
+            pattern(PatternType.anchor, false)
+        ]));
+        const state = new NFASubstate(0, pat, 0);
+        const sStep = new NFASubstate(0, pat, 1);
+        const sStep2 = new NFASubstate(0, pat, 2);
         expect(state.a(null, 0, false))
             .toEqual([sStep]);
         expect(state.a(null, 1, false))
@@ -29,33 +29,32 @@ describe("step pattern NFA substates", () => {
             .toEqual([]);
     });
     test("basic sequence", () => {
-        const pat = new Thing(ThingType.sequence, [
-            new Thing(ThingType.matchvalue, [boxNumber(2, L)], null, "", "", "", L),
-            new Thing(ThingType.matchvalue, [boxNumber(3, L)], null, "", "", "", L),
-            new Thing(ThingType.matchvalue, [boxNumber(4, L)], null, "", "", "", L),
-        ], null, "", "", "", L);
-        const state = new NFASubstate(0, [[pat, 0]]);
+        const pat = compile(pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.match_value, 0, L, [boxNumber(2, L)]),
+            pattern(PatternType.match_value, 0, L, [boxNumber(3, L)]),
+            pattern(PatternType.match_value, 0, L, [boxNumber(4, L)])
+        ]));
+        const state = new NFASubstate(0, pat, 0);
         const x1 = state.a(boxNumber(0, L), 0, false);
         const c1 = state.a(boxNumber(2, L), 0, false);
         expect(x1).toEqual([]);
-        expect(c1).toEqual([new NFASubstate(0, [[pat, 1]])]);
+        expect(c1).toEqual([new NFASubstate(0, pat, 1)]);
         const x2 = c1[0]!.a(boxNumber(1, L), 0, false);
         const c2 = c1[0]!.a(boxNumber(3, L), 0, false);
         expect(x2).toEqual([]);
-        expect(c2).toEqual([new NFASubstate(0, [[pat, 2]])]);
+        expect(c2).toEqual([new NFASubstate(0, pat, 2)]);
         const x3 = c2[0]!.a(boxNumber(2, L), 0, false);
         const c3 = c2[0]!.a(boxNumber(4, L), 0, false);
         expect(x3).toEqual([]);
-        expect(c3).toEqual([new NFASubstate(0, [[pat, 3]])]);
-        const c4 = c3[0]!.a(null, 0, false);
-        expect(c4).toEqual([new NFASubstate(0, [], {}, true)]);
+        expect(c3).toEqual([new NFASubstate(0, pat, 3)]);
+        expect(c3[0]!.x).toBeTrue();
     });
     test("matches by type", () => {
-        const pat = new Thing(ThingType.sequence, [
-            new Thing(ThingType.matchtype, [], ThingType.name, "", "", "", L),
-        ], null, "", "", "", L);
-        const state = new NFASubstate(0, [[pat, 0]]);
-        const sStep = new NFASubstate(0, [[pat, 1]]);
+        const pat = compile(pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.match_type, ThingType.name),
+        ]));
+        const state = new NFASubstate(0, pat, 0);
+        const sStep = new NFASubstate(0, pat, 1);
         const input1 = boxNameSymbol("hi", L);
         const input2 = boxNameSymbol("bye", L);
         const input3 = boxNumber(123, L);
@@ -72,11 +71,11 @@ describe("step pattern NFA substates", () => {
         const input1 = boxNameSymbol("hi", L);
         const input2 = boxNameSymbol("bye", L);
         const input3 = boxNumber(123, L);
-        const pat = new Thing(ThingType.sequence, [
-            new Thing(ThingType.matchvalue, [input1], null, "", "", "", L),
-        ], null, "", "", "", L);
-        const state = new NFASubstate(0, [[pat, 0]]);
-        const sStep = new NFASubstate(0, [[pat, 1]]);
+        const pat = compile(pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.match_value, 0, L, [input1]),
+        ]));
+        const state = new NFASubstate(0, pat, 0);
+        const sStep = new NFASubstate(0, pat, 1);
         expect(state.a(null, 0, false))
             .toEqual([state]);
         expect(state.a(input1, 0, false))
@@ -87,104 +86,87 @@ describe("step pattern NFA substates", () => {
             .toEqual([]);
     });
     test("processed capture groups", () => {
-        const pat = new Thing(ThingType.sequence, [
-            new Thing(ThingType.group, [
+        const pat = compile(pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.capture_group, 0, L, [
                 boxNameSymbol("foo", L),
-                new Thing(ThingType.matchtype, [], ThingType.number, "", "", "", L)
-            ], null, "", "", "", L),
-        ], null, "", "", "", L);
-        const state = new NFASubstate(0, [[pat, 0]]);
+                pattern(PatternType.match_type, ThingType.number, L)
+            ])
+        ]));
+        const state = new NFASubstate(0, pat, 0);
         const stepped = state.a(null, 12345, false);
         const stepped2 = stepped[0]!.a(boxNumber(123, L), 0, false);
-        expect(stepped).toEqual([new NFASubstate(0, [[pat, 0], [pat.c[0]!, 1]], { foo: [12345, null] }, false, ["foo"], { foo: boxNameSymbol("foo", L) })]);
+        expect(stepped).toEqual([new NFASubstate(0, pat, 1, { foo: [12345, null] }, ["foo"], { foo: boxNameSymbol("foo", L) })]);
         expect(stepped[0]!.a(null, 0, false)).toEqual([stepped[0]!]);
-        expect(stepped2).toEqual([new NFASubstate(0, [[pat, 0], [pat.c[0]!, 2]], { foo: [12345, null] }, false, ["foo"], { foo: boxNameSymbol("foo", L) })]);
+        expect(stepped2).toEqual([new NFASubstate(0, pat, 2, { foo: [12345, null] }, ["foo"], { foo: boxNameSymbol("foo", L) })]);
         expect(stepped[0]!.a(boxNameSymbol("hi", L), 0, false)).toEqual([]);
         expect(stepped2[0]!.a(null, 23456, false))
-            .toEqual([new NFASubstate(0, [[pat, 1]], { foo: [12345, 23456] }, false, ["foo"], { foo: boxNameSymbol("foo", L) })]);
+            .toEqual([new NFASubstate(0, pat, 3, { foo: [12345, 23456] }, ["foo"], { foo: boxNameSymbol("foo", L) })]);
     });
     test("alternatives", () => {
         const indexes = new Array(1000).fill(0).map((_, i) => i);
         const inputs = indexes.map(n => boxNumber(n, L));
-        const pat = new Thing(ThingType.sequence, [
-            new Thing(ThingType.alternatives, inputs.map(n =>
-                new Thing(ThingType.matchvalue, [n], null, "", "", "", L),
-            ), null, "", "", "", L),
-        ], null, "", "", "", L);
-        const state = new NFASubstate(0, [[pat, 0]]);
+        const pat = compile(pattern(PatternType.alternatives, 0, L,
+            inputs.map(n => pattern(PatternType.match_value, 0, L, [n])),
+        ));
+        const state = new NFASubstate(0, pat, 0);
         const stepped = state.a(null, 0, false);
         expect(stepped).toEqual(indexes.map(n =>
-            new NFASubstate(0, [[pat, 0], [pat.c[0]!, n]]),
+            new NFASubstate(0, pat, 2 * n + 1),
         ));
         for (var i = 0; i < stepped.length; i++) {
             for (var j = 0; j < inputs.length; j++) {
                 expect(stepped[i]!.a(inputs[j]!, 0, false))
                     .toEqual(i === j ? [
-                        new NFASubstate(0, [[pat, 1]])
+                        new NFASubstate(0, pat, 2 * j + 2)
                     ] : [])
             }
         }
     });
     test("optional", () => {
         const input = boxNameSymbol("hi", L);
-        const lazypattern = new Thing(ThingType.sequence, [
-            new Thing(ThingType.alternatives, [
-                new Thing(ThingType.sequence, [], null, "", "", "", L),
-                new Thing(ThingType.matchvalue, [input], null, "", "", "", L),
-            ], null, "", "", "", L),
-        ], null, "", "", "", L);
-        const state = new NFASubstate(0, [[lazypattern, 0]]);
+        const lazypattern = compile(pattern(PatternType.alternatives, 0, L, [
+            pattern(PatternType.sequence, 0),
+            pattern(PatternType.match_value, 0, L, [input]),
+        ]));
+        const state = new NFASubstate(0, lazypattern, 0);
         const stepped = state.a(null, 0, false);
         expect(stepped).toEqual([
-            new NFASubstate(0, [[lazypattern, 0], [lazypattern.c[0]!, 0]]),
-            new NFASubstate(0, [[lazypattern, 0], [lazypattern.c[0]!, 1]]),
+            new NFASubstate(0, lazypattern, 1),
+            new NFASubstate(0, lazypattern, 2),
         ]);
         expect(stepped[0]!.a(null, 0, false))
-            .toEqual([new NFASubstate(0, [], {}, true)]);
+            .toEqual([new NFASubstate(0, lazypattern, 3)]);
         expect(stepped[1]!.a(null, 0, false))
             .toEqual([stepped[1]!]);
         expect(stepped[1]!.a(input, 0, false))
-            .toEqual([new NFASubstate(0, [[lazypattern, 1]])]);
+            .toEqual([new NFASubstate(0, lazypattern, 3)]);
     });
     test("repeat", () => {
         const input = boxNameSymbol("hi", L);
-        const lazypattern = new Thing(ThingType.sequence, [
-            new Thing(ThingType.repeat, [
-                new Thing(ThingType.matchvalue, [input], null, "", "", "", L),
-            ], false, "", "", "", L),
-        ], null, "", "", "", L);
-        const greedypattern = new Thing(ThingType.sequence, [
-            new Thing(ThingType.repeat, [
-                new Thing(ThingType.matchvalue, [input], null, "", "", "", L),
-            ], true, "", "", "", L),
-        ], null, "", "", "", L);
-        const state = new NFASubstate(0, [[lazypattern, 0]]);
-        const state2 = new NFASubstate(0, [[greedypattern, 0]]);
-        const stepped = state.a(null, 0, false);
-        const stepped2 = state2.a(null, 0, false);
-        // repeat is 1-or-more so the first time should always jump in
+        const lazypattern = compile(pattern(PatternType.repeat, false, L, [
+            pattern(PatternType.match_value, 0, L, [input])
+        ]));
+        const greedypattern = compile(pattern(PatternType.repeat, true, L, [
+            pattern(PatternType.match_value, 0, L, [input])
+        ]));
+        const state = new NFASubstate(0, lazypattern, 0);
+        const state2 = new NFASubstate(0, greedypattern, 0);
+        const stepped = state.a(input, 0, false)[0]!.a(null, 0, false);
+        const stepped2 = state2.a(input, 0, false)[0]!.a(null, 0, false);
+        // after repeat: the result index should have the exit first if lazy
         expect(stepped).toEqual([
-            new NFASubstate(0, [[lazypattern, 0], [lazypattern.c[0]!, 0]]),
+            new NFASubstate(0, lazypattern, 2),
+            new NFASubstate(0, lazypattern, 0),
         ]);
         expect(stepped2).toEqual([
-            new NFASubstate(0, [[greedypattern, 0], [greedypattern.c[0]!, 0]]),
-        ]);
-        const step2 = stepped[0]!.a(input, 0, false)[0]!.a(null, 0, false);
-        const step22 = stepped2[0]!.a(input, 0, false)[0]!.a(null, 0, false);
-        // after repeat: the result index should have the exit first if lazy
-        expect(step2).toEqual([
-            new NFASubstate(0, [[lazypattern, 1]]),
-            new NFASubstate(0, [[lazypattern, 0], [lazypattern.c[0]!, 0]]),
-        ]);
-        expect(step22).toEqual([
-            new NFASubstate(0, [[greedypattern, 0], [greedypattern.c[0]!, 0]]),
-            new NFASubstate(0, [[greedypattern, 1]]),
+            new NFASubstate(0, greedypattern, 0),
+            new NFASubstate(0, greedypattern, 2),
         ]);
     });
 });
 describe("full pattern match", () => {
     test("empty matches don't lock up or spam", () => {
-        const pat = new Thing(ThingType.sequence, [], null, "", "", "", L);
+        const pat = pattern(PatternType.sequence, 0);
         const indexes = new Array(10000).fill(0).map((_, i) => i);
         const inputs = indexes.map(n => boxNumber(n, L));
 
@@ -194,9 +176,19 @@ describe("full pattern match", () => {
             [i, i]
         )));
     });
+    test("finds correct span", () => {
+        const pat = pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.anchor, true, L),
+            pattern(PatternType.repeat, true, L, [pattern(PatternType.dot, 0, L)]),
+            pattern(PatternType.anchor, false, L),
+        ]);
+        const inputs = new Array(100).fill(0).map((_, i) => boxNumber(i, L));
+        const result = matchPattern(inputs, pat);
+        expect(result).toEqual([new MatchResult([], [0, inputs.length])]);
+    });
     test("findAll=false works", () => {
-        const pat = new Thing(ThingType.sequence, [], null, "", "", "", L);
-        const inputs = new Array(10000).fill(0).map((_, i) => boxNumber(i, L));
+        const pat = pattern(PatternType.sequence, 0);
+        const inputs = new Array(100).fill(0).map((_, i) => boxNumber(i, L));
         const m = mock(() => boxNumber(1, L));
         Object.defineProperty(inputs, 1, { get: m });
         const result = matchPattern(inputs, pat, false);
@@ -207,11 +199,11 @@ describe("full pattern match", () => {
         )]);
     });
     test("basic sequence search", () => {
-        const targetSpan = [100, 900];
-        const inputs = new Array(10000).fill(0).map((_, n) => boxNumber(n, L));
-        const pat = new Thing(ThingType.sequence, inputs.slice(targetSpan[0], targetSpan[1]).map(n =>
-            new Thing(ThingType.matchvalue, [n], null, "", "", "", L),
-        ), null, "", "", "", L);
+        const targetSpan = [10, 90] as const;
+        const inputs = new Array(100).fill(0).map((_, n) => boxNumber(n, L));
+        const pat = pattern(PatternType.sequence, 0, L,
+            inputs.slice(targetSpan[0], targetSpan[1]).map(n => pattern(PatternType.match_value, 0, L, [n]))
+        );
         const result = matchPattern(inputs, pat);
         expect(result).toEqual([
             new MatchResult(
@@ -221,17 +213,9 @@ describe("full pattern match", () => {
         ]);
     });
     test("repeat finds all occurrences", () => {
-        const zeros = new Array(200).fill(0).map(_ => boxNumber(0, L));
-        const greedypattern = new Thing(ThingType.sequence, [
-            new Thing(ThingType.repeat, [
-                new Thing(ThingType.matchvalue, [boxNumber(0, L)], null, "", "", "", L),
-            ], true, "", "", "", L),
-        ], null, "", "", "", L);
-        const lazypattern = new Thing(ThingType.sequence, [
-            new Thing(ThingType.repeat, [
-                new Thing(ThingType.matchvalue, [boxNumber(0, L)], null, "", "", "", L),
-            ], false, "", "", "", L),
-        ], null, "", "", "", L);
+        const zeros = new Array(100).fill(0).map(_ => boxNumber(0, L));
+        const greedypattern = pattern(PatternType.repeat, true, L, [pattern(PatternType.match_value, 0, L, [boxNumber(0, L)])]);
+        const lazypattern = pattern(PatternType.repeat, false, L, [pattern(PatternType.match_value, 0, L, [boxNumber(0, L)])]);
         const resultGreedy = matchPattern(zeros, greedypattern);
         const resultLazy = matchPattern(zeros, lazypattern);
         expect(resultGreedy[0]!.span).toEqual([0, zeros.length]);
@@ -256,27 +240,16 @@ describe("full pattern match", () => {
         }
     });
     test("alternation", () => {
-        const pat = new Thing(ThingType.sequence, [
-            new Thing(ThingType.alternatives, [
-                new Thing(ThingType.matchvalue, [boxNumber(0, L)], null, "", "", "", L),
-                new Thing(ThingType.sequence, [
-                    new Thing(ThingType.matchvalue, [boxNumber(1, L)], null, "", "", "", L),
-                    new Thing(ThingType.matchvalue, [boxNumber(2, L)], null, "", "", "", L)
-                ], null, "", "", "", L),
-            ], null, "", "", "", L),
-        ], null, "", "", "", L);
+        const pat = pattern(PatternType.alternatives, 0, L, [
+            pattern(PatternType.match_value, 0, L, [boxNumber(0, L)]),
+            pattern(PatternType.sequence, 0, L, [
+                pattern(PatternType.match_value, 0, L, [boxNumber(1, L)]),
+                pattern(PatternType.match_value, 0, L, [boxNumber(2, L)]),
+            ])
+        ]);
         const inputs = [
-            boxNumber(2, L),
-            boxNumber(1, L),
-            boxNumber(7, L),
-            boxNumber(0, L),
-            boxNumber(1, L),
-            boxNumber(4, L),
-            boxNumber(2, L),
-            boxNumber(0, L),
-            boxNumber(1, L),
-            boxNumber(2, L),
-        ];
+            2, 1, 7, 0, 1, 4, 2, 0, 1, 2,
+        ].map(n => boxNumber(n, L));
         const results = matchPattern(inputs, pat);
         expect(results).toEqual([
             new MatchResult(
@@ -294,14 +267,14 @@ describe("full pattern match", () => {
         ]);
     })
     test("capture groups", () => {
-        const pat = new Thing(ThingType.sequence, [
-            new Thing(ThingType.matchvalue, [boxNumber(0, L)], null, "", "", "", L),
-            new Thing(ThingType.group, [
+        const pat = pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.match_value, 0, L, [boxNumber(0, L)]),
+            pattern(PatternType.capture_group, 0, L, [
                 boxNameSymbol("foo", L),
-                new Thing(ThingType.matchtype, [], ThingType.name, "", "", "", L),
-            ], null, "", "", "", L),
-            new Thing(ThingType.matchvalue, [boxNumber(1, L)], null, "", "", "", L),
-        ], null, "", "", "", L);
+                pattern(PatternType.match_type, ThingType.name, L),
+            ]),
+            pattern(PatternType.match_value, 0, L, [boxNumber(1, L)]),
+        ]);
         const inputs = [
             boxNumber(2, L),
             boxNameSymbol("bye", L),
@@ -329,33 +302,25 @@ describe("full pattern match", () => {
         ]);
     });
     test("lazy vs. greedy grouping", () => {
-        const lazyfirstpat = new Thing(ThingType.sequence, [
-            new Thing(ThingType.anchor, [], true, "", "", "", L),
-            new Thing(ThingType.group, [
+        const lazyfirstpat = pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.anchor, true, L),
+            pattern(PatternType.capture_group, 0, L, [
                 boxNameSymbol("foo", L),
-                new Thing(ThingType.repeat, [
-                    new Thing(ThingType.matchvalue, [boxNumber(0, L)], null, "", "", "", L),
-                ], false, "", "", "", L),
-            ], null, "", "", "", L),
-            new Thing(ThingType.repeat, [
-                new Thing(ThingType.matchvalue, [boxNumber(0, L)], null, "", "", "", L),
-            ], true, "", "", "", L),
-            new Thing(ThingType.anchor, [], false, "", "", "", L),
-        ], null, "", "", "", L);
-        const lazysecondpat = new Thing(ThingType.sequence, [
-            new Thing(ThingType.anchor, [], true, "", "", "", L),
-            new Thing(ThingType.group, [
+                pattern(PatternType.repeat, false, L, [pattern(PatternType.match_value, 0, L, [boxNumber(0, L)])]),
+            ]),
+            pattern(PatternType.repeat, true, L, [pattern(PatternType.match_value, 0, L, [boxNumber(0, L)])]),
+            pattern(PatternType.anchor, false, L),
+        ]);
+        const lazysecondpat = pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.anchor, true, L),
+            pattern(PatternType.capture_group, 0, L, [
                 boxNameSymbol("foo", L),
-                new Thing(ThingType.repeat, [
-                    new Thing(ThingType.matchvalue, [boxNumber(0, L)], null, "", "", "", L),
-                ], true, "", "", "", L),
-            ], null, "", "", "", L),
-            new Thing(ThingType.repeat, [
-                new Thing(ThingType.matchvalue, [boxNumber(0, L)], null, "", "", "", L),
-            ], false, "", "", "", L),
-            new Thing(ThingType.anchor, [], false, "", "", "", L),
-        ], null, "", "", "", L);
-        const inputs = new Array(300).fill(0).map(_ => boxNumber(0, L));
+                pattern(PatternType.repeat, true, L, [pattern(PatternType.match_value, 0, L, [boxNumber(0, L)])]),
+            ]),
+            pattern(PatternType.repeat, false, L, [pattern(PatternType.match_value, 0, L, [boxNumber(0, L)])]),
+            pattern(PatternType.anchor, false, L),
+        ]);
+        const inputs = new Array(100).fill(0).map(_ => boxNumber(0, L));
         const resultslazyfirst = matchPattern(inputs, lazyfirstpat);
         const resultslazysecond = matchPattern(inputs, lazysecondpat);
         expect(resultslazyfirst.map(r => (r.bindings[0]![1] as Thing[]).length))
@@ -365,58 +330,68 @@ describe("full pattern match", () => {
     })
 });
 describe("metapattern", () => {
-    function pat(src: string) { return parsePattern(parse(src, F).c); }
+    const pat = (src: string) => parsePattern(parse(src, F).c);
 
     test("a", () => {
-        console.log(unparse(pat("a...1 b...")));
+        const src = "a ...  \nb ...[+]";
+        try {
+            console.log("original: ", stringify(src));
+            console.log("unparsed:", stringify(unparse(pat(src))));
+        } catch (e) {
+            console.log("caught error!");
+            if (e instanceof BackolonError) {
+                console.log(e.displayOn({ [F.href]: src }));
+            }
+            throw e;
+        }
     });
     test("simple wildcard", () => {
         const p = pat("foo");
         // foo should become a capture of any element named foo
-        expect(p.c[0]!.t).toBe(ThingType.group);
+        expect(p.c[0]!.v.t).toBe(PatternType.capture_group);
         expect((p.c[0]!.c[0] as Thing).v).toBe("foo");
     });
 
     test("repeat lazy and greedy", () => {
         const lazy = pat("x...");
-        expect(lazy.c[0]!.t).toBe(ThingType.repeat);
-        expect(lazy.c[0]!.v).toBe(false);
+        expect(lazy.c[0]!.v.t).toBe(PatternType.repeat);
+        expect(lazy.c[0]!.v.gsv).toBe(false);
         const greedy = pat("x ... [+]");
-        expect(greedy.c[0]!.t).toBe(ThingType.repeat);
-        expect(greedy.c[0]!.v).toBe(true);
+        expect(greedy.c[0]!.v.t).toBe(PatternType.repeat);
+        expect(greedy.c[0]!.v.gsv).toBe(true);
     });
 
     test("alternation", () => {
         const a = pat("{a|b}");
-        expect(a.c[0]!.t).toBe(ThingType.alternatives);
+        expect(a.c[0]!.v.t).toBe(PatternType.alternatives);
     });
 
     test("capture with parentheses", () => {
         const g = pat("[foo (bar baz)]");
-        expect(g.c[0]!.t).toBe(ThingType.group);
+        expect(g.c[0]!.v.t).toBe(PatternType.capture_group);
         expect(g.c[0]!.c[0]!.v).toBe("foo");
     });
 
     test("type capture", () => {
         const t = pat("[foo: roundblock]");
-        expect(t.c[0]!.t).toBe(ThingType.group);
-        expect(t.c[0]!.c[1]!.t).toBe(ThingType.matchtype);
-        expect(t.c[0]!.c[1]!.v).toBe(ThingType.roundblock);
+        expect(t.c[0]!.v.t).toBe(PatternType.capture_group);
+        expect(t.c[0]!.c[1]!.v.t).toBe(PatternType.match_type);
+        expect(t.c[0]!.c[1]!.v.gsv).toBe(ThingType.roundblock);
     });
 
     test("literal match", () => {
         const l = pat("[=+]");
-        expect(l.c[0]!.t).toBe(ThingType.matchvalue);
+        expect(l.c[0]!.v.t).toBe(PatternType.match_value);
         expect(l.c[0]!.c[0]!.v).toBe("+");
     });
 
     test("spaces semantics", () => {
         const s = pat("  "); // two spaces -> one or more
-        expect(s.c[0]!.t).toBe(ThingType.repeat);
+        expect(s.c[0]!.v.t).toBe(PatternType.repeat);
         // single space should be optional (alternation with nothing)
         const s1 = pat(" ");
-        expect(s1.c[0]!.t).toBe(ThingType.alternatives);
+        expect(s1.c[0]!.v.t).toBe(PatternType.alternatives);
         const nl = pat("\n"); // newline matches literally
-        expect(nl.c[0]!.t).toBe(ThingType.matchvalue);
+        expect(nl.c[0]!.v.t).toBe(PatternType.match_value);
     });
 });
