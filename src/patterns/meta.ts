@@ -1,6 +1,6 @@
 import { last } from "lib0/array";
 import { LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
-import { boxOperatorSymbol, Thing, ThingType } from "../objects/thing";
+import { boxOperatorSymbol, Thing, ThingType, typecheck } from "../objects/thing";
 import { unparse } from "../parser/unparse";
 import { PatternType } from "./internals";
 import { matchPattern } from "./match";
@@ -34,20 +34,24 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
     block = nonoverlappingreplace(block, single_roundblock, b => [parsePattern(b[0]!.c)]);
 
     // 3. alternation syntax {a|b}
-    block = nonoverlappingreplace(block, single_curlyblock, curlies => [
-        alternatives(nonoverlappingreplace(curlies[0]!.c, alternation, option => {
-            if (option[0]?.t === ThingType.operator && option[0]!.v === "|") option.shift();
-            return [parsePattern(option)];
-        }), "{", "|", "}")
-    ]);
+    block = nonoverlappingreplace(block, single_curlyblock, curlies => {
+        const items = [];
+        for (; ;) {
+            const index = curlies.findIndex(i => typecheck(ThingType.operator)(i) && i.v === "|");
+            if (index > 0)
+                items.push(parsePattern(curlies.splice(0, index)));
+            else break;
+        }
+        return [alternatives(items, "{", "|", "}", curlies[0]?.loc ?? UNKNOWN_LOCATION)];
+    });
 
     // 4. capture / literal / type shorthand in square brackets
     block = nonoverlappingreplace(block, single_squareblock, sq => {
-        const b = sq[0]!;
-        var inner = nonoverlappingreplace(b.c, required_space, () => []);
+        const squareblock = sq[0]!;
+        var inner = nonoverlappingreplace(squareblock.c, required_space, () => []);
         const test = (pat: Thing<ThingType.pattern>) => matchPattern(inner, pat, false).length > 0;
         if (inner.length === 0) {
-            throw new RuntimeError("empty []", b.loc);
+            throw new RuntimeError("empty control group block", squareblock.loc);
         }
         // literal matcher: [=xyz]
         if (test(square_literal)) {
@@ -55,13 +59,13 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
         }
         // capture forms start with a name; try patterns in order
         if (test(square_only_name_invalid)) {
-            throw new Error("expected type or subpattern after capture group name")
+            throw new RuntimeError("expected type or subpattern after capture group name", squareblock.loc)
         }
         if (test(square_capture_by_type)) {
             const name = inner[0] as Thing<ThingType.name>;
             const tok = inner[2]!;
             const ty = typeNameToThingType(tok.v, tok.loc);
-            return [grouped(name, [matchtype(ty, "", tok.loc)], "[", b.c.slice(1).map(o => unparse(o)).join("") + "]", name.loc)];
+            return [grouped(name, [matchtype(ty, "", tok.loc)], "[", squareblock.c.slice(1).map(o => unparse(o)).join("") + "]", name.loc)];
         }
         if (test(square_capture_subpattern)) {
             const name = inner[0] as Thing<ThingType.name>;
@@ -70,9 +74,9 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
         }
         // pass through [+] markers for repeat code
         if (test(square_only_plus)) {
-            return [b];
+            return sq;
         }
-        throw new RuntimeError("could not parse control group block", b.loc);
+        throw new RuntimeError("could not parse control group block", squareblock.loc);
     });
 
     // 5. handle repeat syntax: x ... (lazy) or x ... [+] (greedy)
@@ -90,7 +94,14 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
                 rest = matched.slice(matched.findIndex(v => v.v === "...") + 1);
             }
         }
-        return [repeat(greedy, [item], "", matched.slice(1).map(i => unparse(i)).join(""), item.loc), ...rest];
+        var patitem = parsePattern([item]);
+        if (patitem.c.length === 1) patitem = patitem.c[0] as any;
+        return [repeat(greedy, [patitem], "", matched.slice(1).map(i => unparse(i)).join(""), item.loc), ...rest];
+    });
+
+    // Yell for stray [+]'s
+    nonoverlappingreplace(block, single_squareblock, () => {
+        throw new RuntimeError("expected a repeat before greedy indicator");
     });
 
     // 6. spaces/newlines represent any amount of space;
@@ -127,7 +138,10 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
     // 9. bail on everything else
     nonoverlappingreplace(block, other_invalid, tokens => {
         throw new RuntimeError("not valid here", tokens[0]!.loc);
-    })
+    });
+
+    // require("util").inspect.defaultOptions.depth = Infinity;
+    // console.log(block);
 
     return sequence(block, "(", ")", block[0]?.loc ?? UNKNOWN_LOCATION);
 }
@@ -145,12 +159,13 @@ function nonoverlappingreplace(block: readonly Thing[], pattern: Thing<ThingType
     return block;
 }
 
-const metapattern = new LocationTrace(0, 0, new URL("about:metapattern"));
+const metapattern = new LocationTrace(0, 0, new URL("backolon:internal_metapattern"));
 
 const matchtype = (t: ThingType, src = "", loc = metapattern) => pattern(PatternType.match_type, t, loc, [], src);
 const matchvalue = (o: Thing) => pattern(PatternType.match_value, 0, o.loc, [o]);
 const sequence = (o: readonly Thing[], start = "", end = "", loc = o[0]?.loc ?? metapattern) => pattern(PatternType.sequence, 0, loc, o, start, end);
 const alternatives = (o: readonly Thing[], start = "", join = "", end = "", loc = o[0]?.loc ?? metapattern) => pattern(PatternType.alternatives, 0, loc, o, start, end, join);
+const optional = (x: Thing<ThingType.pattern>) => alternatives([x, nothing]);
 const repeat = (g: boolean, o: Thing[], start = "", end = "", loc = o[0]?.loc ?? metapattern) => pattern(PatternType.repeat, g, loc, o, start, end);
 const anchor = (start: boolean, src = "", loc = metapattern) => pattern(PatternType.anchor, start, loc, [], src);
 const entire = (o: Thing[], start = "", end = "", loc = o[0]?.loc ?? metapattern) => sequence([anchor(true, start, loc), ...o, anchor(false, end, loc)], "", "", loc);
@@ -163,11 +178,10 @@ const singledot = matchvalue(operator("."));
 const tripledot = sequence([singledot, singledot, singledot]);
 const nothing = sequence([]);
 const required_space = repeat(true, [alternatives([matchtype(ThingType.space), matchtype(ThingType.newline)])]);
-const optional_space = alternatives([required_space, nothing])
-const single_roundblock = matchtype(ThingType.roundblock)
+const optional_space = optional(required_space);
+const single_roundblock = matchtype(ThingType.roundblock);
 const single_curlyblock = matchtype(ThingType.curlyblock);
 const single_squareblock = matchtype(ThingType.squareblock);
-const alternation = sequence([alternatives([anchor(true), matchvalue(operator("|"))]), repeat(false, [dot()])]);
 
 // metapatterns used inside square brackets
 const square_literal = entire([matchvalue(operator("=")), dot()]);
@@ -189,16 +203,13 @@ const repeat_pattern = sequence([
     dot(),
     optional_space,
     matchvalue(operator("...")),
-    alternatives([
-        sequence([optional_space, matchtype(ThingType.squareblock)]),
-        nothing
-    ])
+    optional(sequence([optional_space, matchtype(ThingType.squareblock)])),
 ]);
 
 // patterns for step 7-9: match individual raw tokens to convert them to patterns
 const single_wildcard = matchtype(ThingType.name);
 const literal_operator = matchtype(ThingType.operator);
-const other_invalid = alternatives([matchtype(ThingType.number), matchtype(ThingType.string)]);
+const other_invalid = alternatives([matchtype(ThingType.number), matchtype(ThingType.string), matchtype(ThingType.stringblock)]);
 
 function typeNameToThingType(name: string, loc: LocationTrace): ThingType {
     const t = ThingType[name as any] as any as ThingType | undefined;

@@ -1,4 +1,4 @@
-import { ErrorNote, LocationTrace, ParseError, UNKNOWN_LOCATION } from "../errors";
+import { ErrorNote, LocationTrace, ParseError, RuntimeError, UNKNOWN_LOCATION } from "../errors";
 import { boxBlock, boxString, boxStringBlock, isBlock, isSymbol, Thing, ThingType } from "../objects/thing";
 import { blockParse, BlockRule } from "./blockParse";
 import { tokenize } from "./tokenizer";
@@ -25,6 +25,7 @@ const baseBlocks = {
     "##": BlockHandler.comment,
     "# ": BlockHandler.lineComment,
 }
+const bannedInners = [")", "]", "}"];
 
 function makeBlock(this: BlockRule, items: Thing[], start: string, end: string, loc: LocationTrace) {
     return boxBlock(items, this.t, loc, start, end);
@@ -41,6 +42,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
         x: [],
         i: baseBlocks,
         p: makeBlock,
+        b: bannedInners,
     },
     [BlockHandler.round]: {
         t: ThingType.roundblock,
@@ -48,6 +50,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
         x: [],
         i: baseBlocks,
         p: makeBlock,
+        b: bannedInners,
     },
     [BlockHandler.square]: {
         t: ThingType.squareblock,
@@ -55,6 +58,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
         x: [],
         i: baseBlocks,
         p: makeBlock,
+        b: bannedInners,
     },
     [BlockHandler.curly]: {
         t: ThingType.curlyblock,
@@ -62,6 +66,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
         x: [],
         i: baseBlocks,
         p: makeBlock,
+        b: bannedInners,
     },
     [BlockHandler.rawstring]: {
         t: ThingType.stringblock,
@@ -73,6 +78,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
             const raw = items.map(item => unparse(item)).join("");
             return boxString(raw.replaceAll(/\\(['\\])/g, "$1"), loc, raw, start);
         },
+        b: []
     },
     [BlockHandler.string]: {
         t: ThingType.stringblock,
@@ -90,6 +96,9 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
             for (var i = 0; i < items.length; i++) {
                 const item = items[i]!;
                 if (isBlock(item)) {
+                    if (item.c.length === 0) {
+                        throw new RuntimeError("empty interpolation block", item.loc);
+                    }
                     chuck();
                     bits.push(item as Thing<ThingType.roundblock>);
                     continue;
@@ -126,6 +135,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
             if (bits.length === 0) chuck();
             return bits.length === 1 ? bits[0]! : boxStringBlock(bits, loc, start);
         },
+        b: []
     },
     [BlockHandler.stringInterpolation]: {
         t: ThingType.roundblock,
@@ -133,6 +143,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
         x: [],
         i: baseBlocks,
         p: makeBlock,
+        b: bannedInners,
     },
     [BlockHandler.comment]: {
         t: ThingType.roundblock,
@@ -140,6 +151,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
         x: [],
         i: {},
         p: makeComment,
+        b: [],
     },
     [BlockHandler.lineComment]: {
         t: ThingType.roundblock,
@@ -148,6 +160,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
         x: [],
         i: {},
         p: makeComment,
+        b: []
     }
 }
 

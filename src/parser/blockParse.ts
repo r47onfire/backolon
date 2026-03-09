@@ -1,6 +1,6 @@
 import { stringify } from "lib0/json";
 import { keys, values } from "lib0/object";
-import { LocationTrace, ParseError } from "../errors";
+import { LocationTrace, ParseError, RuntimeError } from "../errors";
 import { CheckedType, isBlock, Thing, ThingType, typecheck } from "../objects/thing";
 
 export interface BlockRule {
@@ -14,6 +14,8 @@ export interface BlockRule {
     i: Record<string, string>,
     /** escapes to override end or inner blocks */
     x: string[],
+    /** banned token sequences */
+    b: string[],
     /** process full block */
     p(items: Thing[], start: string, end: string, loc: LocationTrace): Thing;
 }
@@ -55,6 +57,8 @@ export function blockParse<T extends Record<string, BlockRule>, U extends keyof 
         const indices: Counter[] = ruleStarts.map(_ => [0, 0]);
         const skips = rule.x;
         const skipIndices: Counter[] = skips.map(_ => [0, 0]);
+        const banned = rule.b;
+        const bannedIndices: Counter[] = banned.map(_ => [0, 0]);
         const end = rule.e;
         var endStr = "";
         const endCounters: Counter[] = rule.e?.map(_ => [0, 0]) ?? [];
@@ -81,6 +85,9 @@ export function blockParse<T extends Record<string, BlockRule>, U extends keyof 
                     else endStr = txt || "";
                 });
                 if (done) break;
+                processCounters(txt, banned, bannedIndices, banned, (target, counter) => {
+                    throw new RuntimeError(`unexpected ${stringify(target)}`, curToken.loc);
+                });
             }
             blockContents.push(curToken);
             if (!forceContinue && innerBlock) {

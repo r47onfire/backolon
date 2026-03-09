@@ -418,14 +418,14 @@ describe("metapattern", () => {
                     throw e;
                 }
                 var result;
-                // try {
-                    result = matchPattern(parsedInput, parsedPattern);
-                // } catch (e) {
-                //     if (e instanceof BackolonError) {
-                //         console.log(e.displayOn({ [F.href]: pat, "about:testinput": input }));
-                //     }
-                //     throw e;
-                // }
+                try {
+                    result = matchPattern(parsedInput, parsedPattern, false);
+                } catch (e) {
+                    if (e instanceof BackolonError) {
+                        console.log(e.displayOn({ [F.href]: pat, "about:testinput": input }));
+                    }
+                    throw e;
+                }
                 if (match) expect(result.length).not.toBe(0);
                 else expect(result).toBeEmpty();
             });
@@ -433,7 +433,7 @@ describe("metapattern", () => {
 
         pattern_test("[x: number]", "1", true);
         pattern_test("[x: number]", "a", false);
-        pattern_test("[x: number] + [y: number])...", "1 + 1", true);
-        pattern_test("{ 1}", " 1", true);
-    })
+        pattern_test("[x: number] + [y: number]", "1 + 1", true);
+        pattern_test("[x: number] + [y: number]", "1+1", true);
+    });
 });
