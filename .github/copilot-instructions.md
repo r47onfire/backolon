@@ -1,4 +1,4 @@
-# Workspace instructions for LLMs
+# Workspace instructions for humans and LLMs
 
 this is Backolon, a tiny homoiconic, keywordless pattern-matching programming language. The interpreter is written in typescript using ES6 module syntax.
 
