@@ -16,6 +16,7 @@
     },
     "license": "GPL-3.0-only",
     "devDependencies": {
+        "@gitlab-org/jsfuzz": "^1.2.4",
         "@types/bun": "^1.3.9",
         "bun": "^1.3.9",
         "esbuild": "^0.25.0",
@@ -29,7 +30,6 @@
         ]
     },
     "dependencies": {
-        "@gitlab-org/jsfuzz": "^1.2.4",
         "jsoncrush": "^1.1.8",
         "lib0": "^0.2.117",
         "resurrect-esm": "^2.0.3"
