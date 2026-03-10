@@ -20,6 +20,7 @@ export class Scheduler {
         customNames: ConstructorParameters<typeof NamespaceResolver>[0] = {}
     ) {
         this.s = new Resurrect({
+            cleanup: true,
             resolver: new NamespaceResolver({
                 ...customNames,
                 Task,

@@ -32,6 +32,6 @@
     "dependencies": {
         "jsoncrush": "^1.1.8",
         "lib0": "^0.2.117",
-        "resurrect-esm": "^2.0.3"
+        "resurrect-esm": "^2.0.4"
     }
 }
