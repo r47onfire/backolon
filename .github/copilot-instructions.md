@@ -129,3 +129,27 @@ Top‑level exports live in `src/index.ts`.
 * give all object properties that are not meant to be used directly (even if you can't mark them `private`) names that start with `_` - that way esbuild can name-mangle all the properties that start with `_` without consequence (currently turned off but it's easy to put back).
   * for user-facing properties, the name length should be inversely proportional to its frequency of use. For example all the properties of `Thing` get used a lot so they have one-character names (but doc comments to explain what they are).
 * let the code speak for itself. stating what the code does in a comment, when it would be obvious by reading it, just wastes time (and tokens). however, do not be shy about explaining potentially counterintuitive behavior or gotchas.
+
+---
+
+## Notes on adding new fuzzer entrypoints
+
+* The fuzzer is actually kind of stupid; it instruments the code by reparsing it and injecting instrumentation on every line, and the parser can't handle ES6 module syntax. (This is why `pnpm build-for-fuzzer` uses commonjs mode.)
+* Because the fuzzer harnesses can't use a second import to peek into the internals of Backolon to test it, they can only test stuff exported by the main `src/index.ts`.
+* This is also why the stack trace that prints out when the fuzzer does find a crash is completely useless apart from the functions name, since the fuzzer injects code, the line/column numbers have changed.
+
+The fuzzer entry points should use this template:
+
+```js
+const { stuff } = require("../../dist/backolon.cjs");
+module.exports.fuzz = function fuzz(src) {
+    /* keep this line: */
+    // if (!/^[\x32-\x7F]*$/.test(src.toString())) return;
+    /* INITIALIZATION */
+    try {
+        /* TEST STUFF WITH src.toString() */
+    } catch (e) {
+        if (!(e instanceof BackolonError)) throw e;
+    }
+}
+```
