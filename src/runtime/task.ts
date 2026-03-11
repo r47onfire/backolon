@@ -2,32 +2,33 @@ import { stringify } from "lib0/json";
 import { forEach } from "lib0/object";
 import { LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating } from "../objects/map";
-import { boxList, boxNameSymbol, isAtom, isBlock, isSymbol, Thing, ThingType, typecheck } from "../objects/thing";
+import { boxList, boxNameSymbol, boxNil, isAtom, isBlock, isSymbol, Thing, ThingType, typecheck } from "../objects/thing";
 import { matchPattern } from "../patterns/match";
 import { flatToVarMap, newEnv } from "./env";
 import { checkargs, isLazyParamIndex, parametersToVars, wrapImplicitBlock } from "./functor";
 import { type Scheduler } from "./scheduler";
+import { unparse } from "../parser/unparse";
 
 export class StackEntry {
     constructor(
         /** current value being evaluated */
-        public readonly v: Thing,
+        public readonly value: Thing,
         /** arguments in-progress being evaluated */
-        public readonly a: readonly Thing[],
+        public readonly argv: readonly Thing[],
         /** current environment */
-        public readonly e: Thing<ThingType.env | ThingType.nil>,
+        public readonly env: Thing<ThingType.env | ThingType.nil>,
         /** current index in evaluating args */
-        public readonly i = 0,
+        public readonly index = 0,
         /** internal state for evaluation */
-        public readonly s: number = 0,
+        public readonly cookie: number = 0,
         /** arbitrary data */
-        public readonly d: any = null,
+        public readonly data: any = null,
     ) { }
     sd(index: number, state: number, data: any) {
-        return new StackEntry(this.v, this.a, this.e, index, state, data);
+        return new StackEntry(this.value, this.argv, this.env, index, state, data);
     }
     g(args: Thing[]) {
-        return new StackEntry(this.v, args, this.e, this.i, this.s, this.d);
+        return new StackEntry(this.value, args, this.env, this.index, this.cookie, this.data);
     }
 }
 
@@ -37,7 +38,7 @@ export class Task {
     private r: Thing | null = null;
     constructor(public priority: number, public scheduler: Scheduler,
         code: Thing, env: Thing<ThingType.env | ThingType.nil>) {
-        this.e(code, env);
+        this.enter(code, env);
     }
 
     step(): boolean {
@@ -47,9 +48,10 @@ export class Task {
         if (!top) {
             return false;
         }
-        const val = top.v,
-            state = top.s,
+        const val = top.value,
+            state = top.cookie,
             type = val.t,
+            typestr = ThingType[type as number] ?? type,
             children = val.c,
             loc = val.loc;
         corrupted: {
@@ -71,10 +73,10 @@ export class Task {
                 switch (state as BlockEvalState) {
                     // @ts-expect-error
                     case BlockEvalState.initial:
-                        top = this.ua(children.slice());
+                        top = this.updateArgs(children.slice());
                     // @ts-expect-error
                     case BlockEvalState.matching_patterns:
-                        for (var env = top.e; !typecheck(ThingType.nil)(env); env = env.c[0]!) {
+                        for (var env = top.env; !typecheck(ThingType.nil)(env); env = env.c[0]!) {
                             const patterns = env.c[2]?.c ?? [];
                             for (var i = 0; i < patterns.length; i++) {
                                 const pair = patterns[i]!,
@@ -82,33 +84,33 @@ export class Task {
                                     impl = pair.c[1]!,
                                     when = pair.c[2]?.c;
                                 if (when && !typecheck(...when.map(v => v.v))(val)) continue;
-                                const result = matchPattern(top.a, pat, false)[0];
+                                const result = matchPattern(top.argv, pat, false)[0];
                                 if (result) {
-                                    this.usd(0, BlockEvalState.waiting_for_pattern_result, result.span);
-                                    this.a(top.a[result.span[0]!]!, [impl, this.i(loc, flatToVarMap(result, loc), {
+                                    this.updateCookie(0, BlockEvalState.waiting_for_pattern_result, result.span);
+                                    this.a(top.argv[result.span[0]!]!, [impl, this.i(loc, flatToVarMap(result, loc), {
                                         // TODO: inject block type variable
-                                    })]);
+                                    })], top.env);
                                     return true;
                                 }
                             }
                         }
                     case BlockEvalState.evaluating_body_after_no_matches_found:
-                        if (top.i >= top.a.length) {
-                            this.x();
+                        if (top.index >= top.argv.length) {
+                            this.out();
                         } else {
-                            this.usd(top.i + 1, BlockEvalState.evaluating_body_after_no_matches_found);
-                            this.e(top.a[top.i]!, top.e);
+                            this.updateCookie(top.index + 1, BlockEvalState.evaluating_body_after_no_matches_found);
+                            this.enter(top.argv[top.index]!, top.env);
                         }
                         return true;
                     case BlockEvalState.waiting_for_pattern_result:
                         const res = this.r!;
                         this.r = null;
                         if (res === null) throw new Error("Expected a result");
-                        const start = top.d[0] as number;
-                        const length = top.d[1] as number - start;
+                        const start = top.data[0] as number;
+                        const length = top.data[1] as number - start;
                         const values = typecheck(ThingType.splat)(res) ? res.c : [res];
-                        this.ua(top.a.toSpliced(start, length, ...values));
-                        this.usd(0, BlockEvalState.matching_patterns, null);
+                        this.updateArgs(top.argv.toSpliced(start, length, ...values));
+                        this.updateCookie(0, BlockEvalState.matching_patterns, null);
                         return true;
                     default:
                         break corrupted;
@@ -119,11 +121,11 @@ export class Task {
                 look it up, error if not found
             */
             if (typecheck(ThingType.name)(val)) {
-                for (var env = top.e; !typecheck(ThingType.nil)(env); env = env.c[0]!) {
+                for (var env = top.env; !typecheck(ThingType.nil)(env); env = env.c[0]!) {
                     const vars = env.c[1]!;
-                    const result = mapGetKey(vars, top.v, loc);
+                    const result = mapGetKey(vars, val, loc);
                     if (result !== undefined) {
-                        this.x(result);
+                        this.out(result);
                         return true;
                     }
                 }
@@ -149,27 +151,26 @@ export class Task {
                 var res: Thing;
                 switch (state as ApplyEvalState) {
                     case ApplyEvalState.initial:
-                        this.ua([]);
-                        this.usd(1, ApplyEvalState.waiting_for_functor_result, null);
-                        this.e(children[0]!, top.e);
+                        this.updateArgs([]);
+                        this.updateCookie(1, ApplyEvalState.waiting_for_functor_result, null);
+                        this.enter(children[0]!, top.env);
                         return true;
                     // @ts-expect-error
                     case ApplyEvalState.waiting_for_functor_result:
-                        res = this.r!;
+                        top = this.updateArgs(top.argv.toSpliced(Infinity, 0, this.r!));
                         this.r = null;
-                        this.ua(top.a.toSpliced(Infinity, 0, res));
                     // @ts-expect-error
                     case ApplyEvalState.evaluate_arguments:
-                        if (top.i >= children.length) {
-                            this.a(val, top.a);
+                        if (top.index >= children.length) {
+                            this.a(val, top.argv, top.env);
                             return true;
                         }
-                        const arg = children[top.i]!;
-                        this.usd(top.i, ApplyEvalState.waiting_for_arg_result, null);
-                        if (isLazyParamIndex(this.scheduler, val.c[0]! as any, top.i - 1)) { // -1 to account for offset of functor
-                            this.r = wrapImplicitBlock(arg, top.e);
+                        const arg = children[top.index]!;
+                        this.updateCookie(top.index, ApplyEvalState.waiting_for_arg_result, null);
+                        if (isLazyParamIndex(this.scheduler, top.argv[0]! as any, top.index - 1)) { // -1 to account for offset of functor
+                            this.r = wrapImplicitBlock(arg, top.env);
                         } else {
-                            this.e(arg, top.e);
+                            this.enter(arg, top.env);
                             return true;
                         }
                     case ApplyEvalState.waiting_for_arg_result:
@@ -177,35 +178,44 @@ export class Task {
                         this.r = null;
                         if (res === null) throw new Error("Expected a result");
                         if (typecheck(ThingType.macroized)(res)) {
-                            this.e(res, top.e);
+                            this.enter(res, top.env);
                             return true;
                         }
                         const values = typecheck(ThingType.splat)(res) ? res.c : [res];
-                        this.ua(top.a.toSpliced(Infinity, 0, ...values));
-                        this.usd(top.i + 1, ApplyEvalState.evaluate_arguments, null);
+                        this.updateArgs(top.argv.toSpliced(Infinity, 0, ...values));
+                        this.updateCookie(top.index + 1, ApplyEvalState.evaluate_arguments, null);
                         return true;
                     default:
                         break corrupted;
                 }
+            }
+
+            /*
+            native function:
+                call into, update state
+            */
+            if (typecheck(ThingType.nativefunc)(val)) {
+                this.scheduler.callFunction(this, val.v, top);
+                return true;
             }
             /*
             everything else:
                 return as-is
             */
             if (isAtom(val)) {
-                this.x(val);
+                this.out(val);
                 return true;
             }
-            throw new RuntimeError("cannot evaluate", val.loc);
+            throw new RuntimeError(`cannot evaluate ${typestr}`, val.loc);
         }
-        throw new Error(`corrupted eval state (type=${ThingType[type as number] ?? type}, state=${top.s})`);
+        throw new Error(`corrupted eval state (type=${typestr}, state=${top.cookie})`);
     }
     continuation(loc = UNKNOWN_LOCATION) {
         return new Thing(
             ThingType.continuation,
             [],
             this.stack,
-            "",
+            "<continuation>",
             "",
             "",
             loc,
@@ -218,18 +228,19 @@ export class Task {
         return vars;
     }
     /** apply */
-    private a(callsite: Thing, args: readonly Thing[]) {
+    private a(callsite: Thing, args: readonly Thing[], env: Thing<ThingType.env | ThingType.nil>) {
         const functor = args[0]!;
         const rest = args.slice(1);
         if (typecheck(ThingType.func)(functor)) {
-            this.a(callsite, [functor.c[1], this.i(callsite.loc, parametersToVars(functor.c[0], rest, callsite))]);
+            // TODO: move the parametersToVars stuff to the main evaluation loop so that defaults can be dynamically computed and splats work
+            this.a(callsite, [functor.c[1], this.i(callsite.loc, parametersToVars(functor.c[0], rest, callsite))], env);
         }
         else if (typecheck(ThingType.nativefunc)(functor)) {
-            this.scheduler.callFunction(this, functor.v, rest);
+            this.enter(functor, env, rest);
         }
         else if (typecheck(ThingType.boundmethod)(functor)) {
             const realFunctor = functor.c[1];
-            this.a(callsite, [realFunctor.c[1], parametersToVars(realFunctor.c[0], [functor.c[0], ...rest], callsite)]);
+            this.a(callsite, [realFunctor.c[1], functor.c[0], ...rest], env);
         }
         else if (typecheck(ThingType.continuation)(functor)) {
             checkargs(1, 1, rest, callsite);
@@ -242,26 +253,26 @@ export class Task {
             if (!typecheck(ThingType.map)(map)) {
                 throw new RuntimeError("Expected a map to inject", callsite.loc);
             }
-            this.e(functor.c[0], newEnv(map, boxList([]), callsite.loc, functor.v));
+            this.enter(functor.c[0], newEnv(map, boxList([]), callsite.loc, functor.v));
         }
-        else throw new RuntimeError("can't call this value", callsite.loc);
+        else throw new RuntimeError(`can't call ${ThingType[functor.t as any] ?? functor.t}`, callsite.loc);
     }
-    private ua(args: Thing[]) {
+    updateArgs(args: Thing[]) {
         const val = this.stack.at(-1)!.g(args);
         this.stack = this.stack.with(-1, val);
         return val;
     }
-    private usd(index: number, state: number, data?: any) {
+    updateCookie(index: number, state: number, data?: any) {
         const top = this.stack.at(-1)!;
-        const updated = top.sd(index, state, data ?? top.d);
+        const updated = top.sd(index, state, data ?? top.data);
         this.stack = this.stack.with(-1, updated);
         return updated;
     }
     /** enter/call, with no injected block */
-    private e(code: Thing, env: Thing<ThingType.env | ThingType.nil>) {
-        this.stack = this.stack.toSpliced(Infinity, 0, new StackEntry(code, [], env));
+    enter(code: Thing, env: Thing<ThingType.env | ThingType.nil>, args: Thing[] = []) {
+        this.stack = this.stack.toSpliced(Infinity, 0, new StackEntry(code, args, env));
     }
-    private x(result?: Thing) {
+    out(result?: Thing) {
         this.r = result ?? this.r;
         this.stack = this.stack.toSpliced(-1, 1);
     }

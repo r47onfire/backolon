@@ -342,11 +342,13 @@ describe("metapattern", () => {
 
     test("repeat lazy and greedy", () => {
         const lazy = pstring("x...");
-        expect(lazy.c[0]!.v.t).toBe(PatternType.repeat);
-        expect(lazy.c[0]!.v.gsv).toBe(false);
+        expect(lazy.c[0]!.v.t).toBe(PatternType.capture_group);
+        expect(lazy.c[0]!.c[1]!.v.t).toBe(PatternType.repeat);
+        expect(lazy.c[0]!.c[1]!.v.gsv).toBeFalse();
         const greedy = pstring("x ... [+]");
-        expect(greedy.c[0]!.v.t).toBe(PatternType.repeat);
-        expect(greedy.c[0]!.v.gsv).toBe(true);
+        expect(greedy.c[0]!.v.t).toBe(PatternType.capture_group);
+        expect(greedy.c[0]!.c[1]!.v.t).toBe(PatternType.repeat);
+        expect(greedy.c[0]!.c[1]!.v.gsv).toBeTrue();
     });
 
     test("alternation", () => {

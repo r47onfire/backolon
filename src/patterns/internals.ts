@@ -1,6 +1,6 @@
 import { imul } from "lib0/math";
 import { map } from "lib0/object";
-import { extractSymbolName, Thing, ThingType } from "../objects/thing";
+import { extractSymbolName, isAtom, Thing, ThingType } from "../objects/thing";
 import { javaHash, rotate32 } from "../utils";
 import { PatternProgram } from "./compile";
 
@@ -65,7 +65,7 @@ export class NFASubstate {
             case PatternType.capture_group:
                 return [this.u(nextIndex, item[1], inputIndex, item[2], item[3])];
             case PatternType.dot:
-                return [input ? this.n() : this];
+                return input ? (isAtom(input) ? [this.n()] : []) : [this];
             case PatternType.anchor:
                 return (item[1] ? inputIndex === 0 : isAtEnd) ? [this.n()] : [];
             case PatternType.match_type:

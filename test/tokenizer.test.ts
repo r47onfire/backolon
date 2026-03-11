@@ -7,8 +7,8 @@ const getTokenContents = (a: Thing[]) => a.map(t => t.v);
 const getTokenTypes = (a: Thing[]) => a.map(t => t.t)
 
 test("doesn't make assumptions about comments", () => {
-    const x = tokenize("# foo", F);
-    const y = tokenize("## foo ##", F);
+    const x = tokenize("# foo");
+    const y = tokenize("## foo ##");
     expect(getTokenContents(x)).toEqual(["#", " ", "foo", null]);
     expect(getTokenContents(y)).toEqual(["#", "#", " ", "foo", " ", "#", "#", null]);
     expect(getTokenTypes(x)).toEqual([ThingType.operator, ThingType.space, ThingType.name, ThingType.end]);
@@ -16,6 +16,9 @@ test("doesn't make assumptions about comments", () => {
 });
 test("groups name tokens", () => {
     expect(getTokenContents(tokenize("a b coffee", F))).toEqual(["a", " ", "b", " ", "coffee", null]);
+});
+test("'_' is a valid name", () => {
+    expect(getTokenTypes(tokenize("_", F))).toEqual([ThingType.name, ThingType.end]);
 });
 test("maintains column and line", () => {
     expect(tokenize("a\nb c", F).map(t => t.loc)).toEqual([

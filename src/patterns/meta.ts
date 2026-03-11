@@ -68,7 +68,7 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
         }
         if (test(square_anchor)) {
             const s = inner[0]!.v as string;
-            return [anchor(s === "^", s, inner[0]!.loc)];
+            return [anchor(s === "^", `[${s}]`, inner[0]!.loc)];
         }
         // capture forms start with a name; try patterns in order
         if (test(square_only_name_invalid)) {
@@ -109,7 +109,15 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
         }
         var patitem = parsePattern([item]);
         if (patitem.c.length === 1) patitem = patitem.c[0] as any;
-        return [repeat(greedy, [patitem], "", matched.slice(1).map(i => unparse(i)).join(""), item.loc), ...rest];
+        const ending = matched.slice(1).map(i => unparse(i)).join("");
+        if (patitem.v.t === PatternType.capture_group) {
+            var inner = patitem.c.slice(1), inner0 = inner[0]!;
+            if (inner.length === 1 && inner0.v.t === PatternType.dot) {
+                inner = [alternatives([inner0, required_space], inner0.s0, inner0.sj, inner0.s1, inner0.loc)];
+            }
+            return [grouped(patitem.c[0] as Thing<ThingType.name>, [repeat(greedy, inner, "", ending, item.loc)], patitem.s0, patitem.s1, patitem.loc)]
+        }
+        return [repeat(greedy, [patitem], "", ending, item.loc), ...rest];
     });
 
     // Yell for stray [+]'s
@@ -177,7 +185,7 @@ export const metapattern_location = new LocationTrace(0, 0, new URL("backolon:in
 export const removed_whitespace = <T extends ThingType | string>(args: readonly Thing<T>[]): readonly Thing<T>[] => nonoverlappingreplace(args, required_space, () => []);
 
 const matchtype = (t: ThingType, src = "", loc = metapattern_location) => pattern(PatternType.match_type, t, loc, [], src);
-const matchvalue = (o: Thing, start="", end="") => pattern(PatternType.match_value, 0, o.loc, [o], start, end);
+const matchvalue = (o: Thing, start = "", end = "") => pattern(PatternType.match_value, 0, o.loc, [o], start, end);
 const sequence = (o: readonly Thing[], start = "", end = "", loc = o[0]?.loc ?? metapattern_location) => pattern(PatternType.sequence, 0, loc, o, start, end);
 const alternatives = (o: readonly Thing[], start = "", join = "", end = "", loc = o[0]?.loc ?? metapattern_location) => pattern(PatternType.alternatives, 0, loc, o, start, end, join);
 const optional = (x: Thing<ThingType.pattern>) => alternatives([x, nothing]);
