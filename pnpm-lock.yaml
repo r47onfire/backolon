@@ -15,8 +15,8 @@ importers:
         specifier: ^0.2.117
         version: 0.2.117
       resurrect-esm:
-        specifier: ^2.0.4
-        version: 2.0.4
+        specifier: ^2.0.5
+        version: 2.0.5
     devDependencies:
       '@gitlab-org/jsfuzz':
         specifier: ^1.2.4
@@ -768,8 +768,8 @@ packages:
     resolution: {integrity: sha512-qYg9KP24dD5qka9J47d0aVky0N+b4fTU89LN9iDnjB5waksiC49rvMB0PrUJQGoTmH50XPiqOvAjDfaijGxYZw==}
     engines: {node: '>=8'}
 
-  resurrect-esm@2.0.4:
-    resolution: {integrity: sha512-emEfW9CGhlYLK35kDKYe5WyRDBBpPNCwNeck3CYzlLaG9cdPChyqCVWSYyyKSWPx1603zKteaYJqoNiLL/yz/A==}
+  resurrect-esm@2.0.5:
+    resolution: {integrity: sha512-XC1PXW9Na4M5PNt4W9YljBNIryJqfJ0dFOs8xq+GFa24tfydkaMdtr9PFAsTJywRowq26/VZIsYvxGHH8Vliew==}
 
   rimraf@3.0.2:
     resolution: {integrity: sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==}
@@ -1615,7 +1615,9 @@ snapshots:
 
   resolve-from@5.0.0: {}
 
-  resurrect-esm@2.0.4: {}
+  resurrect-esm@2.0.5:
+    dependencies:
+      lib0: 0.2.117
 
   rimraf@3.0.2:
     dependencies:
