@@ -13,8 +13,13 @@ export function initCoreSyntax(env: Thing<ThingType.env>, functions: Record<stri
         var first = mapGetKey(groups, x)!;
         var second = mapGetKey(groups, y);
         first = boxRoundBlock(first.c!, first.loc);
-        if (second) second = boxRoundBlock(second.c!, second.loc);
-        task.out(boxApply(boxNameSymbol("__builtin_sequence", first.loc), second ? [first, second] : [first], first.loc))
+        if (second) {
+            second = boxRoundBlock(second.c!, second.loc);
+            task.out(boxApply(boxNameSymbol("__builtin_sequence", first.loc), second ? [first, second] : [first], first.loc));
+        } else {
+            // effectively just strip the trailing line terminator
+            task.out(first);
+        }
     });
     define_builtin_function(env, functions, "__builtin_sequence", "@_ @_", (task, state) => {
         const first = state.argv[0]!;

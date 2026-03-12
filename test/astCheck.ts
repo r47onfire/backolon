@@ -3,7 +3,7 @@ import { keys } from "lib0/object";
 import { BackolonError, ErrorNote, LocationTrace, parse, ThingType } from "../src";
 
 export const F = new URL("about:test");
-export const L = new LocationTrace(1, 1, F);
+export const L = new LocationTrace(0, 0, F);
 
 type ASTSpec = {
     t: ThingType,

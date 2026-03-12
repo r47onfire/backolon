@@ -35,7 +35,7 @@ export class StackEntry {
 export class Task {
     suspended = false;
     stack: readonly StackEntry[] = [];
-    private r: Thing | null = null;
+    result: Thing | null = null;
     constructor(public priority: number, public scheduler: Scheduler,
         code: Thing, env: Thing<ThingType.env | ThingType.nil>) {
         this.enter(code, env);
@@ -103,8 +103,8 @@ export class Task {
                         }
                         return true;
                     case BlockEvalState.waiting_for_pattern_result:
-                        const res = this.r!;
-                        this.r = null;
+                        const res = this.result!;
+                        this.result = null;
                         if (res === null) throw new Error("Expected a result");
                         const start = top.data[0] as number;
                         const length = top.data[1] as number - start;
@@ -157,8 +157,8 @@ export class Task {
                         return true;
                     // @ts-expect-error
                     case ApplyEvalState.waiting_for_functor_result:
-                        top = this.updateArgs(top.argv.toSpliced(Infinity, 0, this.r!));
-                        this.r = null;
+                        top = this.updateArgs(top.argv.toSpliced(Infinity, 0, this.result!));
+                        this.result = null;
                     // @ts-expect-error
                     case ApplyEvalState.evaluate_arguments:
                         if (top.index >= children.length) {
@@ -170,14 +170,14 @@ export class Task {
                         // console.log("args are", top.index, children, top.argv);
                         this.updateCookie(top.index, ApplyEvalState.waiting_for_arg_result, null);
                         if (isLazyParamIndex(val.c[0]!.loc, this.scheduler, top.argv[0]! as any, top.index - 1)) { // -1 to account for offset of functor
-                            this.r = wrapImplicitBlock(arg, top.env);
+                            this.result = wrapImplicitBlock(arg, top.env);
                         } else {
                             this.enter(arg, top.env);
                             return true;
                         }
                     case ApplyEvalState.waiting_for_arg_result:
-                        res = this.r!;
-                        this.r = null;
+                        res = this.result!;
+                        this.result = null;
                         if (res === null) throw new Error("Expected a result");
                         if (typecheck(ThingType.macroized)(res)) {
                             this.enter(res, top.env);
@@ -248,7 +248,7 @@ export class Task {
         else if (typecheck(ThingType.continuation)(functor)) {
             checkargs(1, 1, rest, callsite);
             this.stack = functor.v;
-            this.r = rest[0]!;
+            this.result = rest[0]!;
         }
         else if (typecheck(ThingType.implicitfunc)(functor)) {
             checkargs(0, 1, rest, callsite);
@@ -276,7 +276,7 @@ export class Task {
         this.stack = this.stack.toSpliced(Infinity, 0, new StackEntry(code, args, env));
     }
     out(result?: Thing) {
-        this.r = result ?? this.r;
+        this.result = result ?? this.result;
         this.stack = this.stack.toSpliced(-1, 1);
     }
 }
