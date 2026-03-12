@@ -65,7 +65,9 @@ export {
     Scheduler
 } from "./runtime/scheduler";
 export {
-    Task
+    Task,
+    type StackEntry,
+    StackFlag
 } from "./runtime/task";
 export {
     BUILTIN_ENV,

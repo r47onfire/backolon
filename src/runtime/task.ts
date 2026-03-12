@@ -2,12 +2,15 @@ import { stringify } from "lib0/json";
 import { forEach } from "lib0/object";
 import { LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
-import { boxList, boxNameSymbol, boxNil, isAtom, isBlock, isSymbol, Thing, ThingType, typecheck } from "../objects/thing";
+import { boxList, boxNameSymbol, isAtom, isBlock, isSymbol, Thing, ThingType, typecheck } from "../objects/thing";
 import { matchPattern } from "../patterns/match";
 import { flatToVarMap, newEnv } from "./env";
 import { checkargs, isLazyParamIndex, parametersToVars, wrapImplicitBlock } from "./functor";
 import { type Scheduler } from "./scheduler";
-import { unparse } from "../parser/unparse";
+
+export enum StackFlag {
+    native_func_being_evaluated = 1,
+}
 
 export class StackEntry {
     constructor(
@@ -23,12 +26,17 @@ export class StackEntry {
         public readonly cookie: number = 0,
         /** arbitrary data */
         public readonly data: any = null,
+        /** state flags */
+        public readonly flags = 0,
     ) { }
     sd(index: number, state: number, data: any) {
-        return new StackEntry(this.value, this.argv, this.env, index, state, data);
+        return new StackEntry(this.value, this.argv, this.env, index, state, data, this.flags);
     }
     g(args: Thing[]) {
-        return new StackEntry(this.value, args, this.env, this.index, this.cookie, this.data);
+        return new StackEntry(this.value, args, this.env, this.index, this.cookie, this.data, this.flags);
+    }
+    f(toSet: number, toClear: number) {
+        return new StackEntry(this.value, this.argv, this.env, this.index, this.cookie, this.data, (this.flags & (~toClear)) | toSet);
     }
 }
 
@@ -167,7 +175,6 @@ export class Task {
                             return true;
                         }
                         const arg = children[top.index]!;
-                        // console.log("args are", top.index, children, top.argv);
                         this.updateCookie(top.index, ApplyEvalState.waiting_for_arg_result, null);
                         if (isLazyParamIndex(val.c[0]!.loc, this.scheduler, top.argv[0]! as any, top.index - 1)) { // -1 to account for offset of functor
                             this.result = wrapImplicitBlock(arg, top.env);
@@ -183,7 +190,6 @@ export class Task {
                             this.enter(res, top.env);
                             return true;
                         }
-                        // console.log("got arg result", res);
                         this.updateArgs(top.argv.toSpliced(Infinity, 0, ...(typecheck(ThingType.splat)(res) ? res.c : [res])));
                         this.updateCookie(top.index + 1, ApplyEvalState.evaluate_arguments, null);
                         return true;
@@ -196,8 +202,7 @@ export class Task {
             native function:
                 call into, update state
             */
-            // TODO: use something else for this, cause native functions when "evaluated" should evaluate to themselves
-            if (typecheck(ThingType.nativefunc)(val)) {
+            if (typecheck(ThingType.nativefunc)(val) && (top.flags & StackFlag.native_func_being_evaluated)) {
                 this.scheduler.callFunction(this, val.v, top);
                 return true;
             }
@@ -240,6 +245,7 @@ export class Task {
         }
         else if (typecheck(ThingType.nativefunc)(functor)) {
             this.enter(functor, env, rest);
+            this.updateFlags(StackFlag.native_func_being_evaluated, 0);
         }
         else if (typecheck(ThingType.boundmethod)(functor)) {
             const realFunctor = functor.c[1];
@@ -268,6 +274,12 @@ export class Task {
     updateCookie(index: number, state: number, data?: any) {
         const top = this.stack.at(-1)!;
         const updated = top.sd(index, state, data ?? top.data);
+        this.stack = this.stack.with(-1, updated);
+        return updated;
+    }
+    updateFlags(toSet: number, toClear: number) {
+        const top = this.stack.at(-1)!;
+        const updated = top.f(toSet, toClear);
         this.stack = this.stack.with(-1, updated);
         return updated;
     }

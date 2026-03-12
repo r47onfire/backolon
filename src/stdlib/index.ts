@@ -30,7 +30,7 @@ export function define_pattern(
     inEnv: Thing<ThingType.env>,
     inFuncs: Record<string, NativeFunctionDetails>,
     pattern: string,
-    when: CheckedType<typeof isBlock>[],
+    when: ThingType[],
     handlerName: string,
     handlerBody?: NativeFunctionDetails["impl"],
     loc = BUILTINS_LOC
