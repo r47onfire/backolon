@@ -16,7 +16,7 @@ After that, everything is controlled by pattern-matching.
 
 All of the operator-based syntaxes are based on rewriting it as a function or macro call.
 
-For example, `a + b` gets rewritten into `(add a b)`. `let a = 1` gets rewritten into `(assign (declare a) 1)`. `[a b] => {body}` gets rewritten into `(createLambda [a b] {body})`.
+For example, `a + b` gets rewritten into `__add a b`. `let a = 1` gets rewritten into `__declare a 1`. `[a b] => {body}` gets rewritten into `__toLambda [a b] {body}`.
 
 ### Lambdas
 
@@ -65,8 +65,7 @@ generator = [@body] => (
         resume sent
     )
 )
-foreach = [@var list @body] => (
-    let varname = extract var `symbol
+foreach = [@varname:name list @body] => (
     let i = 0
     while i < #list (
         callcc [k] => body [varname: list->i, `break:, `continue: k]

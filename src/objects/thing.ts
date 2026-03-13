@@ -62,9 +62,9 @@ type ThingInternalTypes<T extends ThingType> = {
     [ThingType.topblock]: [null, readonly Thing[]],
     [ThingType.stringblock]: [null, readonly Thing<ThingType.string | ThingType.roundblock>[]],
     [ThingType.apply]: [null, readonly Thing[]],
-    [ThingType.func]: [null, readonly [Thing<ThingType.roundblock>, Thing]],
+    [ThingType.func]: [name: string, readonly [Thing<ThingType.roundblock>, Thing]],
     [ThingType.nativefunc]: [string, []],
-    [ThingType.implicitfunc]: [[env: Thing<ThingType.env | ThingType.nil>, name: string | null], readonly [Thing]],
+    [ThingType.implicitfunc]: [Thing<ThingType.env | ThingType.nil>, readonly [Thing]],
     [ThingType.paramdescriptor]: [[isLazy: boolean, isSplat: boolean], readonly [Thing<ThingType.name>] | readonly [Thing<ThingType.name>, Thing<ThingType.list>] | readonly [Thing<ThingType.name>, Thing<ThingType.list>, Thing]],
     [ThingType.continuation]: [readonly StackEntry[], []],
     [ThingType.boundmethod]: [null, readonly [Thing, Thing<ThingType.func>]],
@@ -150,3 +150,5 @@ export function extractSymbolName(thing: Thing): string {
     }
     return thing.v;
 }
+
+export const typeNameOf = (type: ThingType | string) => ThingType[type as any] ?? type;

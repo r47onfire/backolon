@@ -1,4 +1,4 @@
-import { define_builtin_function, define_builtin_variable, define_pattern, implicitToVariableName } from ".";
+import { define_builtin_function, define_builtin_variable, define_pattern } from ".";
 import { RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating } from "../objects/map";
 import { boxApply, boxNameSymbol, boxNativeFunc, boxNil, boxNumber, boxRoundBlock, Thing, ThingType, typecheck } from "../objects/thing";
@@ -44,14 +44,14 @@ export function initCoreSyntax(env: Thing<ThingType.env>, functions: Record<stri
         }
     });
     // MARK: variable management
-    define_pattern(env, functions, "[=let] [x:name] {= y|}", STANDARD_BLOCKS, "__rewrite_declaration", (task, state) => {
+    define_pattern(env, functions, "[^][=let] [x:name] {= y|}[$]", STANDARD_BLOCKS, "__rewrite_declaration", (task, state) => {
         const groups: Thing<ThingType.map> = state.argv[0]! as any;
         const name = mapGetKey(groups, x)!;
         const value = mapGetKey(groups, y);
         task.out(boxApply(boxNativeFunc("__declare", state.value.loc), value ? [name, value] : [name], state.value.loc));
     });
-    define_builtin_function(env, functions, "__declare", "@name value=nil", (task, state) => {
-        const name = implicitToVariableName(state.argv[0]! as Thing<ThingType.implicitfunc>);
+    define_builtin_function(env, functions, "__declare", "@name:name value=nil", (task, state) => {
+        const name = state.argv[0]! as Thing<ThingType.name>;
         const initialValue = state.argv[1]!;
         const loc = name.loc;
         task.out(initialValue);
@@ -65,7 +65,7 @@ export function initCoreSyntax(env: Thing<ThingType.env>, functions: Record<stri
     // MARK: Apply
     // This MUST be last otherwise it will override everything else!
     // TODO: need to give patterns a precedence value, and give this one Infinity, so it won't also override user patterns
-    define_pattern(env, functions, "[^]x y...[$]", STANDARD_BLOCKS, "__apply", (task, state) => {
+    define_pattern(env, functions, "[^]x y...[$]", STANDARD_BLOCKS, "__create_apply", (task, state) => {
         const groups: Thing<ThingType.map> = state.argv[0]! as any;
         const fun = mapGetKey(groups, x)!;
         const args = removed_whitespace(mapGetKey(groups, y)!.c);

@@ -63,14 +63,3 @@ function createBuiltins(): { b: Thing<ThingType.env>, f: Record<string, NativeFu
 
 export const { b: BUILTIN_ENV, f: BUILTIN_FUNCTIONS } = createBuiltins();
 
-export function implicitToVariableName(i: Thing<ThingType.implicitfunc>): Thing<ThingType.name> {
-    const children = i.c;
-    if (children.length !== 1) {
-        throw new RuntimeError("invalid variable name", i.loc);
-    }
-    const name = children[0]!;
-    if (!typecheck(ThingType.name)(name)) {
-        throw new RuntimeError("not a variable name", name.loc);
-    }
-    return name;
-}

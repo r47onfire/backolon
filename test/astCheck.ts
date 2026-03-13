@@ -60,10 +60,10 @@ export function expectParseError(p: string, error: string, note?: string) {
 
 export function expectEval(p: string, spec: ASTSpec) {
     const s = new Scheduler(BUILTIN_FUNCTIONS, BUILTIN_ENV);
-    const t = s.startTask(1, p, null, F);
-    s.stepUntilSuspended();
-    expect(t.stack).toBeEmpty();
     try {
+        const t = s.startTask(1, p, null, F);
+        s.stepUntilSuspended();
+        expect(t.stack).toBeEmpty();
         checkAST(t.result, spec, "");
     } catch (e) {
         if (e instanceof BackolonError) {
@@ -75,12 +75,11 @@ export function expectEval(p: string, spec: ASTSpec) {
 
 export function expectEvalError(p: string, error: string, note?: string) {
     const s = new Scheduler(BUILTIN_FUNCTIONS, BUILTIN_ENV);
-    const t = s.startTask(1, p, null, F);
     try {
+        const t = s.startTask(1, p, null, F);
         s.stepUntilSuspended();
         expect.unreachable("Did not throw an error!");
     } catch (e: any) {
-        expect(t.stack).not.toBeEmpty();
         expect(e).toBeInstanceOf(BackolonError);
         expect(e.message).toEqual(error);
         if (note !== undefined) {

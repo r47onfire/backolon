@@ -2,7 +2,7 @@ import { last } from "lib0/array";
 import { stringify } from "lib0/json";
 import { LocationTrace, RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
-import { boxList, boxNameSymbol, boxNil, boxNumber, isSymbol, Thing, ThingType, typecheck } from "../objects/thing";
+import { boxList, boxNameSymbol, boxNil, boxNumber, isSymbol, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
 import { parse } from "../parser/parse";
 import { metapattern_location, nonoverlappingreplace, parsePattern, removed_whitespace, typeNameToThingType } from "../patterns/meta";
 import { type Scheduler } from "./scheduler";
@@ -31,7 +31,7 @@ export function getParamDescriptors(fn: Thing, scheduler: Scheduler, callsite: T
     else if (typecheck(ThingType.continuation)(fn)) {
         return CONTINUATION_SIGNATURE;
     }
-    throw new RuntimeError(`cannot call ${ThingType[fn.t as any] ?? fn.t}`, callsite.loc);
+    throw new RuntimeError(`can't call ${typeNameOf(fn.t)}`, callsite.loc);
 }
 
 export function getNthDescriptor(descriptors: ParamDescriptor[], index: number): ParamDescriptor {
@@ -70,16 +70,26 @@ function getParamName(descriptor: ParamDescriptor): Thing<ThingType.name> {
     return descriptor.c[0]!;
 }
 
-export function parametersToVars(paramsDef: ParamDescriptor[], realArgs: readonly Thing[], callsite: Thing): { e: Thing<ThingType.map>, p: Thing[] } {
+export function parametersToVars(functionName: string, paramsDef: ParamDescriptor[], realArgs: Thing[], callsite: Thing): { e: Thing<ThingType.map>, p: Thing[] } {
     const map = newEmptyMap(callsite.loc);
     const pendingDefaults: Thing[] = [];
     var i = 0;
+    for (i = realArgs.length; i < paramsDef.length; i++) {
+        // Remaining are the defaults yet to be evaluated
+        pendingDefaults.push(getDefaultValue(getNthDescriptor(paramsDef, i), callsite));
+    }
     for (i = 0; i < realArgs.length; i++) {
-        const arg = realArgs[i]!;
+        var arg = realArgs[i]!;
         const p = getNthDescriptor(paramsDef, i);
-        if (p === NOT_A_PARAM) throw new RuntimeError("too many arguments", arg.loc);
+        if (p === NOT_A_PARAM) throw new RuntimeError(`too many arguments to ${functionName}`, arg.loc);
         const name = getParamName(p), t = getExpectedTypes(p);
-        if (t.length === 0 || typecheck(...t)(arg)) {
+        if (isLazy(p) && t.length > 0 && pendingDefaults.length === 0) {
+            if (!typecheck(ThingType.implicitfunc)(arg)) {
+                throw new Error("lazy param didn't get wrapped!");
+            }
+            arg = realArgs[i] = arg.c[0];
+        }
+        if (pendingDefaults.length > 0 || t.length === 0 || typecheck(...t)(arg)) {
             if (isSplat(p)) {
                 const existingList = mapGetKey(map, name) ?? boxList([], arg.loc);
                 mapUpdateKeyMutating(map, name, boxList([...existingList.c, arg], existingList.loc));
@@ -88,17 +98,15 @@ export function parametersToVars(paramsDef: ParamDescriptor[], realArgs: readonl
             }
             continue;
         }
-        throw new RuntimeError(`Wrong type to argument ${stringify(name.v)} of function call`, arg.loc);
-    }
-    for (; i < paramsDef.length; i++) {
-        // Remaining are the defaults yet to be evaluated
-        pendingDefaults.push(getDefaultValue(getNthDescriptor(paramsDef, i), callsite));
+        const names = t.map(typeNameOf);
+        const expected = names.join(names.length < 3 ? " or " : ", or ");
+        throw new RuntimeError(`Wrong type to argument ${stringify(name.v)} of function call (expected ${expected}, got ${typeNameOf(arg.t)})`, arg.loc);
     }
     return { e: map, p: pendingDefaults };
 }
 
 export function wrapImplicitBlock(obj: Thing, env: Thing<ThingType.env | ThingType.nil>) {
-    return new Thing(ThingType.implicitfunc, [obj], [env, null], "", "", "", obj.loc);
+    return new Thing(ThingType.implicitfunc, [obj], env, "", "", "", obj.loc);
 }
 
 export function parseSignature(block: readonly Thing[]): (Thing<ThingType.name> | Thing<ThingType.paramdescriptor>)[] {

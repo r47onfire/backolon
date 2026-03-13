@@ -62,7 +62,7 @@ describe("variables", () => {
     });
     test("assignment and retrieval", () => {
         const stdout = spyOn(console, "log");
-        expectEval("let a = print; a 'test'; a", {
+        expectEval("let a = __declare; a b print; b 'test'; b", {
             t: ThingType.nativefunc,
             v: "print"
         });
@@ -71,5 +71,11 @@ describe("variables", () => {
     });
     test("redeclaration throws", () => {
         expectEvalError("let a; let a", "variable a already exists in this scope");
+    });
+    test("declarartion override globals", () => {
+        expectEvalError("let print = 1; print 'hi'", "can't call number");
+    });
+    test("declaration syntax requires literal '='", () => {
+        expectEvalError("let a 1", "undefined: \"let\"");
     });
 });

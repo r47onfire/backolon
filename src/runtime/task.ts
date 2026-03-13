@@ -2,7 +2,7 @@ import { stringify } from "lib0/json";
 import { forEach } from "lib0/object";
 import { LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
-import { boxApply, boxList, boxNameSymbol, boxNil, isAtom, isBlock, isSymbol, Thing, ThingType, typecheck } from "../objects/thing";
+import { boxApply, boxList, boxNameSymbol, boxNil, isAtom, isBlock, isSymbol, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
 import { matchPattern } from "../patterns/match";
 import { flatToVarMap, newEnv } from "./env";
 import { getNthDescriptor, getParamDescriptors, isLazy, parametersToVars, wrapImplicitBlock } from "./functor";
@@ -77,7 +77,7 @@ export class Task {
         var val = top.value,
             state = top.cookie,
             type = val.t,
-            typestr = ThingType[type as number] ?? type,
+            typestr = typeNameOf(type),
             children = val.c,
             loc = val.loc;
         corrupted: {
@@ -244,7 +244,7 @@ export class Task {
         return vars;
     }
     /** apply - for functions the parameters will need to have been evaluated / typechecked*/
-    private a(callsite: Thing, functor: Thing, argv: readonly Thing[], env: Thing<ThingType.env | ThingType.nil>) {
+    private a(callsite: Thing, functor: Thing, argv: Thing[], env: Thing<ThingType.env | ThingType.nil>, name?: string) {
         const goDefaults = (pendingDefaults: Thing[], vars: Thing<ThingType.map>) => {
             // Make the new parent env for evaluating the arguments include the caller's scope, to allow dynamic bindings of defaults.
             this.enter(boxApply(functor, pendingDefaults, callsite.loc), newEnv(vars, boxList([]), callsite.loc, env), [functor, ...argv]);
@@ -253,15 +253,15 @@ export class Task {
         if (typecheck(ThingType.func)(functor)) {
             // do type checks
             // if optional params have defaults, go back to evaluate them in the new scope
-            const { e: vars, p: pendingDefaults } = parametersToVars(functor.c[0]!.c as any, argv, callsite);
+            const { e: vars, p: pendingDefaults } = parametersToVars(functor.v, functor.c[0]!.c as any, argv, callsite);
             if (pendingDefaults.length > 0) {
                 // We haven't evaluated the defaults yet...
                 return goDefaults(pendingDefaults, vars);
             }
-            this.a(callsite, functor.c[1], [this.i(callsite.loc, vars)], env);
+            this.a(callsite, functor.c[1], [this.i(callsite.loc, vars)], env, functor.v);
         }
         else if (typecheck(ThingType.nativefunc)(functor)) {
-            const { e: vars, p: pendingDefaults } = parametersToVars(this.scheduler.getParamDescriptors(functor.v), argv, callsite);
+            const { e: vars, p: pendingDefaults } = parametersToVars(functor.v, this.scheduler.getParamDescriptors(functor.v), argv, callsite);
             if (pendingDefaults.length > 0) {
                 return goDefaults(pendingDefaults, vars);
             }
@@ -270,7 +270,7 @@ export class Task {
         }
         else if (typecheck(ThingType.boundmethod)(functor)) {
             const realFunctor = functor.c[1];
-            this.a(callsite, realFunctor.c[1], [functor.c[0], ...argv], env);
+            this.a(callsite, realFunctor.c[1], [functor.c[0], ...argv], env, `<bound ${realFunctor.v}>`);
         }
         else if (typecheck(ThingType.continuation)(functor)) {
             if (argv.length !== 1) throw new RuntimeError("expected an argument to continuation", callsite.loc);
@@ -283,11 +283,11 @@ export class Task {
             }
             const map = argv[0] ?? newEmptyMap(functor.loc);
             if (!typecheck(ThingType.map)(map)) {
-                throw new RuntimeError(`expected a map to inject (got ${ThingType[map.t as any] ?? map.t})`, callsite.loc);
+                throw new RuntimeError(`expected a map to inject (got ${typeNameOf(map.t)})`, callsite.loc);
             }
-            this.enter(functor.c[0], newEnv(map, boxList([]), callsite.loc, functor.v[0]), [], functor.v[1]);
+            this.enter(functor.c[0], newEnv(map, boxList([]), callsite.loc, functor.v), []);
         }
-        else throw new RuntimeError(`can't call ${ThingType[functor.t as any] ?? functor.t}`, callsite.loc);
+        else throw new RuntimeError(`can't call ${typeNameOf(functor.t)}`, callsite.loc);
     }
     updateArgs(args: Thing[]) {
         const val = this.stack.at(-1)!.g(args);
