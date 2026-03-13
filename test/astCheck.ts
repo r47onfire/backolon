@@ -1,6 +1,6 @@
 import { expect } from "bun:test";
 import { keys } from "lib0/object";
-import { BackolonError, ErrorNote, LocationTrace, parse, ThingType } from "../src";
+import { BackolonError, BUILTIN_ENV, BUILTIN_FUNCTIONS, ErrorNote, LocationTrace, parse, Scheduler, ThingType } from "../src";
 
 export const F = new URL("about:test");
 export const L = new LocationTrace(0, 0, F);
@@ -8,7 +8,7 @@ export const L = new LocationTrace(0, 0, F);
 type ASTSpec = {
     t: ThingType,
     v?: any,
-    c: readonly ASTSpec[]
+    c?: readonly ASTSpec[]
 }
 function checkAST(ast: any, spec: ASTSpec, path: string) {
     for (var prop of keys(spec)) {
@@ -58,26 +58,33 @@ export function expectParseError(p: string, error: string, note?: string) {
     }
 }
 
-// export function expectEval(p: string, spec: ASTSpec) {
-//     try {
-//         checkAST(TODO parse(p, F), spec, "");
-//     } catch (e) {
-//         if (e instanceof BackolonError) {
-//             expect.unreachable(e.displayOn({ [F.href]: p }) + e.stack);
-//         }
-//         else throw e;
-//     }
-// }
+export function expectEval(p: string, spec: ASTSpec) {
+    const s = new Scheduler(BUILTIN_FUNCTIONS, BUILTIN_ENV);
+    const t = s.startTask(1, p, null, F);
+    s.stepUntilSuspended();
+    expect(t.stack).toBeEmpty();
+    try {
+        checkAST(t.result, spec, "");
+    } catch (e) {
+        if (e instanceof BackolonError) {
+            expect.unreachable(e.displayOn({ [F.href]: p }) + e.stack);
+        }
+        else throw e;
+    }
+}
 
-// export function expectEvalError(p: string, error: string, note?: string) {
-//     try {
-//         TODO parse(p, F);
-//         expect.unreachable("Did not throw an error!");
-//     } catch (e: any) {
-//         expect(e).toBeInstanceOf(BackolonError);
-//         expect(e.message).toEqual(error);
-//         if (note !== undefined) {
-//             expect(e.notes.map((n: ErrorNote) => n.message)).toContain(note);
-//         }
-//     }
-// }
+export function expectEvalError(p: string, error: string, note?: string) {
+    const s = new Scheduler(BUILTIN_FUNCTIONS, BUILTIN_ENV);
+    const t = s.startTask(1, p, null, F);
+    try {
+        s.stepUntilSuspended();
+        expect.unreachable("Did not throw an error!");
+    } catch (e: any) {
+        expect(t.stack).not.toBeEmpty();
+        expect(e).toBeInstanceOf(BackolonError);
+        expect(e.message).toEqual(error);
+        if (note !== undefined) {
+            expect(e.notes.map((n: ErrorNote) => n.message)).toContain(note);
+        }
+    }
+}
