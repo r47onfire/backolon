@@ -78,7 +78,7 @@ type ThingInternalTypes<T extends ThingType> = {
     [ThingType.splat]: [null, readonly [Thing]],
 }[T];
 
-const unhashable = [ThingType.list, ThingType.map];
+const unhashable = [ThingType.list, ThingType.map, ThingType.env];
 type ValueType<T extends ThingType> = ThingInternalTypes<T>[0];
 type ChildrenType<T extends ThingType> = ThingInternalTypes<T>[1];
 

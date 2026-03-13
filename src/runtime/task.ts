@@ -39,6 +39,9 @@ export class StackEntry {
     f(toSet: number, toClear: number) {
         return new StackEntry(this.value, this.argv, this.env, this.name, this.index, this.cookie, this.data, (this.flags & (~toClear)) | toSet);
     }
+    e(newEnv: Thing<ThingType.env>) {
+        return new StackEntry(this.value, this.argv, newEnv, this.name, this.index, this.cookie, this.data, this.flags);
+    }
 }
 
 enum BlockEvalState {
@@ -71,7 +74,7 @@ export class Task {
         if (!top) {
             return false;
         }
-        const val = top.value,
+        var val = top.value,
             state = top.cookie,
             type = val.t,
             typestr = ThingType[type as number] ?? type,
@@ -169,7 +172,7 @@ export class Task {
                         return true;
                     // @ts-expect-error
                     case ApplyEvalState.waiting_for_functor_result:
-                        top = this.updateArgs(top.argv.toSpliced(Infinity, 0, this.result!));
+                        children = (val = (top = this.updateArgs(top.argv.toSpliced(Infinity, 0, this.result!))).value).c;
                         this.result = null;
                     // @ts-expect-error
                     case ApplyEvalState.evaluate_arguments:
@@ -242,20 +245,26 @@ export class Task {
     }
     /** apply - for functions the parameters will need to have been evaluated / typechecked*/
     private a(callsite: Thing, functor: Thing, argv: readonly Thing[], env: Thing<ThingType.env | ThingType.nil>) {
+        const goDefaults = (pendingDefaults: Thing[], vars: Thing<ThingType.map>) => {
+            // Make the new parent env for evaluating the arguments include the caller's scope, to allow dynamic bindings of defaults.
+            this.enter(boxApply(functor, pendingDefaults, callsite.loc), newEnv(vars, boxList([]), callsite.loc, env), [functor, ...argv]);
+            this.updateCookie(1, ApplyEvalState.evaluate_arguments, null);
+        }
         if (typecheck(ThingType.func)(functor)) {
             // do type checks
             // if optional params have defaults, go back to evaluate them in the new scope
-            const { e: vars, p: pendingDefaults } = parametersToVars(functor.c[0], argv, callsite);
+            const { e: vars, p: pendingDefaults } = parametersToVars(functor.c[0]!.c as any, argv, callsite);
             if (pendingDefaults.length > 0) {
                 // We haven't evaluated the defaults yet...
-                // Make the new parent env for evaluating the arguments include the caller's scope, to allow dynamic bindings.
-                this.enter(boxApply(functor, pendingDefaults, callsite.loc), newEnv(vars, boxList([]), callsite.loc, env), argv);
-                this.updateCookie(0, ApplyEvalState.evaluate_arguments, callsite);
-                return;
+                return goDefaults(pendingDefaults, vars);
             }
             this.a(callsite, functor.c[1], [this.i(callsite.loc, vars)], env);
         }
         else if (typecheck(ThingType.nativefunc)(functor)) {
+            const { e: vars, p: pendingDefaults } = parametersToVars(this.scheduler.getParamDescriptors(functor.v), argv, callsite);
+            if (pendingDefaults.length > 0) {
+                return goDefaults(pendingDefaults, vars);
+            }
             this.enter(functor, env, argv);
             this.updateFlags(StackFlag.native_func_being_evaluated, 0);
         }
@@ -269,10 +278,12 @@ export class Task {
             this.result = argv[0]!;
         }
         else if (typecheck(ThingType.implicitfunc)(functor)) {
-            if (argv.length > 1) throw new RuntimeError("too many arguments to implicit block");
+            if (argv.length > 1) {
+                throw new RuntimeError("too many arguments to implicit block", callsite.loc);
+            }
             const map = argv[0] ?? newEmptyMap(functor.loc);
             if (!typecheck(ThingType.map)(map)) {
-                throw new RuntimeError("Expected a map to inject", callsite.loc);
+                throw new RuntimeError(`expected a map to inject (got ${ThingType[map.t as any] ?? map.t})`, callsite.loc);
             }
             this.enter(functor.c[0], newEnv(map, boxList([]), callsite.loc, functor.v[0]), [], functor.v[1]);
         }
@@ -295,12 +306,27 @@ export class Task {
         this.stack = this.stack.with(-1, updated);
         return updated;
     }
+    updateEnv(newEnv: Thing<ThingType.env>) {
+        const top = this.stack.at(-1)!;
+        const updated = top.e(newEnv);
+        this.stack = this.stack.with(-1, updated);
+        return updated;
+    }
     /** enter/call, with no injected block */
     enter(code: Thing, env: Thing<ThingType.env | ThingType.nil>, args: readonly Thing[] = [], name?: string | null) {
         this.stack = this.stack.toSpliced(Infinity, 0, new StackEntry(code, args, env, name ?? null));
     }
-    out(result?: Thing) {
+    out(result?: Thing): StackEntry {
         this.result = result ?? this.result;
-        this.stack = this.stack.toSpliced(-1, 1);
+        return (this.stack = this.stack.toSpliced(-1, 1)).at(-1)!;
+    }
+    dip(depth: number, cb: (state: StackEntry) => void) {
+        if (this.stack.length > depth) {
+            const end = this.stack.slice(-depth);
+            cb((this.stack = this.stack.slice(0, -depth)).at(-1)!);
+            this.stack = [...this.stack, ...end];
+        } else {
+            cb(this.stack.at(-1)!);
+        }
     }
 }

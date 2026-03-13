@@ -1,11 +1,20 @@
+import { RuntimeError } from "../errors";
 import { mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
-import { boxList, boxNameSymbol, boxNativeFunc, boxNumber, Thing, ThingType } from "../objects/thing";
+import { boxList, boxNameSymbol, boxNativeFunc, boxNumber, Thing, ThingType, typecheck } from "../objects/thing";
 import { parse } from "../parser/parse";
 import { parsePattern } from "../patterns/meta";
 import { newEnv } from "../runtime/env";
 import { BUILTINS_LOC, parseSignature } from "../runtime/functor";
 import { NativeFunctionDetails } from "../runtime/scheduler";
 import { initCoreSyntax } from "./core";
+
+export function define_builtin_variable(
+    inEnv: Thing<ThingType.env>,
+    name: string,
+    value: Thing
+) {
+    mapUpdateKeyMutating(inEnv.c[1], boxNameSymbol(name), value);
+}
 
 export function define_builtin_function(
     inEnv: Thing<ThingType.env> | null,
@@ -20,7 +29,7 @@ export function define_builtin_function(
         impl: body,
     };
     if (inEnv) {
-        mapUpdateKeyMutating(inEnv.c[1], boxNameSymbol(name), boxNativeFunc(name, loc));
+        define_builtin_variable(inEnv, name, boxNativeFunc(name, loc));
     }
 }
 
@@ -53,3 +62,15 @@ function createBuiltins(): { b: Thing<ThingType.env>, f: Record<string, NativeFu
 
 
 export const { b: BUILTIN_ENV, f: BUILTIN_FUNCTIONS } = createBuiltins();
+
+export function implicitToVariableName(i: Thing<ThingType.implicitfunc>): Thing<ThingType.name> {
+    const children = i.c;
+    if (children.length !== 1) {
+        throw new RuntimeError("invalid variable name", i.loc);
+    }
+    const name = children[0]!;
+    if (!typecheck(ThingType.name)(name)) {
+        throw new RuntimeError("not a variable name", name.loc);
+    }
+    return name;
+}

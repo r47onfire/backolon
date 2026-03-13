@@ -1,7 +1,9 @@
 import { NamespaceResolver, Resurrect } from "resurrect-esm";
 import { LocationTrace } from "../errors";
-import { Thing, ThingType } from "../objects/thing";
+import { newEmptyMap } from "../objects/map";
+import { boxList, Thing, ThingType } from "../objects/thing";
 import { parse } from "../parser/parse";
+import { newEnv } from "./env";
 import { StackEntry, Task } from "./task";
 
 export interface NativeFunctionDetails {
@@ -33,7 +35,8 @@ export class Scheduler {
     startTask(priority: number, code: Thing, env?: Thing<ThingType.env | ThingType.nil>): Task;
     startTask(priority: number, code: string | Thing, env?: Thing<ThingType.env | ThingType.nil> | null, filename?: URL): Task {
         if (typeof code === "string") code = parse(code, filename);
-        const task = new Task(priority, this, code, env ?? this.baseEnv);
+        const loc = code.loc;
+        const task = new Task(priority, this, code, newEnv(newEmptyMap(loc), boxList([], loc), loc, env ?? this.baseEnv));
         this.tasks.push(task);
         this.t();
         return task;

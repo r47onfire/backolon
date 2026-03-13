@@ -51,18 +51,18 @@ export function isSplat(descriptor: ParamDescriptor): boolean {
     return descriptor.v[1];
 }
 
-export function getExpectedTypes(descriptor: ParamDescriptor): ThingType[] | undefined {
+function getExpectedTypes(descriptor: ParamDescriptor): ThingType[] {
     if (isSymbol(descriptor)) return [];
-    return descriptor.c[1]?.c.map(c => c.v);
+    return descriptor.c[1]?.c.map(c => c.v) ?? [];
 }
 
-export function getDefaultValue(descriptor: ParamDescriptor, callsite: Thing): Thing {
+function getDefaultValue(descriptor: ParamDescriptor, callsite: Thing): Thing {
     if (!isSymbol(descriptor)) {
         if (isSplat(descriptor)) return boxList([], callsite.loc);
         const def = descriptor.c[2];
         if (def) return def;
     }
-    throw new RuntimeError("too many arguments to function call", callsite.loc);
+    throw new RuntimeError("not enough arguments", callsite.loc);
 }
 
 function getParamName(descriptor: ParamDescriptor): Thing<ThingType.name> {
@@ -70,16 +70,16 @@ function getParamName(descriptor: ParamDescriptor): Thing<ThingType.name> {
     return descriptor.c[0]!;
 }
 
-export function parametersToVars(paramsDef: Thing<ThingType.roundblock>, realArgs: readonly Thing[], callsite: Thing): { e: Thing<ThingType.map>, p: Thing[] } {
-    const bits = paramsDef.c as ParamDescriptor[];
+export function parametersToVars(paramsDef: ParamDescriptor[], realArgs: readonly Thing[], callsite: Thing): { e: Thing<ThingType.map>, p: Thing[] } {
     const map = newEmptyMap(callsite.loc);
     const pendingDefaults: Thing[] = [];
     var i = 0;
     for (i = 0; i < realArgs.length; i++) {
-        const p = getNthDescriptor(bits, i);
-        const name = getParamName(p), t = getExpectedTypes(p);
         const arg = realArgs[i]!;
-        if (!t || typecheck(...t)(arg)) {
+        const p = getNthDescriptor(paramsDef, i);
+        if (p === NOT_A_PARAM) throw new RuntimeError("too many arguments", arg.loc);
+        const name = getParamName(p), t = getExpectedTypes(p);
+        if (t.length === 0 || typecheck(...t)(arg)) {
             if (isSplat(p)) {
                 const existingList = mapGetKey(map, name) ?? boxList([], arg.loc);
                 mapUpdateKeyMutating(map, name, boxList([...existingList.c, arg], existingList.loc));
@@ -90,9 +90,9 @@ export function parametersToVars(paramsDef: Thing<ThingType.roundblock>, realArg
         }
         throw new RuntimeError(`Wrong type to argument ${stringify(name.v)} of function call`, arg.loc);
     }
-    for (; i < bits.length; i++) {
+    for (; i < paramsDef.length; i++) {
         // Remaining are the defaults yet to be evaluated
-        pendingDefaults.push(getDefaultValue(getNthDescriptor(bits, i), callsite));
+        pendingDefaults.push(getDefaultValue(getNthDescriptor(paramsDef, i), callsite));
     }
     return { e: map, p: pendingDefaults };
 }
