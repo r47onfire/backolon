@@ -124,4 +124,15 @@ describe("lambdas", () => {
         });
         expect(stdout).toHaveBeenCalledTimes(2);
     });
+    test("'return' exists and is a continuation", () => {
+        expectEval("([] => return)!", {
+            t: ThingType.continuation,
+        });
+    });
+    test("call/cc", () => {
+        expectEval("let callcc = [x] => x return; let y; callcc [k] => y = k; y", {
+            t: ThingType.continuation,
+            v: "spy",
+        });
+    });
 });
