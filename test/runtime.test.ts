@@ -28,33 +28,35 @@ test("double semicolon suppresses return value", () => {
         t: ThingType.nil,
     });
 });
-test("print", () => {
-    const stdout = spyOn(console, "log");
-    expectEval("print 1; print (print 2)", {
-        t: ThingType.nil,
+describe("calling functions", () => {
+    test("'print' prints and returns nil", () => {
+        const stdout = spyOn(console, "log");
+        expectEval("print 1; print (print 2)", {
+            t: ThingType.nil,
+        });
+        expect(stdout).toHaveBeenCalledTimes(3);
+        expect(stdout).toHaveBeenNthCalledWith(1, "1");
+        expect(stdout).toHaveBeenNthCalledWith(2, "2");
+        expect(stdout).toHaveBeenNthCalledWith(3, "nil");
     });
-    expect(stdout).toHaveBeenCalledTimes(3);
-    expect(stdout).toHaveBeenNthCalledWith(1, "1");
-    expect(stdout).toHaveBeenNthCalledWith(2, "2");
-    expect(stdout).toHaveBeenNthCalledWith(3, "nil");
-});
-test("call with 0 arguments", () => {
-    const stdout = spyOn(console, "log");
-    expectEval("print!", {
-        t: ThingType.nil,
+    test("call 'print' with 0 arguments prints newline", () => {
+        const stdout = spyOn(console, "log");
+        expectEval("print!", {
+            t: ThingType.nil,
+        });
+        expect(stdout).toHaveBeenCalledTimes(1);
+        expect(stdout).toHaveBeenNthCalledWith(1, "");
     });
-    expect(stdout).toHaveBeenCalledTimes(1);
-    expect(stdout).toHaveBeenNthCalledWith(1, "");
-});
-test("print with varargs", () => {
-    const stdout = spyOn(console, "log");
-    expectEval("print 1; print 2 3; print 4 5 6", {
-        t: ThingType.nil,
+    test("'print' with varargs", () => {
+        const stdout = spyOn(console, "log");
+        expectEval("print 1; print 2 3; print 4 5 6", {
+            t: ThingType.nil,
+        });
+        expect(stdout).toHaveBeenCalledTimes(3);
+        expect(stdout).toHaveBeenNthCalledWith(1, "1");
+        expect(stdout).toHaveBeenNthCalledWith(2, "2 3");
+        expect(stdout).toHaveBeenNthCalledWith(3, "4 5 6");
     });
-    expect(stdout).toHaveBeenCalledTimes(3);
-    expect(stdout).toHaveBeenNthCalledWith(1, "1");
-    expect(stdout).toHaveBeenNthCalledWith(2, "2 3");
-    expect(stdout).toHaveBeenNthCalledWith(3, "4 5 6");
 });
 describe("variables", () => {
     test("declaration", () => {
@@ -79,6 +81,9 @@ describe("variables", () => {
     });
     test("redeclaration throws", () => {
         expectEvalError("let a; let a", "variable \"a\" already exists in this scope");
+    });
+    test("new scopes are not created by inner blocks", () => {
+        expectEvalError("((let a); (let a))", "variable \"a\" already exists in this scope");
     });
     test("can only declare a name", () => {
         expectEvalError("let 1 = 2", "cannot assign to number");
@@ -106,7 +111,7 @@ describe("variables", () => {
         });
     });
     test("assignment requires the variable to exist", () => {
-        expectEvalError("a = 1", "undefined: \"a\"", "note: add \"let\" to declare \"a\" to be in this scope");
+        expectEvalError("thisWasNotDeclared = 1", "undefined: \"thisWasNotDeclared\"", "note: add \"let\" to declare \"thisWasNotDeclared\" to be in this scope");
     });
 });
 describe("lambdas", () => {
@@ -130,7 +135,7 @@ describe("lambdas", () => {
         });
     });
     test("closed-over scopes can be accessed", () => {
-        expectEval("let f = [x] => x 3; let y; f [k] => y = k; y", {
+        expectEval("let callWithThree = [function] => function 3; let outerVariable; callWithThree [three] => outerVariable = three; outerVariable", {
             t: ThingType.number,
             v: 3
         });
