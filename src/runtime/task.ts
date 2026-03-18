@@ -153,8 +153,7 @@ export class Task {
                         const start = top.data[0] as number;
                         const length = top.data[1] as number - start;
                         const values = typecheck(ThingType.splat)(res) ? res.c : [res];
-                        const tt = this.updateArgs(top.argv.toSpliced(start, length, ...values));
-                        // console.log("parse splice", stringify(tt.argv.map(t => unparse(t)).join("")));
+                        this.updateArgs(top.argv.toSpliced(start, length, ...values));
                         this.updateCookie(0, BlockEvalState.matching_patterns, null);
                         return true;
                     default:

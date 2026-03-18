@@ -104,6 +104,12 @@ describe("variables", () => {
         expect(stdout).toHaveBeenNthCalledWith(1, "1");
         expect(stdout).toHaveBeenNthCalledWith(2, "3");
     });
+    test("assignment can span multiple lines", () => {
+        expectEval("let a; a =\n3; a", {
+            t: ThingType.number,
+            v: 3
+        });
+    });
     test("assignment is right associative", () => {
         expectEval("let a; let b; a = b = 1", {
             t: ThingType.number,
@@ -126,6 +132,13 @@ describe("lambdas", () => {
         expectEval("let spy = [x] => (print x; x); spy (spy spy)", {
             t: ThingType.func,
             v: "spy",
+        });
+        expect(stdout).toHaveBeenCalledTimes(2);
+    });
+    test("lambdas are terminated by a newline like everything else", () => {
+        const stdout = spyOn(console, "log");
+        expectEval("let f = [x] => print x\nf 1\nf 2", {
+            t: ThingType.nil,
         });
         expect(stdout).toHaveBeenCalledTimes(2);
     });
