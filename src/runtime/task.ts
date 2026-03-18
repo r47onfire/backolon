@@ -307,7 +307,8 @@ export class Task {
             if (!typecheck(ThingType.map)(map)) {
                 throw new RuntimeError(`expected a map to inject (got ${typeNameOf(map.t)})`, callsite.loc);
             }
-            this.enter(functor.c[0], newEnv(map, boxList([]), callsite.loc, functor.v), []);
+            const e = map.c.length === 0 ? functor.v : newEnv(map, boxList([]), callsite.loc, functor.v);
+            this.enter(functor.c[0], e, []);
         }
         else throw new RuntimeError(`can't call ${typeNameOf(functor.t)}`, callsite.loc);
     }
