@@ -10,7 +10,7 @@ A little programming language I came up with.
 
 ## Why is it called "Backolon"?
 
-Good question. @imaginarny suggested the name when I showed him an early draft of the syntax back when this was just "the scripting language I'm making for [Aelith](https://github.com/r47onfire/aelith)". Perhaps it was the quote operator `` ` `` used to escape a symbol so it can be used as a key in a map (as shown above) combined with the syntax for maps, `[:]` for an empty one.
+Good question. @imaginarny suggested the name when I showed him an early draft of the syntax back when this was just "the scripting language I'm making for [Aelith](https://github.com/r47onfire/aelith)". Perhaps it was the quote operator `` ` `` used to escape a symbol so it can be used as a key in a map combined with the syntax for maps, `[:]` for an empty one.
 
 ## Okay, how does it work?
 
