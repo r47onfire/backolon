@@ -39,6 +39,15 @@ describe("calling functions", () => {
         expect(stdout).toHaveBeenNthCalledWith(2, "2");
         expect(stdout).toHaveBeenNthCalledWith(3, "nil");
     });
+    test("sequencing works with newline also instead of semicolons", () => {
+        const stdout = spyOn(console, "log");
+        expectEval("print 1\nprint 2\n", {
+            t: ThingType.nil,
+        });
+        expect(stdout).toHaveBeenCalledTimes(2);
+        expect(stdout).toHaveBeenNthCalledWith(1, "1");
+        expect(stdout).toHaveBeenNthCalledWith(2, "2");
+    });
     test("call 'print' with 0 arguments prints newline", () => {
         const stdout = spyOn(console, "log");
         expectEval("print!", {
@@ -127,13 +136,11 @@ describe("lambdas", () => {
             v: null,
         });
     });
-    test("function naming", () => {
-        const stdout = spyOn(console, "log");
-        expectEval("let spy = [x] => (print x; x); spy (spy spy)", {
+    test("lambdas get the name of the first thing they're assigned to", () => {
+        expectEval("let foo = [] => 1; let bar = foo; bar", {
             t: ThingType.func,
-            v: "spy",
+            v: "foo",
         });
-        expect(stdout).toHaveBeenCalledTimes(2);
     });
     test("'return' exists and is a continuation", () => {
         expectEval("([] => return)!", {
@@ -146,6 +153,12 @@ describe("lambdas", () => {
             v: 3
         });
     });
+    test("lambda default parameters have dynamic scope", () => {
+        expectEval("let x = 4; let f = [a=x] => a; ([] => (let x = 3; f!))!", {
+            t: ThingType.number,
+            v: 3
+        });
+    })
     test("lambdas are terminated by a newline like everything else", () => {
         const stdout = spyOn(console, "log");
         expectEval("let f = [x] => print x\nf 1\nf 2", {

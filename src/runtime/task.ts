@@ -83,7 +83,6 @@ export class Task {
             loc = val.loc;
         const tryMacro = () => {
             if (this.result && typecheck(ThingType.macroized)(this.result)) {
-                console.log("checking macro", this.result);
                 this.enter(this.result.c[0], top!.env);
                 return true;
             }
@@ -341,17 +340,19 @@ export class Task {
     enter(code: Thing, env: Thing<ThingType.env | ThingType.nil>, args: readonly Thing[] = [], name?: string | null) {
         this.stack = this.stack.toSpliced(Infinity, 0, new StackEntry(code, args, env, name ?? null));
     }
+    /** return a result and stop looping on this frame */
     out(result?: Thing): StackEntry {
         this.result = result ?? this.result;
         return (this.stack = this.stack.toSpliced(-1, 1)).at(-1)!;
     }
+    /** access scopes beneath this one */
     dip(depth: number, cb: (state: StackEntry) => void) {
         if (this.stack.length > depth) {
             const end = this.stack.slice(-depth);
             cb((this.stack = this.stack.slice(0, -depth)).at(-1)!);
             this.stack = [...this.stack, ...end];
         } else {
-            cb(this.stack.at(-1)!);
+            cb(this.stack[0]!);
         }
     }
 }

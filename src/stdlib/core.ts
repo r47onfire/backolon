@@ -113,7 +113,7 @@ export function initCoreSyntax(env: Thing<ThingType.env>, functions: Record<stri
         throw new RuntimeError(`undefined: ${stringify(name.v)}`, loc, [new ErrorNote(`note: add "let" to declare ${stringify(name.v)} to be in this scope`, loc)]);
     }));
     // MARK: lambdas
-    define_pattern(env, functions, "[x:squareblock] => y...", LAMBDA_PRECEDENCE, true, STANDARD_BLOCKS, "__rewrite_build_lambda", (task, state) => {
+    define_pattern(env, functions, "[x:squareblock] => y...", LAMBDA_PRECEDENCE, true, STANDARD_BLOCKS, "__rewrite_lambda", (task, state) => {
         const groups: Thing<ThingType.map> = state.argv[0]! as any;
         const name = mapGetKey(groups, x)!;
         const body = mapGetKey(groups, y)!.c;
