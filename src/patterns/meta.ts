@@ -74,6 +74,11 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
         if (test(square_only_name_invalid)) {
             throw new RuntimeError("expected type or subpattern after capture group name", squareblock.loc)
         }
+        if (test(square_capture_by_type_without_name)) {
+            const tok = inner[1]!;
+            const ty = typeNameToThingType(tok.v, tok.loc);
+            return [matchtype(ty, `[:${tok.v}]`, tok.loc)];
+        }
         if (test(square_capture_by_type)) {
             const name = inner[0] as Thing<ThingType.name>;
             const tok = inner[2]!;
@@ -113,7 +118,7 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
         if (patitem.v.t === PatternType.capture_group) {
             var inner = patitem.c.slice(1), inner0 = inner[0]!;
             if (inner.length === 1 && inner0.v.t === PatternType.dot) {
-                inner = [alternatives([inner0, required_space], inner0.s0, inner0.sj, inner0.s1, inner0.loc)];
+                inner = [alternatives([inner0, required_space_no_newline], inner0.s0, inner0.sj, inner0.s1, inner0.loc)];
             }
             return [grouped(patitem.c[0] as Thing<ThingType.name>, [repeat(greedy, inner, "", ending, item.loc)], patitem.s0, patitem.s1, patitem.loc)]
         }
@@ -131,8 +136,9 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
     //    * three spaces is the same as two except some space is required.
     //    newlines match themselves literally.
     block = nonoverlappingreplace(block, required_space, spaces => {
+        // TODO: handle newlines separately (pluck them out)
+        if (spaces.length === 1 && typecheck(ThingType.newline)(spaces[0]!)) return [matchtype(ThingType.newline, spaces[0].s0)];
         const s = spaces.map(p => p.v).join("");
-        if (s === "\n") return [matchvalue(spaces[0]!)];
         const loc = spaces[0]!.loc;
         return s.length > 2 ? [
             repeat(true, [
@@ -166,7 +172,7 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
     // 8. convert remaining names to single-element wildcards
     block = nonoverlappingreplace(block, single_wildcard, match => {
         const t = match[0]!;
-        return [grouped(t as Thing<ThingType.name>, [dot()], "", "", t.loc)];
+        return [grouped(t as Thing<ThingType.name>, [dot(t.loc)], "", "", t.loc)];
     });
 
     // 9. bail on everything else
@@ -213,6 +219,7 @@ const operator = (s: string) => boxOperatorSymbol(s, metapattern_location);
 const singledot = matchvalue(operator("."));
 const tripledot = sequence([singledot, singledot, singledot]);
 const nothing = sequence([]);
+const required_space_no_newline = repeat(true, [matchtype(ThingType.space)]);
 const required_space = repeat(true, [alternatives([matchtype(ThingType.space), matchtype(ThingType.newline)])]);
 const optional_space = optional(required_space);
 const single_roundblock = matchtype(ThingType.roundblock);
@@ -223,6 +230,10 @@ const single_squareblock = matchtype(ThingType.squareblock);
 const square_literal = entire([matchvalue(operator("=")), dot()]);
 const square_only_name_invalid = entire([matchtype(ThingType.name)]);
 const square_only_plus = entire([matchvalue(operator("+"))]);
+const square_capture_by_type_without_name = entire([
+    matchvalue(operator(":")),
+    matchtype(ThingType.name),
+]);
 const square_capture_by_type = entire([
     matchtype(ThingType.name),
     matchvalue(operator(":")),

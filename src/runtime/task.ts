@@ -132,6 +132,8 @@ export class Task {
                                         // TODO: inject block type variable
                                     })], top.argv[result.span[0]!]!.loc), top.env);
                                     return true;
+                                } else {
+                                    // console.log("no match for", [unparse(pat)]);
                                 }
                             }
                         }
@@ -154,6 +156,7 @@ export class Task {
                         const length = top.data[1] as number - start;
                         const values = typecheck(ThingType.splat)(res) ? res.c : [res];
                         this.updateArgs(top.argv.toSpliced(start, length, ...values));
+                        // console.log("parse splice", this.stack.at(-1)!.argv.map(t => unparse(t)));
                         this.updateCookie(0, BlockEvalState.matching_patterns, null);
                         return true;
                     default:

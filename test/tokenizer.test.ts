@@ -50,3 +50,9 @@ test("invalid float numbers get broken up", () => {
     expect(x[0]).toEqual(new Thing(ThingType.number, [], 123456., "123456.", "", "", new LocationTrace(0, 0, F)));
     expect(x[1]).toEqual(new Thing(ThingType.number, [], .789E+56, ".789E+56", "", "", new LocationTrace(0, 7, F)));
 });
+test("newline is a separate token from space", () => {
+    const x = tokenize("\n ");
+    expect(x).toBeArrayOfSize(3);
+    expect(x[0]!.t).toBe(ThingType.newline);
+    expect(x[1]!.t).toBe(ThingType.space);
+});

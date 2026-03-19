@@ -382,7 +382,8 @@ describe("metapattern", () => {
         const s1 = pstring(" ");
         expect(s1.c[0]!.v.t).toBe(PatternType.alternatives);
         const nl = pstring("\n"); // newline matches literally
-        expect(nl.c[0]!.v.t).toBe(PatternType.match_value);
+        expect(nl.c[0]!.v.t).toBe(PatternType.match_type);
+        expect(nl.c[0]!.v.gsv).toBe(ThingType.newline);
     });
 
     // test("a", () => {

@@ -59,7 +59,8 @@ export function initCoreSyntax(env: Thing<ThingType.env>, functions: Record<stri
         const fun = mapGetKey(groups, x)!;
         const argv = mapGetKey(groups, y);
         const args = argv ? removed_whitespace(argv.c) : [];
-        task.out(boxApply(fun, args, fun.loc));
+        const hasArgs = args.length > 0;
+        task.out(boxApply(fun, args, fun.loc, hasArgs ? "(" : "", hasArgs ? ")" : "!"));
     });
     // Second one is with arguments
     define_pattern(env, functions, "[^] x  y...[$]", APPLY_PRECEDENCE, false, STANDARD_BLOCKS, "__rewrite_apply");

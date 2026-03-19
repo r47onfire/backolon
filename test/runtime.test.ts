@@ -83,7 +83,7 @@ describe("variables", () => {
         expectEvalError("let a; let a", "variable \"a\" already exists in this scope");
     });
     test("new scopes are not created by inner blocks", () => {
-        expectEvalError("((let a); (let a))", "variable \"a\" already exists in this scope");
+        expectEvalError("(let a); (let a)", "variable \"a\" already exists in this scope");
     });
     test("can only declare a name", () => {
         expectEvalError("let 1 = 2", "cannot assign to number");
@@ -135,13 +135,6 @@ describe("lambdas", () => {
         });
         expect(stdout).toHaveBeenCalledTimes(2);
     });
-    test("lambdas are terminated by a newline like everything else", () => {
-        const stdout = spyOn(console, "log");
-        expectEval("let f = [x] => print x\nf 1\nf 2", {
-            t: ThingType.nil,
-        });
-        expect(stdout).toHaveBeenCalledTimes(2);
-    });
     test("'return' exists and is a continuation", () => {
         expectEval("([] => return)!", {
             t: ThingType.continuation,
@@ -152,5 +145,12 @@ describe("lambdas", () => {
             t: ThingType.number,
             v: 3
         });
+    });
+    test("lambdas are terminated by a newline like everything else", () => {
+        const stdout = spyOn(console, "log");
+        expectEval("let f = [x] => print x\nf 1\nf 2", {
+            t: ThingType.nil,
+        });
+        expect(stdout).toHaveBeenCalledTimes(2);
     });
 });
