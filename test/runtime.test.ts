@@ -147,7 +147,7 @@ describe("lambdas", () => {
             t: ThingType.continuation,
         });
     });
-    test("closed-over scopes can be accessed", () => {
+    test("closed-over scopes can be accessed and mutated", () => {
         expectEval("let callWithThree = [function] => function 3; let outerVariable; callWithThree [three] => outerVariable = three; outerVariable", {
             t: ThingType.number,
             v: 3
@@ -158,7 +158,7 @@ describe("lambdas", () => {
             t: ThingType.number,
             v: 3
         });
-    })
+    });
     test("lambdas are terminated by a newline like everything else", () => {
         const stdout = spyOn(console, "log");
         expectEval("let f = [x] => print x\nf 1\nf 2", {

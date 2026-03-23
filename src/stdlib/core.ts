@@ -1,3 +1,4 @@
+import { last } from "lib0/array";
 import { stringify } from "lib0/json";
 import { define_builtin_function, define_builtin_variable, define_pattern } from ".";
 import { ErrorNote, LocationTrace, RuntimeError } from "../errors";
@@ -22,7 +23,7 @@ export function initCoreSyntax(env: Thing<ThingType.env>, functions: Record<stri
     const VARIABLE_ASSIGNMENT_PRECEDENCE = 0;
     const IMPLICIT_BLOCK_PRECEDENCE = 1e100;
     const APPLY_PRECEDENCE = Infinity;
-    define_pattern(env, functions, "[^]{x...|}  ;  {y...|}[$]", EXPLICIT_BLOCK_PRECEDENCE, false, STANDARD_BLOCKS, "__rewrite_sequence", (task, state) => {
+    define_pattern(env, functions, "[^]{x...|}  ;  {y...|} [$]", EXPLICIT_BLOCK_PRECEDENCE, false, STANDARD_BLOCKS, "__rewrite_sequence", (task, state) => {
         const groups: Thing<ThingType.map> = state.argv[0]! as any;
         var first = mapGetKey(groups, x);
         var second = mapGetKey(groups, y);
@@ -40,7 +41,7 @@ export function initCoreSyntax(env: Thing<ThingType.env>, functions: Record<stri
             task.out(boxNil(groups.loc));
         }
     });
-    define_pattern(env, functions, "[^]{x...|}  (\n)  {y...|}[$]", IMPLICIT_BLOCK_PRECEDENCE, false, STANDARD_BLOCKS, "__rewrite_sequence");
+    define_pattern(env, functions, "[^]{x...|}  (\n)  {y...|} [$]", IMPLICIT_BLOCK_PRECEDENCE, false, STANDARD_BLOCKS, "__rewrite_sequence");
     define_builtin_function(env, functions, "__sequence", "@first @rest", (task, state) => {
         const first = state.argv[0]!;
         const second = state.argv[1]!;
@@ -116,8 +117,9 @@ export function initCoreSyntax(env: Thing<ThingType.env>, functions: Record<stri
     define_pattern(env, functions, "[x:squareblock] => y...", LAMBDA_PRECEDENCE, true, STANDARD_BLOCKS, "__rewrite_lambda", (task, state) => {
         const groups: Thing<ThingType.map> = state.argv[0]! as any;
         const name = mapGetKey(groups, x)!;
-        const body = mapGetKey(groups, y)!.c;
-        const values = body.slice(body.findIndex(e => !typecheck(ThingType.newline, ThingType.space)(e)));
+        const values = mapGetKey(groups, y)!.c as any[];
+        while (typecheck(ThingType.newline, ThingType.space)(values[0])) values.shift();
+        while (typecheck(ThingType.newline, ThingType.space)(last(values))) values.pop();
         const value = boxRoundBlock(values, values[0]!.loc);
         task.out(boxApply(boxNativeFunc("__build_lambda", state.value.loc), [name, value], state.value.loc));
     });
