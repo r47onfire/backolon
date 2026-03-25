@@ -14,6 +14,7 @@ export interface NativeFunctionDetails {
 export class Scheduler {
     tasks: Task[] = [];
     private s: Resurrect;
+    recursionLimit = 10000;
 
     constructor(
         public apiFunctions: Record<string, NativeFunctionDetails>,
@@ -51,13 +52,13 @@ export class Scheduler {
     loadFromSerialized(str: string): void {
         this.tasks.push(...this.s.resurrect(str).map((t: Task) => (t.scheduler = this, t)));
     }
-    stepUntilSuspended() {
+    stepUntilSuspended(maxSteps: number = -1) {
         do {
             var madeProgress = false;
             for (var i = 0; i < this.tasks.length; i++) {
                 madeProgress ||= this.tasks[i]!.step();
             }
-        } while (madeProgress);
+        } while (madeProgress && --maxSteps !== 0);
     }
     _getFunction(name: string): NativeFunctionDetails {
         const func = this.apiFunctions[name];

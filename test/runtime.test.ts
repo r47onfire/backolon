@@ -133,9 +133,9 @@ describe("lambdas", () => {
         });
     });
     test("lambdas are terminated by a newline like everything else", () => {
-        expect(expectEval("let f = [x] => print x\nf 1\nf 2", {
+        expect(expectEval("let f = [x] => print x 'hi'\nf 1\nf 2", {
             t: ThingType.nil,
-        })).toEqual(["1", "2"]);
+        })).toEqual(["1 hi", "2 hi"]);
     });
 });
 describe("conditionals", () => {

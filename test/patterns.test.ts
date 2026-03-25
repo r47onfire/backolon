@@ -3,9 +3,10 @@ import { stringify } from "lib0/json";
 import { keys } from "lib0/object";
 import { BackolonError, boxNameSymbol, boxNumber, matchPattern, MatchResult, parse, parsePattern, pattern, Thing, ThingType, unparse } from "../src";
 import { compile } from "../src/patterns/compile";
+import { disassemblePattern } from "../src/patterns/dis";
 import { NFASubstate, PatternType } from "../src/patterns/internals";
-import { F, L } from "./astCheck";
 import { parseSignature } from "../src/runtime/functor";
+import { F, L } from "./astCheck";
 
 describe("step pattern NFA substates", () => {
     test("detects done", () => {
@@ -457,6 +458,34 @@ describe("metapattern", () => {
             ["x: number", true],
             ["x = 1", true],
             ["x: number = nil", true]);
+
+        test("what", () => {
+            /*
+            [
+             [ "apply", "(<built-in __declare> f (<built-in __build_lambda> [x] (print x 'hi')))" ],
+             [ "newline", "\n" ],
+             [ "name", "f" ],
+             [ "space", " " ],
+             [ "number", "1" ],
+             [ "newline", "\n" ],
+             [ "name", "f" ],
+             [ "space", " " ],
+             [ "number", "2" ]
+            ]
+            */
+            const items = [
+                new Thing(ThingType.apply, [], null, "", "", "", L),
+                ...parse("\nf 1\nf 2").c,
+            ];
+            const pattern = parsePattern(parse("[^]{x...|}  (\n)  {y...|} [$]").c);
+
+            const results = matchPattern(items, pattern);
+
+            console.log(disassemblePattern(pattern.v.p!));
+            pattern.v.p!.map(i => [PatternType[i[0]], ...i.slice(1)]).forEach((x, i) => console.log(i, x));
+
+            expect(results).not.toBeEmpty();
+        });
 
         test("parse signature", () => {
             const x = parseSignature(parse("x y : number = 1 @z", F).c);
