@@ -23,14 +23,14 @@ export function initCoreSyntax(env: Thing<ThingType.env>, functions: Record<stri
     const VARIABLE_ASSIGNMENT_PRECEDENCE = 0;
     const IMPLICIT_BLOCK_PRECEDENCE = 1e100;
     const APPLY_PRECEDENCE = Infinity;
-    define_pattern(env, functions, "[^]{x...|}  ;  {y...|} [$]", EXPLICIT_BLOCK_PRECEDENCE, false, STANDARD_BLOCKS, "__rewrite_sequence", (task, state) => {
+    define_pattern(env, functions, "[^] {x...|}  ;  [y{_| }...] [$]", EXPLICIT_BLOCK_PRECEDENCE, false, STANDARD_BLOCKS, "__rewrite_sequence", (task, state) => {
         const groups: Thing<ThingType.map> = state.argv[0]! as any;
         var first = mapGetKey(groups, x);
         var second = mapGetKey(groups, y);
         if (first) {
-            first = boxRoundBlock(first.c!, first.loc);
-            if (second) {
-                second = boxRoundBlock(second.c!, second.loc);
+            first = boxRoundBlock(first.c, first.loc);
+            if (second && second.c.length > 0) {
+                second = boxRoundBlock(second.c, second.loc);
                 task.out(boxApply(boxNativeFunc("__sequence", first.loc), second ? [first, second] : [first], first.loc));
             } else {
                 // effectively just strip the trailing line terminator
@@ -41,7 +41,7 @@ export function initCoreSyntax(env: Thing<ThingType.env>, functions: Record<stri
             task.out(boxNil(groups.loc));
         }
     });
-    define_pattern(env, functions, "[^]{x...|}  (\n)  {y...|} [$]", IMPLICIT_BLOCK_PRECEDENCE, false, STANDARD_BLOCKS, "__rewrite_sequence");
+    define_pattern(env, functions, "[^] {x...|}  (\n)  [y{_| }...] [$]", IMPLICIT_BLOCK_PRECEDENCE, false, STANDARD_BLOCKS, "__rewrite_sequence");
     define_builtin_function(env, functions, "__sequence", "@first @rest", (task, state) => {
         const first = state.argv[0]!;
         const second = state.argv[1]!;

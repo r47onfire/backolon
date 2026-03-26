@@ -133,15 +133,15 @@ describe("step pattern NFA substates", () => {
         const state = new NFASubstate(0, lazypattern, 0);
         const stepped = state.a(null, 0, false);
         expect(stepped).toEqual([
-            new NFASubstate(0, lazypattern, 1),
             new NFASubstate(0, lazypattern, 2),
+            new NFASubstate(0, lazypattern, 1),
         ]);
         expect(stepped[0]!.a(null, 0, false))
-            .toEqual([new NFASubstate(0, lazypattern, 3)]);
+            .toEqual([new NFASubstate(0, lazypattern, 2)]);
         expect(stepped[1]!.a(null, 0, false))
             .toEqual([stepped[1]!]);
         expect(stepped[1]!.a(input, 0, false))
-            .toEqual([new NFASubstate(0, lazypattern, 3)]);
+            .toEqual([new NFASubstate(0, lazypattern, 2)]);
     });
     test("repeat", () => {
         const input = boxNameSymbol("hi", L);
@@ -167,6 +167,15 @@ describe("step pattern NFA substates", () => {
     });
 });
 describe("full pattern match", () => {
+    test("empty repeat doesn't crash optimizer", () => {
+        expect(() => compile(pattern(PatternType.repeat, true))).not.toThrow();
+        expect(() => compile(pattern(PatternType.repeat, true, L, [
+            pattern(PatternType.alternatives, 0, L, [
+                pattern(PatternType.match_type, 1, L),
+                pattern(PatternType.sequence, 0, L, [])
+            ])
+        ]))).not.toThrow();
+    });
     test("empty matches don't lock up or spam", () => {
         const pat = pattern(PatternType.sequence, 0);
         const indexes = new Array(10000).fill(0).map((_, i) => i);
@@ -387,21 +396,6 @@ describe("metapattern", () => {
         expect(nl.c[0]!.v.gsv).toBe(ThingType.newline);
     });
 
-    // test("a", () => {
-    //     const src = "[x: number] (+ [y: number])...";
-    //     try {
-    //         const pat = pstring(src);
-    //         console.log("original: ", stringify(src));
-    //         console.log("unparsed:", stringify(unparse(pat)));
-    //         console.log("compiled:", compile(pat));
-    //     } catch (e) {
-    //         console.log("caught error!");
-    //         if (e instanceof BackolonError) {
-    //             console.log(e.displayOn({ [F.href]: src }));
-    //         }
-    //         throw e;
-    //     }
-    // });
     describe("match tests", () => {
         const pattern_test = (pat: string, ...cases: [input: string, match: boolean][]) => {
             describe(`pattern ${stringify(pat)}`, () => {
@@ -459,36 +453,8 @@ describe("metapattern", () => {
             ["x = 1", true],
             ["x: number = nil", true]);
 
-        test("what", () => {
-            /*
-            [
-             [ "apply", "(<built-in __declare> f (<built-in __build_lambda> [x] (print x 'hi')))" ],
-             [ "newline", "\n" ],
-             [ "name", "f" ],
-             [ "space", " " ],
-             [ "number", "1" ],
-             [ "newline", "\n" ],
-             [ "name", "f" ],
-             [ "space", " " ],
-             [ "number", "2" ]
-            ]
-            */
-            const items = [
-                new Thing(ThingType.apply, [], null, "", "", "", L),
-                ...parse("\nf 1\nf 2").c,
-            ];
-            const pattern = parsePattern(parse("[^]{x...|}  (\n)  {y...|} [$]").c);
-
-            const results = matchPattern(items, pattern);
-
-            console.log(disassemblePattern(pattern.v.p!));
-            pattern.v.p!.map(i => [PatternType[i[0]], ...i.slice(1)]).forEach((x, i) => console.log(i, x));
-
-            expect(results).not.toBeEmpty();
-        });
-
         test("parse signature", () => {
-            const x = parseSignature(parse("x y : number = 1 @z", F).c);
+            const x = parseSignature(parse("x y:number=1 @z", F).c);
             console.log(x.map(c => unparse(c)).join(" "));
         });
     });

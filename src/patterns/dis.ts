@@ -9,7 +9,7 @@ export function disassemblePattern(program: PatternProgram): string {
     if (program.length === 0) return "";
     const allSpans: Span[] = [];
     for (var i = 0; i < program.length; i++) {
-        if (program[i]![0] === PatternType.alternatives) {
+        if (program[i]?.[0] === PatternType.alternatives) {
             for (var d of program[i]!.slice(1)) {
                 allSpans.push([i, i + (d as number)]);
             }
@@ -64,6 +64,7 @@ export function disassemblePattern(program: PatternProgram): string {
 }
 
 function prettifyCommand(cmd: Command) {
+    if (cmd === null) return "noop";
     switch (cmd[0]) {
         case PatternType.alternatives:
             return `jump ${cmd.slice(1).map(e => e > 0 ? `+${e}` : e).join(", ")}`;
@@ -76,6 +77,6 @@ function prettifyCommand(cmd: Command) {
         case PatternType.match_type:
             return `match type ${typeNameOf(cmd[1])}`;
         case PatternType.match_value:
-            return `match ${stringify(cmd[1])}`;
+            return `match ${stringify(cmd[1].v)}`;
     }
 }

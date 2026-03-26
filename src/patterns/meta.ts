@@ -87,7 +87,7 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
         }
         if (test(square_capture_subpattern)) {
             const name = inner[0] as Thing<ThingType.name>;
-            const pat = parsePattern((inner[1] as Thing<ThingType.roundblock>).c);
+            const pat = parsePattern(inner.slice(1));
             return [grouped(name, pat.c, "[", "]", name.loc)];
         }
         // pass through [+] markers for repeat code
@@ -99,6 +99,7 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
 
     // 5. handle repeat syntax: x ... (lazy) or x ... [+] (greedy)
     block = nonoverlappingreplace(block, repeat_pattern, matched => {
+        matched = removed_whitespace(matched) as Thing[];
         const item = matched[0]!;
         var greedy = false, rest: Thing[] = [];
         // check if the match includes a squareblock (which would be [+] for greedy)
@@ -254,7 +255,8 @@ const repeat_pattern = sequence([
     dot(),
     optional_space,
     matchvalue(operator("...")),
-    optional(sequence([optional_space, matchtype(ThingType.squareblock)])),
+    optional_space,
+    optional(matchtype(ThingType.squareblock)),
 ]);
 
 // patterns for step 7-9: match individual raw tokens to convert them to patterns

@@ -140,19 +140,23 @@ export function parseSignature(block: readonly Thing[]): (Thing<ThingType.name> 
         }
         const loc = items[0].loc;
         const to_type = (item: Thing): Thing[] => {
-            if (typecheck(ThingType.list)(item))
-                return item.c.flatMap(c => to_type(c));
+            if (typecheck(ThingType.squareblock)(item))
+                return removed_whitespace(item.c).flatMap(c => to_type(c));
             if (isSymbol(item))
                 return [boxNumber(typeNameToThingType(item.v, item.loc), item.loc, item.v)];
             return [];
         }
         const nil = boxNil(loc, "");
-        const empty = boxList([], loc);
+        const empty = boxList([], loc, "", "", "");
         const checkSplat = () => {
             if (isSplat) {
                 throw new RuntimeError("a rest parameter cannot have a default", loc);
             }
         };
+        const doType = () => {
+            const type = to_type(items[2]);
+            return boxList(type, items[2].loc, type.length > 1 ? "[" : "", type.length > 1 ? "]" : "", " ");
+        }
         switch (items.length) {
             case 1:
                 return lazy || isSplat || unwrap
@@ -160,12 +164,12 @@ export function parseSignature(block: readonly Thing[]): (Thing<ThingType.name> 
                     : items[0];
             case 5:
                 checkSplat();
-                return new Thing(ThingType.paramdescriptor, [items[0], boxList(to_type(items[2]), items[2].loc), items[4]], [lazy, isSplat, unwrap], lazystr, unwrapstr, [":", "="] as any, loc);
+                return new Thing(ThingType.paramdescriptor, [items[0], doType(), items[4]], [lazy, isSplat, unwrap], lazystr, unwrapstr, [":", "="] as any, loc);
             case 3:
                 const isType = items[1].v === ":";
                 if (!isType) checkSplat();
                 return isType
-                    ? new Thing(ThingType.paramdescriptor, [items[0], boxList(to_type(items[2]), items[2].loc), nil], [lazy, isSplat, unwrap], lazystr, unwrapstr, ":", loc)
+                    ? new Thing(ThingType.paramdescriptor, [items[0], doType(), nil], [lazy, isSplat, unwrap], lazystr, unwrapstr, ":", loc)
                     : new Thing(ThingType.paramdescriptor, [items[0], empty, items[2]], [lazy, isSplat, unwrap], lazystr, unwrapstr, "=", loc);
             default:
                 throw "unreachable";
@@ -184,7 +188,7 @@ export function parseSignature(block: readonly Thing[]): (Thing<ThingType.name> 
     return [...result, ...end];
 }
 
-const base = "{@|}[p:name]{ : {[t:name]|[t:list]}|}{ = d|} {!|} ";
+const base = "{@|}[p:name]{ : {[t:name]|[t:squareblock]}|}{ = d|} {!|} ";
 const signaturePattern = parsePattern(parse(base, metapattern_location.file).c);
 const splatEndPattern = parsePattern(parse(`${base}[=.].. [$]`, metapattern_location.file).c);
 

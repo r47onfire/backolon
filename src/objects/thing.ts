@@ -128,12 +128,14 @@ export function boxSquareBlock(children: readonly Thing[], trace = UNKNOWN_LOCAT
 export function boxCurlyBlock(children: readonly Thing[], trace = UNKNOWN_LOCATION) { return boxBlock(children, ThingType.curlyblock, trace, "{", "}"); }
 export function boxToplevelBlock(children: readonly Thing[], trace = UNKNOWN_LOCATION) { return boxBlock(children, ThingType.topblock, trace, "", ""); }
 export function boxStringBlock(children: Thing<ThingType.string | ThingType.roundblock>[], trace = UNKNOWN_LOCATION, quote: string) { return boxBlock(children, ThingType.stringblock, trace, quote, quote); }
-export function boxList(items: Thing[], trace = UNKNOWN_LOCATION) { return new Thing(ThingType.list, items, null, "[", "]", ", ", trace, false); }
+export function boxList(items: Thing[], trace = UNKNOWN_LOCATION, start = "[", end = "]", join = ", ") { return new Thing(ThingType.list, items, null, start, end, join, trace, false); }
 export function boxNativeFunc(name: string, trace = UNKNOWN_LOCATION) { return new Thing(ThingType.nativefunc, [], name, `<built-in ${name}>`, "", "", trace); }
 export function boxApply(func: Thing, args: readonly Thing[], trace = UNKNOWN_LOCATION, start = "(", end = ")") { return new Thing(ThingType.apply, [func, ...args], null, start, end, " ", trace); }
 
+// hack to make it one per Thing
+type OneTypeThing<T extends ThingType> = T extends any ? Thing<T> : never;
 export function typecheck<T extends ThingType>(...types: T[]) {
-    return (thing: Thing<any>): thing is Thing<T> => types.includes(thing.t as T);
+    return (thing: Thing<any>): thing is OneTypeThing<T> => types.includes(thing.t as T);
 }
 
 export const isBlock = typecheck(ThingType.roundblock, ThingType.squareblock, ThingType.curlyblock, ThingType.stringblock, ThingType.topblock);

@@ -58,14 +58,13 @@ export class NFASubstate {
     a(input: Thing | null, inputIndex: number, isAtEnd: boolean): NFASubstate[] {
         const item = this.p[this.i];
         if (!item) return [this]; // we're done, but that will be caught
-        const nextIndex = this.i + 1;
         switch (item[0]) {
             case PatternType.alternatives:
                 return item.slice(1).map(i => this.u(this.i + i));
             case PatternType.capture_group:
-                return [this.u(nextIndex, item[1], inputIndex, item[2], item[3])];
+                return [this.u(this.i + 1, item[1], inputIndex, item[2], item[3])];
             case PatternType.dot:
-                return input ? (isAtom(input) || isBlock(input) || typecheck(ThingType.apply)(input) ? [this.n()] : []) : [this];
+                return input ? ((isAtom(input) || isBlock(input) || typecheck(ThingType.apply, ThingType.pattern)(input)) ? [this.n()] : []) : [this];
             case PatternType.anchor:
                 return (item[1] ? inputIndex === 0 : isAtEnd) ? [this.n()] : [];
             case PatternType.match_type:
@@ -73,7 +72,6 @@ export class NFASubstate {
             case PatternType.match_value:
                 return input !== null ? (input.v === item[1].v ? [this.n()] : []) : [this];
         }
-        throw new Error("unreachable");
     }
     n() {
         return this.u(this.i + 1);
