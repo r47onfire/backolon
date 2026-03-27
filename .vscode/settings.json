@@ -3,6 +3,8 @@
         "Aelith",
         "backolon",
         "callcc",
+        "defop",
+        "defun",
         "imaginarny",
         "jsoncrush",
         "repr",

@@ -54,7 +54,7 @@ type ThingInternalTypes<T extends ThingType> = {
     [ThingType.operator]: [string, []],
     [ThingType.space]: [string, []],
     [ThingType.newline]: [string, []],
-    [ThingType.number]: [number, []],
+    [ThingType.number]: [number | bigint, []],
     [ThingType.string]: [string, []],
     [ThingType.roundblock]: [null, readonly Thing[]],
     [ThingType.squareblock]: [null, readonly Thing[]],
@@ -64,7 +64,7 @@ type ThingInternalTypes<T extends ThingType> = {
     [ThingType.apply]: [null, readonly Thing[]],
     [ThingType.func]: [name: string | null, readonly [Thing<ThingType.squareblock>, Thing]],
     [ThingType.nativefunc]: [string, []],
-    [ThingType.implicitfunc]: [Thing<ThingType.env | ThingType.nil>, readonly [Thing]],
+    [ThingType.implicitfunc]: [Thing<ThingType.env> | Thing<ThingType.nil>, readonly [Thing]],
     [ThingType.paramdescriptor]: [[isLazy: boolean, isSplat: boolean, mustUnpack: boolean], readonly [Thing<ThingType.name>] | readonly [Thing<ThingType.name>, Thing<ThingType.list>] | readonly [Thing<ThingType.name>, Thing<ThingType.list>, Thing]],
     [ThingType.continuation]: [readonly StackEntry[], []],
     [ThingType.boundmethod]: [null, readonly [Thing, Thing<ThingType.func>]],
@@ -72,8 +72,8 @@ type ThingInternalTypes<T extends ThingType> = {
     [ThingType.list]: [null, Thing[]],
     [ThingType.map]: [null, Thing<ThingType.pair>[]],
     [ThingType.pair]: [null, [Thing, Thing]],
-    [ThingType.pattern_entry]: [isRightAssociative: boolean, readonly [Thing<ThingType.pattern>, Thing, Thing<ThingType.list>, Thing<ThingType.number>]],
-    [ThingType.env]: [null, readonly [Thing<ThingType.env | ThingType.nil>, Thing<ThingType.map>, Thing<ThingType.list>]]
+    [ThingType.pattern_entry]: [isRightAssociative: boolean, readonly [pattern: Thing<ThingType.pattern>, handler: Thing, when: Thing<ThingType.list>, precedence: Thing<ThingType.number>]],
+    [ThingType.env]: [null, readonly [parents: Thing<ThingType.list>, vars: Thing<ThingType.map>, patterns: Thing<ThingType.list>]]
     [ThingType.macroized]: [null, readonly [Thing]],
     [ThingType.splat]: [null, readonly Thing[]],
 }[T];
@@ -120,7 +120,7 @@ export function boxSymbol<T extends ThingType.name | ThingType.operator | ThingT
 export function boxNameSymbol(value: string, trace = UNKNOWN_LOCATION) { return boxSymbol(value, ThingType.name, trace); }
 export function boxOperatorSymbol(value: string, trace = UNKNOWN_LOCATION) { return boxSymbol(value, ThingType.operator, trace); }
 export function boxSpaceSymbol(value: string, trace = UNKNOWN_LOCATION) { return boxSymbol(value, ThingType.space, trace); }
-export function boxNumber(value: number, trace = UNKNOWN_LOCATION, repr = value.toString()) { return new Thing(ThingType.number, [], value, repr, "", "", trace); }
+export function boxNumber(value: number | bigint, trace = UNKNOWN_LOCATION, repr = value.toString().replace("n", "")) { return new Thing(ThingType.number, [], value, repr, "", "", trace); }
 export function boxString(value: string, trace = UNKNOWN_LOCATION, raw: string, quote: string) { return new Thing(ThingType.string, [], value, quote + raw, quote, "", trace); }
 export function boxBlock<T extends ThingType.roundblock | ThingType.squareblock | ThingType.curlyblock | ThingType.stringblock | ThingType.topblock>(children: Thing<T>["c"], kind: T, trace = UNKNOWN_LOCATION, start: string, end: string): Thing<T> { return new Thing(kind, children, null as any, start, end, "", trace); }
 export function boxRoundBlock(children: readonly Thing[], trace = UNKNOWN_LOCATION) { return boxBlock(children, ThingType.roundblock, trace, "(", ")"); }

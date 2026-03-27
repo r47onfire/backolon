@@ -1,6 +1,6 @@
 import { expect } from "bun:test";
 import { keys } from "lib0/object";
-import { BackolonError, BUILTIN_ENV, BUILTIN_FUNCTIONS, ErrorNote, LocationTrace, parse, Scheduler, ThingType } from "../src";
+import { BackolonError, BUILTINS_MODULE, ErrorNote, LocationTrace, parse, Scheduler, ThingType } from "../src";
 
 export const F = new URL("about:test");
 export const L = new LocationTrace(0, 0, F);
@@ -60,7 +60,7 @@ export function expectParseError(p: string, error: string, note?: string) {
 
 export function expectEval(p: string, spec: ASTSpec) {
     const stdout: string[] = [];
-    const s = new Scheduler(BUILTIN_FUNCTIONS, BUILTIN_ENV, stdout.push.bind(stdout));
+    const s = new Scheduler([BUILTINS_MODULE], stdout.push.bind(stdout));
     try {
         const t = s.startTask(1, p, null, F);
         s.stepUntilSuspended();
@@ -76,7 +76,7 @@ export function expectEval(p: string, spec: ASTSpec) {
 }
 
 export function expectEvalError(p: string, error: string, note?: string) {
-    const s = new Scheduler(BUILTIN_FUNCTIONS, BUILTIN_ENV);
+    const s = new Scheduler([BUILTINS_MODULE]);
     try {
         s.startTask(1, p, null, F);
         s.stepUntilSuspended();

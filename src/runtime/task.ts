@@ -1,13 +1,12 @@
 import { stringify } from "lib0/json";
 import { forEach } from "lib0/object";
-import { ErrorNote, LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
+import { LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
 import { boxApply, boxList, boxNameSymbol, boxNil, isAtom, isBlock, isSymbol, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
 import { matchPattern } from "../patterns/match";
-import { flatToVarMap, newEnv } from "./env";
+import { flatToVarMap, newEnv, walkEnvTree } from "./env";
 import { getNthDescriptor, getParamDescriptors, isLazy, parametersToVars, wrapImplicitBlock } from "./functor";
 import { type Scheduler } from "./scheduler";
-import { unparse } from "../parser/unparse";
 
 export enum StackFlag {
     native_func_being_evaluated = 1,
@@ -20,7 +19,7 @@ export class StackEntry {
         /** arguments in-progress being evaluated */
         public readonly argv: readonly Thing[],
         /** current environment */
-        public readonly env: Thing<ThingType.env | ThingType.nil>,
+        public readonly env: Thing<ThingType.env> | Thing<ThingType.nil>,
         public readonly name: string | null,
         /** current index in evaluating args */
         public readonly index = 0,
@@ -64,7 +63,7 @@ export class Task {
     stack: readonly StackEntry[] = [];
     result: Thing | null = null;
     constructor(public priority: number, public scheduler: Scheduler,
-        code: Thing, env: Thing<ThingType.env | ThingType.nil>) {
+        code: Thing, env: Thing<ThingType.env> | Thing<ThingType.nil>) {
         this.enter(code, env);
     }
 
@@ -107,11 +106,10 @@ export class Task {
                     // @ts-expect-error
                     case BlockEvalState.initial:
                         top = this.updateArgs(children.slice());
-                        // console.log("initial match", this.stack.at(-1)!.argv.map(t => [ThingType[t.t], unparse(t)]));
+                    // console.log("initial match", this.stack.at(-1)!.argv.map(t => [ThingType[t.t], unparse(t)]));
                     // @ts-expect-error
                     case BlockEvalState.matching_patterns:
-                        for (var env = top.env; !typecheck(ThingType.nil)(env); env = env.c[0]!) {
-                            const patterns: Thing<ThingType.pattern_entry>[] = env.c[2]?.c ?? [] as any;
+                        if (walkEnvTree(top.env, (_, patterns) => {
                             for (var i = 0; i < patterns.length; i++) {
                                 const entry = patterns[i]!,
                                     rightAssociative = entry.v,
@@ -119,7 +117,7 @@ export class Task {
                                     impl = entry.c[1]!,
                                     when = entry.c[2]?.c;
                                 if (when.length > 0 && !typecheck(...when.map(v => v.v))(val)) continue;
-                                const results = matchPattern(top.argv, pat, rightAssociative);
+                                const results = matchPattern(top!.argv, pat, rightAssociative);
                                 var result = results[0];
                                 if (rightAssociative && results.length > 0) {
                                     for (var i = 1; i < results.length; i++) {
@@ -135,12 +133,15 @@ export class Task {
                                     this.updateCookie(0, BlockEvalState.waiting_for_pattern_result, result.span);
                                     this.enter(boxApply(impl, [this.i(loc, flatToVarMap(result, loc), {
                                         // TODO: inject block type variable
-                                    })], top.argv[result.span[0]!]!.loc), top.env);
+                                    })], top!.argv[result.span[0]!]!.loc), top!.env);
                                     return true;
                                 } else {
                                     // console.log("no match for", [unparse(pat)]);
                                 }
                             }
+                            return false;
+                        })) {
+                            return true;
                         }
                         // console.log("no match for anything - done.");
                         this.result = boxNil(val.loc);
@@ -174,14 +175,14 @@ export class Task {
                 look it up, error if not found
             */
             if (typecheck(ThingType.name)(val)) {
-                for (var env = top.env; !typecheck(ThingType.nil)(env); env = env.c[0]!) {
-                    const vars = env.c[1]!;
+                if (walkEnvTree(top.env, vars => {
                     const result = mapGetKey(vars, val, loc);
                     if (result !== undefined) {
                         this.out(result);
                         return true;
                     }
-                }
+                    return false;
+                })) return true;
                 throw new RuntimeError(`undefined: ${stringify(val.v)}`, loc);
             }
             if (isSymbol(val)) {
@@ -274,10 +275,10 @@ export class Task {
         return vars;
     }
     /** apply - for functions the parameters will need to have been evaluated / typechecked*/
-    private a(callsite: Thing, functor: Thing, argv: Thing[], env: Thing<ThingType.env | ThingType.nil>, name?: string) {
+    private a(callsite: Thing, functor: Thing, argv: Thing[], env: Thing<ThingType.env> | Thing<ThingType.nil>, name?: string) {
         const goDefaults = (pendingDefaults: Thing[], vars: Thing<ThingType.map>) => {
             // Make the new parent env for evaluating the arguments include the caller's scope, to allow dynamic bindings of defaults.
-            this.enter(boxApply(functor, pendingDefaults, callsite.loc), newEnv(vars, boxList([]), callsite.loc, env), [functor, ...argv]);
+            this.enter(boxApply(functor, pendingDefaults, callsite.loc), newEnv(vars, boxList([]), callsite.loc, [env]), [functor, ...argv]);
             this.updateCookie(1, ApplyEvalState.evaluate_arguments, null);
         }
         if (typecheck(ThingType.func)(functor)) {
@@ -315,7 +316,7 @@ export class Task {
             if (!typecheck(ThingType.map)(map)) {
                 throw new RuntimeError(`expected a map to inject (got ${typeNameOf(map.t)})`, callsite.loc);
             }
-            const e = map.c.length === 0 ? functor.v : newEnv(map, boxList([]), callsite.loc, functor.v);
+            const e = map.c.length === 0 ? functor.v : newEnv(map, boxList([]), callsite.loc, [functor.v]);
             this.enter(functor.c[0], e, []);
         }
         else throw new RuntimeError(`can't call ${typeNameOf(functor.t)}`, callsite.loc);
@@ -344,7 +345,7 @@ export class Task {
         return updated;
     }
     /** enter/call, with no injected block */
-    enter(code: Thing, env: Thing<ThingType.env | ThingType.nil>, args: readonly Thing[] = [], name?: string | null) {
+    enter(code: Thing, env: Thing<ThingType.env> | Thing<ThingType.nil>, args: readonly Thing[] = [], name?: string | null) {
         this.stack = this.stack.toSpliced(Infinity, 0, new StackEntry(code, args, env, name ?? null));
     }
     /** return a result and stop looping on this frame */

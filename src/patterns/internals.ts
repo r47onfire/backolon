@@ -64,6 +64,7 @@ export class NFASubstate {
             case PatternType.capture_group:
                 return [this.u(this.i + 1, item[1], inputIndex, item[2], item[3])];
             case PatternType.dot:
+                // ThingType.pattern is needed to for the metapattern parsing to work
                 return input ? ((isAtom(input) || isBlock(input) || typecheck(ThingType.apply, ThingType.pattern)(input)) ? [this.n()] : []) : [this];
             case PatternType.anchor:
                 return (item[1] ? inputIndex === 0 : isAtEnd) ? [this.n()] : [];

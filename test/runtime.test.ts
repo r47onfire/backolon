@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { BUILTIN_ENV, BUILTIN_FUNCTIONS, Scheduler, ThingType } from "../src";
+import { BUILTINS_MODULE, Scheduler, ThingType } from "../src";
 import { expectEval, expectEvalError, F } from "./astCheck";
 
 test("empty result", () => {
@@ -8,9 +8,9 @@ test("empty result", () => {
     });
 });
 test("roundtrip", () => {
-    const s = new Scheduler(BUILTIN_FUNCTIONS, BUILTIN_ENV);
+    const s = new Scheduler([BUILTINS_MODULE]);
     s.startTask(1, "a + 1", null, F);
-    const s2 = new Scheduler(BUILTIN_FUNCTIONS, BUILTIN_ENV);
+    const s2 = new Scheduler([BUILTINS_MODULE]);
     s2.loadFromSerialized(s.serializeTasks());
     expect(s2).toEqual(s);
 });
@@ -156,5 +156,30 @@ describe("conditionals", () => {
         expect(expectEval("if false (print 1) (print 2)", {
             t: ThingType.nil,
         })).toEqual(["2"]);
+    });
+});
+describe("operators", () => {
+    test("plus", () => {
+        expectEval("1 + 2", {
+            t: ThingType.number,
+            v: 3
+        });
+        expectEval("1000000000000000000000 + 1", {
+            t: ThingType.number,
+            v: 1000000000000000000001n
+        });
+        expectEval("1000000000000000000000 + 1000000000000000000000", {
+            t: ThingType.number,
+            v: 2000000000000000000000n
+        });
+        expectEval("'hello' + 'world'", {
+            t: ThingType.string,
+            v: "helloworld",
+        });
+        expectEval("'hello' + ', ' + 'world' + '!'", {
+            t: ThingType.string,
+            v: "hello, world!",
+        });
+        expectEvalError("'hello' + 1", "No overload exists for operator \"plus\" with arguments types \"string\", \"number\"");
     });
 });

@@ -47,6 +47,11 @@ describe("numbers", () => {
             makespec(ThingType.topblock, null,
                 makespec(ThingType.number, 0b111)));
     });
+    test("bigint", () => {
+        expectParse("1982468126408127409127406104961092640912764091674",
+            makespec(ThingType.topblock, null,
+                makespec(ThingType.number, 1982468126408127409127406104961092640912764091674n)));
+    });
 });
 describe("strings", () => {
     test("parses raw string and ignores escapes except for single 's", () => {

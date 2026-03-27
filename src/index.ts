@@ -70,7 +70,7 @@ export {
     StackFlag
 } from "./runtime/task";
 export {
-    BUILTIN_ENV,
-    BUILTIN_FUNCTIONS,
+    BUILTINS_MODULE,
+    rewriteAsApply,
 } from "./stdlib";
 

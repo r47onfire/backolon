@@ -452,10 +452,5 @@ describe("metapattern", () => {
             ["x: number", true],
             ["x = 1", true],
             ["x: number = nil", true]);
-
-        test("parse signature", () => {
-            const x = parseSignature(parse("x y:number=1 @z", F).c);
-            console.log(x.map(c => unparse(c)).join(" "));
-        });
     });
 });

@@ -3,14 +3,23 @@ import { id } from "lib0/function";
 import { LocationTrace, ParseError, UNKNOWN_LOCATION } from "../errors";
 import { boxEnd, Thing, ThingType } from "../objects/thing";
 
+const pNumber = (x: string) => {
+    try {
+        const big = BigInt(x);
+        if (big > Number.MAX_SAFE_INTEGER || big < Number.MIN_SAFE_INTEGER) return big;
+    } catch {
+    }
+    return Number(x);
+}
+
 type Rule = [
     RegExp,
     ThingType,
     process: (x: string) => any
 ];
 const TOKENIZE_RULES: Rule[] = [
-    [/^0x[a-f0-9]+|^-?0b[01]+/i, ThingType.number, Number],
-    [/^(\.\d+|\d+\.?\d*)(e[+-]?\d+)?/i, ThingType.number, Number],
+    [/^0x[a-f0-9]+|^-?0b[01]+/i, ThingType.number, pNumber],
+    [/^(\.\d+|\d+\.?\d*)(e[+-]?\d+)?/i, ThingType.number, pNumber],
     [/^[\p{Alpha}_][\p{Alpha}\p{Number}_]*/u, ThingType.name, id],
     [/^\p{Punctuation}/u, ThingType.operator, id],
     [/^((?!\n)\s)+/, ThingType.space, id],
