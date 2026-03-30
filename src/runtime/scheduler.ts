@@ -81,7 +81,7 @@ export class Scheduler {
         for (var module of this.builtins) {
             const overloads = module.ops[name]?.[argc];
             if (overloads) for (var overload of overloads) {
-                const typeMatches = overload.types.every((t, i) => typecheck(t as ThingType)(argv[i]!));
+                const typeMatches = overload.types.every((t, i) => t === null ? true : typecheck(t)(argv[i]!));
                 if (typeMatches) {
                     return overload.cb(loc, argv);
                 }

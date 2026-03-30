@@ -136,8 +136,8 @@ export function boxApply(func: Thing, args: readonly Thing[], trace = UNKNOWN_LO
 // export function box(thing: any, trace = UNKNOWN_LOCATION) { return new Thing(ThingType.js_object, [], thing, "", "", "", trace, false); }
 
 // hack to make it one per Thing
-type OneTypeThing<T extends ThingType> = T extends any ? Thing<T> : never;
-export function typecheck<T extends ThingType>(...types: T[]) {
+type OneTypeThing<T extends (ThingType | string)> = T extends any ? Thing<T> : never;
+export function typecheck<T extends (ThingType | string)>(...types: T[]) {
     return (thing: Thing<any>): thing is OneTypeThing<T> => types.includes(thing.t as T);
 }
 

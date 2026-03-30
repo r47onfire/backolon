@@ -249,7 +249,7 @@ describe("collections", () => {
                 }
             ]
         });
-        // TODO: this fails if the hashes change, because maps are unpredictable order
+        // TODO: this fails when the hash algo changes, because maps are unpredictable order
         expectEval("[1: 2, 3: 4]", {
             t: ThingType.map,
             c: [
@@ -282,5 +282,15 @@ describe("collections", () => {
             ]
         });
         expectEvalError("[1, 2, 3: 4]", "can only concatenate list+list or map+map, but got list+map");
-    })
+    });
+    test("indexing collections", () => {
+        expectEval("[1, 2, 3]->2", {
+            t: ThingType.number,
+            v: 3,
+        });
+        expectEval("[[1, 2], [3, 4]]->1->1", {
+            t: ThingType.number,
+            v: 4,
+        });
+    });
 });

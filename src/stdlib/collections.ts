@@ -1,7 +1,9 @@
-import { NativeModule, symbol_x } from ".";
-import { matchPattern, RuntimeError } from "..";
+import { NativeModule, rewriteAsApply, symbol_x, symbol_y } from ".";
+import { RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
 import { boxApply, boxList, boxNativeFunc, boxRoundBlock, boxSquareBlock, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
+import { unparse } from "../parser/unparse";
+import { matchPattern } from "../patterns/match";
 import { p } from "../patterns/meta";
 import { BUILTINS_LOC } from "../runtime/functor";
 
@@ -82,6 +84,26 @@ export function collections(mod: NativeModule) {
             task.out(m2);
         }
     });
+    mod.defop("__builtin_index", "index");
+    mod.defoverload("index", [ThingType.list, ThingType.number], (loc, argv) => {
+        const list = argv[0].c;
+        const index = Number(argv[1].v);
+        const value = list.at(index);
+        if (value === undefined) {
+            throw new RuntimeError(`list index ${index} out of range for length ${list.length}`, loc);
+        }
+        return value;
+    });
+    mod.defoverload("index", [ThingType.map, null], (loc, argv) => {
+        const map = argv[0];
+        const key = argv[1];
+        const value = mapGetKey(map, key, loc);
+        if (value === undefined) {
+            throw new RuntimeError(`key ${unparse(key)} not found in map`, loc);
+        }
+        return value;
+    });
+    mod.defsyntax("x -> y", 8, false, null, "__rewrite_index", rewriteAsApply([symbol_x, symbol_y], "__builtin_index"));
 }
 
 const empty_list_pattern = p("[^] [$]");

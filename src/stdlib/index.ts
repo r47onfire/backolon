@@ -11,7 +11,7 @@ import { initCoreSyntax } from "./core";
 export const symbol_x = boxNameSymbol("x"), symbol_y = boxNameSymbol("y"), symbol_z = boxNameSymbol("z");
 
 export interface OperatorOverload {
-    types: (ThingType | string)[];
+    types: (ThingType | string | null)[];
     cb(opTrace: LocationTrace, argv: readonly any[]): Thing;
 }
 
@@ -51,7 +51,7 @@ export class NativeModule {
             task.out(task.scheduler.operator(name, state));
         });
     }
-    defoverload<const T extends (ThingType | string)[]>(name: string, types: T, cb: (opTrace: LocationTrace, argv: MapValues<T>) => Thing) {
+    defoverload<const T extends (ThingType | string | null)[]>(name: string, types: T, cb: (opTrace: LocationTrace, argv: MapValues<T>) => Thing) {
         ((this.ops[name] ??= {})[types.length] ??= []).push({ types, cb });
     }
 }
@@ -66,7 +66,7 @@ export function rewriteAsApply(symbols: Thing<ThingType.name>[], builtinName: st
     }
 }
 
-type MapValues<T extends readonly (ThingType | string)[]> = { [K in keyof T]: Thing<T[K]> };
+type MapValues<T extends readonly (ThingType | string | null)[]> = { [K in keyof T]: T[K] extends null ? Thing : Thing<Exclude<T[K], null>> };
 
 let x: MapValues<[ThingType.number]>;
 
