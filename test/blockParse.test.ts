@@ -125,7 +125,7 @@ describe("blocks", () => {
                 makespec(ThingType.topblock, null,
                     makespec(ThingType.space, null)));
         });
-        test("line comment blocks can be terminated with EOF or newline and don't eat newline token", () => {
+        test("trailing line comment", () => {
             expectParse("# hi\n",
                 makespec(ThingType.topblock, null,
                     makespec(ThingType.space, null),
@@ -141,6 +141,15 @@ describe("blocks", () => {
         test("block comments complain if they're not closed", () => {
             expectParseError("##", "\"##\" was never closed");
         });
+    });
+    test("string blocks", () => {
+        expectParse("\"hello {x}!\"",
+            makespec(ThingType.topblock, null,
+                makespec(ThingType.stringblock, null,
+                    makespec(ThingType.string, "hello "),
+                    makespec(ThingType.roundblock, null,
+                        makespec(ThingType.name, "x")),
+                    makespec(ThingType.string, "!"))))
     });
     test("unmatched", () => {
         expectParseError("(", "\"(\" was never closed");

@@ -190,5 +190,5 @@ export function parseSignature(block: readonly Thing[]): (Thing<ThingType.name> 
 
 const base = "{@|}[p:name]{ : {[t:name]|[t:squareblock]}|}{ = d|} {!|} ";
 const signaturePattern = p(base);
-const splatEndPattern = p(`${base}[=.].. [$]`);
+const splatEndPattern = p(`${base}[=.].. `);
 

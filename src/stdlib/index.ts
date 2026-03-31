@@ -56,19 +56,17 @@ export class NativeModule {
     }
 }
 
-export function rewriteAsApply(symbols: Thing<ThingType.name>[], builtinName: string): NativeFunctionDetails["impl"] {
+export function rewriteAsApply(symbols: Thing<ThingType.name>[], builtinName: string, start?: string, end?: string): NativeFunctionDetails["impl"] {
     return (task, state) => {
         const groups: Thing<ThingType.map> = state.argv[0]! as any;
         var values = symbols.map(sym => mapGetKey(groups, sym));
         // trim off undefined's
         if (values.includes(undefined)) values = values.slice(0, values.indexOf(undefined));
-        task.out(boxApply(boxNativeFunc(builtinName, state.value.loc), values as Thing[], state.value.loc));
+        task.out(boxApply(boxNativeFunc(builtinName, state.value.loc), values as Thing[], state.value.loc, start, end));
     }
 }
 
 type MapValues<T extends readonly (ThingType | string | null)[]> = { [K in keyof T]: T[K] extends null ? Thing : Thing<Exclude<T[K], null>> };
-
-let x: MapValues<[ThingType.number]>;
 
 function createBuiltins(): NativeModule {
     const mod = new NativeModule("backolon_core", BUILTINS_LOC);

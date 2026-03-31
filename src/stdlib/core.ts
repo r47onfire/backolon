@@ -11,7 +11,9 @@ import type { StackEntry, Task } from "../runtime/task";
 import { collections } from "./collections";
 import { control_flow } from "./control_flow";
 import { math } from "./math";
+import { metaprogramming } from "./metaprogramming";
 import { misc } from "./misc";
+import { strings } from "./strings";
 
 export function initCoreSyntax(mod: NativeModule) {
     mod.defvar("nil", boxNil(mod.loc));
@@ -21,7 +23,7 @@ export function initCoreSyntax(mod: NativeModule) {
     // MARK: blocks and logical lines
     const EXPLICIT_BLOCK_PRECEDENCE = -Infinity;
     const LAMBDA_PRECEDENCE = -1e100;
-    const VARIABLE_ASSIGNMENT_PRECEDENCE = 0;
+    const VARIABLE_ASSIGNMENT_PRECEDENCE = 12;
     const IMPLICIT_BLOCK_PRECEDENCE = 1e100;
     const APPLY_PRECEDENCE = Infinity;
     mod.defsyntax("[^] {x...|}  ;  [y{_| }...] [$]", EXPLICIT_BLOCK_PRECEDENCE, false, null, "__rewrite_sequence", (task, state) => {
@@ -127,4 +129,6 @@ export function initCoreSyntax(mod: NativeModule) {
     math(mod);
     misc(mod);
     collections(mod);
+    strings(mod);
+    metaprogramming(mod);
 }

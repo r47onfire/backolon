@@ -56,10 +56,6 @@ export function math(mod: NativeModule) {
     operation("mod", "%", 3, false, (x, y) => x % y);
 
     operation("add", "+", 4, false, (x, y) => x + y);
-    mod.defoverload("add", [ThingType.string, ThingType.string], (loc, argv) => {
-        const x = argv[0].v + argv[1].v;
-        return boxString(x, loc, JSON.stringify(x), "");
-    });
 
     operation("sub", "-", 4, false, (x, y) => x - y);
     unary("sub", "-", 2, true, x => -x);

@@ -95,6 +95,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
             }
             for (var i = 0; i < items.length; i++) {
                 const item = items[i]!;
+                startLoc ??= item.loc;
                 if (isBlock(item)) {
                     if (item.c.length === 0) {
                         throw new RuntimeError("empty interpolation block", item.loc);
@@ -103,7 +104,6 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
                     bits.push(item as Thing<ThingType.roundblock>);
                     continue;
                 }
-                startLoc ??= item.loc;
                 if (item.v === "\\") {
                     // Process escape characters
                     const next = items[++i];
@@ -132,7 +132,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
                     curString += item.v;
                 }
             }
-            if (bits.length === 0) chuck();
+            if (curStringRaw.length !== 0) chuck();
             return bits.length === 1 ? bits[0]! : boxStringBlock(bits, loc, start);
         },
         b: []

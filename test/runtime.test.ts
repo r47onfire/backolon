@@ -143,6 +143,12 @@ describe("lambdas", () => {
             t: ThingType.nil,
         })).toEqual(["1 hi", "2 hi"]);
     });
+    test("lambdas with rest parameters", () => {
+        expect(expectEval("let f = [x y z...] => print x y z; f 1 2; f 1 2 3 4 5", {
+            t: ThingType.nil,
+        })).toEqual(["1 2 []", "1 2 [3, 4, 5]"]);
+        expectEvalError("[x... y...] => 1", "can only have 1 rest parameter");
+    })
 });
 describe("conditionals", () => {
     test("if true", () => {
@@ -196,6 +202,12 @@ describe("operators", () => {
         expectEval("-0.8-8", {
             t: ThingType.number,
             v: -8.8
+        });
+    });
+    test("works with assignment", () => {
+        expectEval("let x = 1 + 2; x", {
+            t: ThingType.number,
+            v: 3
         });
     });
 });
@@ -283,7 +295,7 @@ describe("collections", () => {
         });
         expectEvalError("[1, 2, 3: 4]", "can only concatenate list+list or map+map, but got list+map");
     });
-    test("indexing collections", () => {
+    test("indexing lists", () => {
         expectEval("[1, 2, 3]->2", {
             t: ThingType.number,
             v: 3,
@@ -292,5 +304,111 @@ describe("collections", () => {
             t: ThingType.number,
             v: 4,
         });
+    });
+    test("indexing maps", () => {
+        expectEval("[1: 2, 3: 4]->3", {
+            t: ThingType.number,
+            v: 4,
+        });
+        expectEvalError("[1: 2, 3: 4]->4", "key 4 not found in map");
+    });
+    test("collections with dynamic values", () => {
+        expectEval("let x = 1; [x, x + 1, x + 2]->x", {
+            t: ThingType.number,
+            v: 2,
+        });
+    });
+});
+describe("string interpolation", () => {
+    test("string into string", () => {
+        expectEval("let x = 'world'; \"hello {x}!\"", {
+            t: ThingType.string,
+            v: "hello world!",
+        });
+    });
+    test("non-string into string", () => {
+        expectEval("let x = 123+456; \"hello {x}!\"", {
+            t: ThingType.string,
+            v: "hello 579!",
+        });
+    });
+    test("literals as-written are unparsed directly", () => {
+        expectEval("let x = 0x12323; \"hello {x}!\"", {
+            t: ThingType.string,
+            v: "hello 0x12323!",
+        });
+    });
+});
+describe("homoiconicity", () => {
+    describe("quoting", () => {
+        test("quote of block", () => {
+            expectEval("`(ok bye)", {
+                t: ThingType.roundblock,
+            });
+        });
+        test("quote of thing that already evaluates to itself", () => {
+            expectEval("`1", {
+                t: ThingType.number,
+            });
+        });
+        test("double quoting", () => {
+            expectEval("``(ok)", {
+                t: ThingType.apply,
+                c: [
+                    {
+                        t: ThingType.nativefunc,
+                        v: "__builtin_quote",
+                    },
+                    {
+                        t: ThingType.roundblock
+                    }
+                ]
+            });
+        });
+        test("quoting name", () => {
+            expectEval("`name", {
+                t: ThingType.name,
+                v: "name"
+            });
+        });
+    });
+    describe("templating", () => {
+        test("interpolation into blocks", () => {
+            expectEval("let x = 1; {", {
+                t: ThingType.roundblock,
+            })
+        })
+    });
+    describe("eval", () => {
+        test("simple eval in original environment", () => {
+            expect(expectEval("let x = `(print 1); __builtin_eval x", {
+                t: ThingType.nil,
+            })).toEqual(["1"]);
+        });
+        test("eval in constructed environment", () => {
+            expect(expectEval("let x = `(say 1); __builtin_eval x [`say: [x] => print x x]", {
+                t: ThingType.nil,
+            })).toEqual(["1 1"]);
+        })
+    });
+    test("implicit keys", () => {
+        expectEval("let x = 1; [`x:]", {
+            t: ThingType.map,
+            c: [
+                {
+                    t: ThingType.pair,
+                    c: [
+                        {
+                            t: ThingType.name,
+                            v: "x",
+                        },
+                        {
+                            t: ThingType.number,
+                            v: 1,
+                        }
+                    ]
+                }
+            ]
+        })
     });
 });
