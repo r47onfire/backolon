@@ -44,7 +44,7 @@ export class NativeModule {
             boxList((when ?? [ThingType.roundblock, ThingType.topblock]).map(m => boxNumber(m, this.loc)), this.loc),
             boxNumber(precedence, this.loc),
         ], right, "", "", "", this.loc));
-        patterns.sort((a, b) => Number(a.c[3].v) - Number(b.c[3].v));
+        sort_patterns_list(patterns);
     }
     defop(builtin: string, name: string) {
         this.defun(builtin, "values...", (task, state) => {
@@ -64,6 +64,10 @@ export function rewriteAsApply(symbols: Thing<ThingType.name>[], builtinName: st
         if (values.includes(undefined)) values = values.slice(0, values.indexOf(undefined));
         task.out(boxApply(boxNativeFunc(builtinName, state.value.loc), values as Thing[], state.value.loc, start, end));
     }
+}
+
+export function sort_patterns_list(list: Thing<ThingType.pattern_entry>[]) {
+    list.sort((a, b) => Number(a.c[3].v) - Number(b.c[3].v));
 }
 
 type MapValues<T extends readonly (ThingType | string | null)[]> = { [K in keyof T]: T[K] extends null ? Thing : Thing<Exclude<T[K], null>> };

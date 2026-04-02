@@ -293,7 +293,7 @@ describe("collections", () => {
                 }
             ]
         });
-        expectEvalError("[1, 2, 3: 4]", "can only concatenate list+list or map+map, but got list+map");
+        expectEvalError("[1, 2, 3: 4]", "No overload exists for operator \"add\" with arguments types \"list\", \"map\"");
     });
     test("indexing lists", () => {
         expectEval("[1, 2, 3]->2", {
@@ -338,6 +338,12 @@ describe("string interpolation", () => {
             v: "hello 0x12323!",
         });
     });
+    test("single string block convert to string", () => {
+        expectEval("let x = 1; \"{x}\"", {
+            t: ThingType.string,
+            v: "1",
+        });
+    })
 });
 describe("homoiconicity", () => {
     describe("quoting", () => {
@@ -357,7 +363,7 @@ describe("homoiconicity", () => {
                 c: [
                     {
                         t: ThingType.nativefunc,
-                        v: "__builtin_quote",
+                        v: "__quote",
                     },
                     {
                         t: ThingType.roundblock
@@ -374,21 +380,32 @@ describe("homoiconicity", () => {
     });
     describe("templating", () => {
         test("interpolation into blocks", () => {
-            expectEval("let x = 1; {", {
+            expect(expectEval("let x = print; let y = {$x 2}; __eval y; y", {
                 t: ThingType.roundblock,
-            })
-        })
+            })).toEqual(["2"]);
+        });
+        test("multi-level templating", () => {
+            expect(expectEval("let x = 1; print {print $x {print $y 2}}", {
+                t: ThingType.nil,
+            })).toEqual([]);
+        });
     });
     describe("eval", () => {
         test("simple eval in original environment", () => {
-            expect(expectEval("let x = `(print 1); __builtin_eval x", {
+            expect(expectEval("let x = `(print 1); __eval x", {
                 t: ThingType.nil,
             })).toEqual(["1"]);
         });
         test("eval in constructed environment", () => {
-            expect(expectEval("let x = `(say 1); __builtin_eval x [`say: [x] => print x x]", {
+            expect(expectEval("let x = `(say 1); __eval x [`say: [x] => print x x]", {
                 t: ThingType.nil,
             })).toEqual(["1 1"]);
+        });
+        test("concatenation of blocks", () => {
+            expectEval("__eval `(1 +) + `(2)", {
+                t: ThingType.number,
+                v: 3,
+            });
         })
     });
     test("implicit keys", () => {

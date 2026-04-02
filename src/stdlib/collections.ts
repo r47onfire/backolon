@@ -1,16 +1,15 @@
 import { NativeModule, rewriteAsApply, symbol_x, symbol_y } from ".";
 import { RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
-import { boxApply, boxList, boxNativeFunc, boxRoundBlock, boxSquareBlock, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
+import { boxApply, boxList, boxNativeFunc, boxOperatorSymbol, boxRoundBlock, boxSquareBlock, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
 import { unparse } from "../parser/unparse";
 import { matchPattern } from "../patterns/match";
 import { p } from "../patterns/meta";
 import { BUILTINS_LOC } from "../runtime/functor";
 
 export function collections(mod: NativeModule) {
-    const BUILTIN_LIST = boxNativeFunc("__builtin_list", BUILTINS_LOC);
-    const BUILTIN_DICT = boxNativeFunc("__builtin_dict", BUILTINS_LOC);
-    const BUILTIN_CONCAT = boxNativeFunc("__builtin_concat", BUILTINS_LOC);
+    const BUILTIN_LIST = boxNativeFunc("__list", BUILTINS_LOC);
+    const BUILTIN_DICT = boxNativeFunc("__dict", BUILTINS_LOC);
     mod.defsyntax("[x:squareblock]", -1e50, false, null, "__rewrite_squareblock", (task, state) => {
         const arg = state.argv[0]! as Thing<ThingType.map>;
         const loc = arg.loc;
@@ -44,15 +43,15 @@ export function collections(mod: NativeModule) {
         if (rest) {
             const loc = (rest as any[])[0].loc;
             const restB = boxRoundBlock([boxSquareBlock(rest as any[], loc)], loc);
-            task.out(boxApply(BUILTIN_CONCAT, [first_el, restB], restB.loc));
+            task.out(boxRoundBlock([first_el, boxOperatorSymbol("+", first_el.loc), restB], restB.loc));
         } else {
             task.out(first_el);
         }
     });
-    mod.defun("__builtin_list", "items...", (task, state) => {
+    mod.defun("__list", "items...", (task, state) => {
         task.out(boxList(state.argv.slice(), state.value.loc));
     });
-    mod.defun("__builtin_dict", "items...", (task, state) => {
+    mod.defun("__dict", "items...", (task, state) => {
         const loc = state.value.loc;
         const m = newEmptyMap(loc);
         const argv = state.argv;
@@ -65,27 +64,22 @@ export function collections(mod: NativeModule) {
         }
         task.out(m);
     });
-    mod.defun("__builtin_concat", "head:[list map] tail:[list map]", (task, state) => {
-        const head = state.argv[0]! as Thing<ThingType.map> | Thing<ThingType.list>;
-        const tail = state.argv[1]! as Thing<ThingType.map> | Thing<ThingType.list>;
-        if (head.t !== tail.t) {
-            throw new RuntimeError(`can only concatenate list+list or map+map, but got ${typeNameOf(head.t)}+${typeNameOf(tail.t)}`, tail.loc);
-        }
-        if (typecheck(ThingType.list)(head)) {
-            task.out(boxList([...head.c, ...tail.c], head.loc));
-        } else {
-            const m2 = newEmptyMap(head.loc);
-            for (var i = 0; i < head.c.length; i++) {
-                mapUpdateKeyMutating(m2, head.c[i]!.c[0], head.c[i]!.c[1], state.value.loc);
-            }
-            for (i = 0; i < tail.c.length; i++) {
-                mapUpdateKeyMutating(m2, tail.c[i]!.c[0]!, tail.c[i]!.c[1]!, state.value.loc);
-            }
-            task.out(m2);
-        }
+    mod.defoverload("add", [ThingType.list, ThingType.list], (loc, argv) => {
+        return boxList([...argv[0].c, ...argv[1].c], loc);
     });
-    mod.defop("__builtin_index", "index");
-    mod.defoverload("index", [ThingType.list, ThingType.number], (loc, argv) => {
+    mod.defoverload("add", [ThingType.map, ThingType.map], (loc, argv) => {
+        const head = argv[0], tail = argv[1];
+        const m2 = newEmptyMap(head.loc);
+        for (var i = 0; i < head.c.length; i++) {
+            mapUpdateKeyMutating(m2, head.c[i]!.c[0], head.c[i]!.c[1], loc);
+        }
+        for (i = 0; i < tail.c.length; i++) {
+            mapUpdateKeyMutating(m2, tail.c[i]!.c[0]!, tail.c[i]!.c[1]!, loc);
+        }
+        return m2;
+    });
+    mod.defop("__getitem", "getitem");
+    mod.defoverload("getitem", [ThingType.list, ThingType.number], (loc, argv) => {
         const list = argv[0].c;
         const index = Number(argv[1].v);
         const value = list.at(index);
@@ -94,7 +88,7 @@ export function collections(mod: NativeModule) {
         }
         return value;
     });
-    mod.defoverload("index", [ThingType.map, null], (loc, argv) => {
+    mod.defoverload("getitem", [ThingType.map, null], (loc, argv) => {
         const map = argv[0];
         const key = argv[1];
         const value = mapGetKey(map, key, loc);
@@ -103,7 +97,7 @@ export function collections(mod: NativeModule) {
         }
         return value;
     });
-    mod.defsyntax("x -> y", -1, false, null, "__rewrite_index", rewriteAsApply([symbol_x, symbol_y], "__builtin_index"));
+    mod.defsyntax("x -> y", -1, false, null, "__rewrite_getitem", rewriteAsApply([symbol_x, symbol_y], "__getitem"));
 }
 
 const empty_list_pattern = p("[^] [$]");

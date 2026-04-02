@@ -36,14 +36,14 @@ export function math(mod: NativeModule) {
     const x = [symbol_x];
 
     const operation = (name: string, operator?: string, precedence?: number, right?: boolean, implementation?: BinaryFun) => {
-        mod.defop(`__builtin_${name}`, name);
+        mod.defop(`__${name}`, name);
         if (implementation) {
-            mod.defsyntax(`x ${operator} y`, precedence!, right!, null, `__rewrite_${name}`, rewriteAsApply(xy, `__builtin_${name}`));
+            mod.defsyntax(`x ${operator} y`, precedence!, right!, null, `__rewrite_${name}`, rewriteAsApply(xy, `__${name}`));
             mod.defoverload(name, [ThingType.number, ThingType.number], number_op(implementation));
         }
     };
     const unary = (name: string, operator: string, precedence: number, right: boolean, impl: (x: number) => number) => {
-        mod.defsyntax(`[^] ${operator} x`, precedence, right, null, `__rewrite_unary_${name}`, rewriteAsApply(x, `__builtin_${name}`));
+        mod.defsyntax(`[^] ${operator} x`, precedence, right, null, `__rewrite_unary_${name}`, rewriteAsApply(x, `__${name}`));
         mod.defoverload(name, [ThingType.number], (loc, argv) => boxNumber(impl(argv[0].v as number), loc));
     };
 

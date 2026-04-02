@@ -10,7 +10,7 @@ export function strings(mod: NativeModule) {
         const x = argv[0].v + argv[1].v;
         return boxString(x, loc, stringify(x), "");
     });
-    const BUILTIN_TOSTRING = boxNativeFunc("__builtin_tostring", BUILTINS_LOC);
+    const BUILTIN_TOSTRING = boxNativeFunc("__tostring", BUILTINS_LOC);
     mod.defsyntax("[x:stringblock]", -Infinity, false, null, "__rewrite_stringblock", (task, state) => {
         const map = state.argv[0]! as Thing<ThingType.map>;
         const x = mapGetKey(map, symbol_x)!;
@@ -26,7 +26,7 @@ export function strings(mod: NativeModule) {
         }
         task.out(boxRoundBlock(contents, x.loc));
     });
-    mod.defun("__builtin_tostring", "value", (task, state) => {
+    mod.defun("__tostring", "value", (task, state) => {
         const value = state.argv[0]!;
         const string = typecheck(ThingType.string)(value) ? value.v : unparse(value);
         task.out(boxString(string, value.loc, stringify(string), ""));

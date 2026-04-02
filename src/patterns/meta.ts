@@ -4,7 +4,7 @@ import { boxOperatorSymbol, Thing, ThingType, typecheck } from "../objects/thing
 import { parse } from "../parser/parse";
 import { unparse } from "../parser/unparse";
 import { PatternType } from "./internals";
-import { matchPattern } from "./match";
+import { matchPattern, MatchResult } from "./match";
 
 export const pattern = (type: PatternType, gsv: number | boolean, loc = UNKNOWN_LOCATION, children: readonly Thing[] = [], start = "", end = "", join = "") => new Thing(ThingType.pattern, children, { t: type, gsv }, start, end, join, loc);
 
@@ -189,16 +189,25 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
 }
 
 export function nonoverlappingreplace<T extends ThingType | string>(block: readonly Thing<T>[], pattern: Thing<ThingType.pattern>, replace: (slice: Thing[]/*, bindings: [Thing, Thing | Thing[]][]*/) => Thing<T>[]): readonly Thing<T>[] {
-    const matches = matchPattern(block, pattern, true);
-    for (var last = 0, shrinkage = 0, i = 0; i < matches.length; i++) {
+    const matches = nonoverlappingmatches(matchPattern(block, pattern, true));
+    for (var shrinkage = 0, i = 0; i < matches.length; i++) {
         const { span, /*bindings*/ } = matches[i]!, start = span[0], end = span[1];
-        if (start < last) continue;
         const replaceWith = replace(block.slice(start - shrinkage, end - shrinkage)/*, bindings*/);
         block = block.toSpliced(start - shrinkage, end - start, ...replaceWith);
         shrinkage += end - start - replaceWith.length;
-        last = end;
     }
     return block;
+}
+
+export function nonoverlappingmatches(matches: MatchResult[]): MatchResult[] {
+    const results = [];
+    for (var last = 0, i = 0; i < matches.length; i++) {
+        const { span } = matches[i]!, start = span[0], end = span[1];
+        if (start < last) continue;
+        results.push(matches[i]!);
+        last = end;
+    }
+    return results;
 }
 
 export const metapattern_location = new LocationTrace(0, 0, new URL("backolon:internal_metapattern"));

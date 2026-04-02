@@ -3,6 +3,7 @@ import { forEach } from "lib0/object";
 import { LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
 import { boxApply, boxList, boxNameSymbol, boxNil, isAtom, isBlock, isSymbol, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
+import { unparse } from "../parser/unparse";
 import { matchPattern } from "../patterns/match";
 import { flatToVarMap, newEnv, walkEnvTree } from "./env";
 import { getNthDescriptor, getParamDescriptors, isLazy, parametersToVars, wrapImplicitBlock } from "./functor";
@@ -85,12 +86,14 @@ export class Task {
             throw new RuntimeError("too much recursion", loc);
         }
 
-        const tryMacro = () => {
+        const hasMacro = () => {
             if (this.result && typecheck(ThingType.macroized)(this.result)) {
-                this.enter(this.result.c[0], top!.env);
                 return true;
             }
             return false;
+        };
+        const goMacro = () => {
+            this.enter(this.result!.c[0]!, top!.env);
         };
         corrupted: {
 
@@ -146,7 +149,11 @@ export class Task {
                         // console.log("no match for anything - done.");
                         this.result = boxNil(val.loc);
                     case BlockEvalState.evaluating_body_after_no_matches_found:
-                        if (tryMacro()) return true;
+                        if (hasMacro()) {
+                            this.updateCookie(top.index, BlockEvalState.evaluating_body_after_no_matches_found);
+                            goMacro();
+                            return true;
+                        }
                         if (top.index >= top.argv.length) {
                             this.out();
                         } else {
@@ -155,7 +162,7 @@ export class Task {
                         }
                         return true;
                     case BlockEvalState.waiting_for_pattern_result:
-                        if (tryMacro()) return true;
+                        if (hasMacro()) { goMacro(); return true; }
                         const res = this.result!;
                         this.result = null;
                         if (res === null) throw new Error("Expected a result");
@@ -228,7 +235,11 @@ export class Task {
                         res = this.result!;
                         this.result = null;
                         if (res === null) throw new Error("Expected a result");
-                        if (tryMacro()) return true;
+                        if (hasMacro()) {
+                            this.updateCookie(top.index, ApplyEvalState.waiting_for_arg_result);
+                            goMacro();
+                            return true;
+                        }
                         this.updateArgs(top.argv.toSpliced(Infinity, 0, ...(typecheck(ThingType.splat)(res) ? res.c : [res])));
                         this.updateCookie(top.index + 1, ApplyEvalState.evaluate_arguments, null);
                         return true;
