@@ -30,6 +30,9 @@ export class BackolonError extends Error {
     displayOn(sources: Record<string, string>): string {
         return formatTrace(this.trace, "error: " + this.message, sources) + this.notes.map(note => "\n" + formatTrace(note.loc, note.message, sources)).join("") + "\n";
     }
+    addNote(message: string, loc: LocationTrace) {
+        this.notes.push(new ErrorNote(message, loc));
+    }
 }
 
 export class ParseError extends BackolonError { }

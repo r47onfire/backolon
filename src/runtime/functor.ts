@@ -105,7 +105,7 @@ export function parametersToVars(functionName: string, paramsDef: ParamDescripto
         }
         const names = t.map(typeNameOf);
         const expected = names.join(names.length < 3 ? " or " : ", or ");
-        throw new RuntimeError(`Wrong type to argument ${stringify(name.v)} of function call (expected ${expected}, got ${typeNameOf(arg.t)})`, arg.loc);
+        throw new RuntimeError(`Wrong type to argument ${stringify(name.v)} of ${functionName} (expected ${expected}, got ${typeNameOf(arg.t)})`, arg.loc);
     }
     for (; pendingDefaults.length == 0 && i < paramsDef.length; i++) {
         const p = getNthDescriptor(paramsDef, i);

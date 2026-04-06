@@ -382,13 +382,21 @@ describe("homoiconicity", () => {
         test("interpolation into blocks", () => {
             expect(expectEval("let x = print; let y = {$x 2}; __eval y; y", {
                 t: ThingType.roundblock,
+                c: [
+                    { t: ThingType.nativefunc, v: "print" },
+                    { t: ThingType.space },
+                    { t: ThingType.number, v: 2 },
+                ]
             })).toEqual(["2"]);
         });
         test("multi-level templating", () => {
             expect(expectEval("let x = 1; print {print $x {print $y 2}}", {
                 t: ThingType.nil,
-            })).toEqual([]);
+            })).toEqual(["(print 1 {print $y 2})"]);
         });
+        test("too many quotes error", () => {
+            expectEvalError("{{{$$$$x}}}", "too many unquotes (there are 4 unquotes, but we're only at level 3)", "note: level 3 starts here:");
+        })
     });
     describe("eval", () => {
         test("simple eval in original environment", () => {
@@ -406,10 +414,11 @@ describe("homoiconicity", () => {
                 t: ThingType.number,
                 v: 3,
             });
-        })
+        });
     });
     test("implicit keys", () => {
-        expectEval("let x = 1; [`x:]", {
+        // TODO: this is a map again, if hash changes the order may be wrong
+        expectEval("let x = 1; let y = 2; [`x:, `y:]", {
             t: ThingType.map,
             c: [
                 {
@@ -422,6 +431,19 @@ describe("homoiconicity", () => {
                         {
                             t: ThingType.number,
                             v: 1,
+                        }
+                    ]
+                },
+                {
+                    t: ThingType.pair,
+                    c: [
+                        {
+                            t: ThingType.name,
+                            v: "y",
+                        },
+                        {
+                            t: ThingType.number,
+                            v: 2,
                         }
                     ]
                 }

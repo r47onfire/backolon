@@ -1,12 +1,9 @@
-import { last } from "lib0/array";
+import { stringify } from "lib0/json.js";
 import { NativeModule, rewriteAsApply, sort_patterns_list, symbol_x } from ".";
-import { RuntimeError } from "../errors";
-import { boxApply, boxCurlyBlock, boxList, boxNativeFunc, boxOperatorSymbol, boxRoundBlock, Thing, ThingType, typecheck } from "../objects/thing";
-import { unparse } from "../parser/unparse";
-import { matchPattern } from "../patterns/match";
-import { nonoverlappingmatches, p, removed_whitespace } from "../patterns/meta";
+import { BackolonError, RuntimeError } from "../errors";
+import { boxApply, boxBlock, boxList, boxNativeFunc, boxOperatorSymbol, boxRoundBlock, boxString, CheckedType, isAtom, isBlock, Thing, ThingType, typecheck } from "../objects/thing";
 import { newEnv } from "../runtime/env";
-import { id } from "lib0/function";
+import { BUILTINS_LOC } from "../runtime/functor";
 
 export function metaprogramming(mod: NativeModule) {
     const x = [symbol_x];
@@ -36,66 +33,92 @@ export function metaprogramming(mod: NativeModule) {
     mod.defsyntax("[x:curlyblock]", -Infinity, false, null, "__rewrite_curlyblock", rewriteAsApply(x, "__quasiquoted"));
     mod.defun("__quasiquoted", "@template:curlyblock", (task, state) => {
         task.out();
-        task.enter(build_quasiquoted(state.argv[0] as any, 1), state.env);
+        task.enter(build_quasiquoted(state.argv[0] as any), state.env);
     });
     mod.defoverload("add", [ThingType.roundblock, ThingType.roundblock], (loc, argv) => {
         return boxRoundBlock([...argv[0].c, ...argv[1].c], loc);
     });
-    mod.defun("__block_wrap", "x", (task, state) => task.out(boxRoundBlock([state.argv[0]!], state.value.loc)));
+    mod.defun("__block_wrap", "item", (task, state) => {
+        task.out(boxRoundBlock([state.argv[0]!], state.value.loc));
+    });
+    mod.defun("__change_block_type", "type:string block:roundblock", (task, state) => {
+        const type = ThingType[state.argv[0]!.v as any] as unknown as CheckedType<typeof isBlock>;
+        const { c, loc } = state.argv[1]!;
+        const { s0, s1 } = {
+            [ThingType.roundblock]: { s0: "(", s1: ")" },
+            [ThingType.curlyblock]: { s0: "{", s1: "}" },
+            [ThingType.squareblock]: { s0: "[", s1: "]" },
+            [ThingType.topblock]: { s0: "", s1: "" },
+            [ThingType.stringblock]: { s0: "\"", s1: "\"" },
+        }[type];
+        task.out(boxBlock(c, type, loc, s0, s1));
+    })
 }
 
-function build_quasiquoted(value: Thing<ThingType.curlyblock>, level: number): Thing {
+const BUILTIN_CHANGE_BLOCK_TYPE = boxNativeFunc("__change_block_type", BUILTINS_LOC);
+export const BUILTIN_QUOTE = boxNativeFunc("__quote", BUILTINS_LOC);
+const BUILTIN_BLOCK_WRAP = boxNativeFunc("__block_wrap", BUILTINS_LOC);
+function build_quasiquoted(value: Thing, level = 1): Thing {
+    if (isAtom(value)) return quote(value);
     const items = value.c;
-    const matches = nonoverlappingmatches(matchPattern(items, interpolation_pattern, true));
-    var previous = 0;
     const output: Thing[] = [];
-    console.log("{");
-    const add = (item: Thing[], allowPlus = true) => {
-        if (level < 2 && output.length > 0 && allowPlus) {
-            output.push(boxOperatorSymbol("+", item[0]!.loc));
-        }
-        output.push(...item);
-    };
-    const handleSlice = (slice: readonly Thing[]) => {
-        const q = level > 1 ? ((x: any) => [x]) : quote;
-        for (; slice.length > 0;) {
-            const lastIndex = slice.findIndex(typecheck(ThingType.curlyblock));
-            if (lastIndex > 0) {
-                add(q(boxRoundBlock(slice.slice(0, lastIndex), slice[0]!.loc)));
-                add([build_quasiquoted(slice[lastIndex] as Thing<ThingType.curlyblock>, level + 1)]);
-                slice = slice.slice(lastIndex + 1);
-            } else {
-                add(q(boxRoundBlock(slice, slice[0]!.loc)));
-                break;
+    // console.log("{");
+    // console.log(items.map(x => unparse(x)));
+    var unquoteCount = 0;
+    var firstUnquotePosition = -1;
+    try {
+        for (var item of items) {
+            var isQuote = false, shouldQuote = true;
+            if (typecheck(ThingType.operator)(item) && item.v === "$") {
+                if (unquoteCount === 0) firstUnquotePosition = output.length;
+                unquoteCount++;
+                isQuote = true;
             }
+            else if (typecheck(ThingType.space, ThingType.newline)(item)) {
+                isQuote = true;
+            }
+            else if (isBlock(item)) {
+                const topwrap = build_quasiquoted(item, level + +(item.t === ThingType.curlyblock));
+                shouldQuote = false;
+                const typeStr = ThingType[item.t];
+                item = boxApply(BUILTIN_CHANGE_BLOCK_TYPE, [boxString(typeStr, item.loc, stringify(typeStr), ""), topwrap], item.loc);
+            }
+            // Handle unquoted
+            if (!isQuote) {
+                if (unquoteCount > level) {
+                    throw new RuntimeError(`too many unquotes (there are ${unquoteCount} unquotes, but we're only at level ${level})`, output[firstUnquotePosition]!.loc);
+                }
+                else if (unquoteCount === level) {
+                    output.splice(firstUnquotePosition, Infinity);
+                }
+                else if (shouldQuote) {
+                    item = quote(item);
+                }
+                unquoteCount = 0;
+            } else {
+                item = quote(item);
+            }
+            item = nested(item);
+            if (output.length > 0) {
+                output.push(boxOperatorSymbol("+", item.loc));
+            }
+            output.push(item);
         }
-    };
-    const handleUnquote = (slice: readonly Thing[]) => {
-        const unquoteLevels = slice.length - 1;
-        const itemUnquoted = last(slice);
-        if (unquoteLevels < level) {
-            add(slice.slice(0, -1));
-            add([itemUnquoted], false);
-        } else if (unquoteLevels === level) {
-            const loc = itemUnquoted.loc;
-            add([boxApply(boxNativeFunc("__block_wrap", loc), [boxRoundBlock([itemUnquoted], loc)], loc)]);
-        } else {
-            const badUnquote = slice[level]!;
-            throw new RuntimeError(`too many unquotes (there are ${unquoteLevels} unquotes here, but we're only ${level} levels deep)`, badUnquote.loc);
+        const result = boxRoundBlock(output, value.loc);
+        // console.log("} OUT", JSON.stringify(output.map(e => unparse(e)), null, 4));
+        // throw 1;
+        return result;
+    } catch (e) {
+        if (e instanceof BackolonError) {
+            e.addNote(`note: level ${level} starts here:`, value.loc);
         }
-    };
-    for (var { span } of matches) {
-        handleSlice(items.slice(previous, span[0]));
-        handleUnquote(removed_whitespace(items.slice(span[0], span[1])));
-        previous = span[1];
+        throw e;
     }
-    handleSlice(items.slice(previous));
-    console.log("} OUT", level, output.map(x => unparse(x)));
-    return level > 1 ? quote(boxCurlyBlock(output, value.loc))[0] : boxRoundBlock(output, value.loc);
 }
 
-function quote(value: Thing): [Thing] {
-    return [boxRoundBlock([boxOperatorSymbol("`", value.loc), value], value.loc)];
+function quote(value: Thing) {
+    return boxApply(BUILTIN_QUOTE, [value], value.loc);
 }
-
-const interpolation_pattern = p("($ )...[+]x");
+function nested(value: Thing, loc = value.loc) {
+    return boxApply(BUILTIN_BLOCK_WRAP, [value], value.loc);
+}
