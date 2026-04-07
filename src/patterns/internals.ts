@@ -1,7 +1,6 @@
-import { imul } from "lib0/math";
 import { map } from "lib0/object";
 import { extractSymbolName, isAtom, isBlock, Thing, ThingType, typecheck } from "../objects/thing";
-import { javaHash, rotate32 } from "../utils";
+import { javaHash, rotate32, x23 } from "../utils";
 import { PatternProgram } from "./compile";
 
 export enum PatternType {
@@ -25,9 +24,6 @@ export interface Pattern {
     /** greedy or start or value */
     readonly gsv: boolean | number;
 }
-
-
-const x23 = (a: number, b: number) => imul((a + 0x1a2b3c4d) ^ b, rotate32(b, 23));
 
 export class NFASubstate {
     public readonly h: number;

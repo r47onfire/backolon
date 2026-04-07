@@ -8,3 +8,4 @@ export function javaHash(s: string) {
     return hash;
 }
 
+export const x23 = (a: number, b: number) => imul((a + 0x1a2b3c4d) ^ b, rotate32(b, 23));

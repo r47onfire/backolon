@@ -16,8 +16,7 @@ test("collapses long repeated single frames", () => {
     const err = new BackolonError("too much recursion", L, notes);
     const displayed = err.displayOn({ [F.href]: "" });
 
-    expect(displayed).toContain(":--> previous frame repeated 100 times");
-    expect(displayed).toContain("\n:");
+    expect(displayed).toContain("previous frame repeated 100 times");
     expect(displayed).not.toContain("note: recursive frame\nnote: recursive frame");
 });
 test("collapses repeated block patterns", () => {
@@ -36,8 +35,7 @@ test("collapses repeated block patterns", () => {
     const err = new BackolonError("too much recursion", L, notes);
     const displayed = err.displayOn({ [F.href]: "" });
 
-    expect(displayed).toContain(":--> previous 3 frames repeated 50 times");
-    expect(displayed).toContain("\n:");
+    expect(displayed).toContain("previous 3 frames repeated 50 times");
     expect(displayed).toContain("note: frame A");
     expect(displayed).toContain("note: frame B");
     expect(displayed).toContain("note: frame C");

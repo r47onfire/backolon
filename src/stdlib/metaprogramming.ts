@@ -28,12 +28,12 @@ export function metaprogramming(mod: NativeModule) {
         }
         const env = patternsIsNil && envIsNil ? state.env : newEnv(envIsNil ? state.env.c[1]! : envArg, patternsIsNil ? state.env.c[2]! : boxList(patternsList, patternsArg.loc), envArg.loc, inherit ? state.env.c[0]!.c as any[] : []);
         task.out();
-        task.enter(valueToEval, env);
+        task.enter(valueToEval, valueToEval.loc, env);
     });
     mod.defsyntax("[x:curlyblock]", -Infinity, false, null, "__rewrite_curlyblock", rewriteAsApply(x, "__quasiquoted"));
     mod.defun("__quasiquoted", "@template:curlyblock", (task, state) => {
         task.out();
-        task.enter(build_quasiquoted(state.argv[0] as any), state.env);
+        task.enter(build_quasiquoted(state.argv[0] as any), state.loc, state.env);
     });
     mod.defoverload("add", [ThingType.roundblock, ThingType.roundblock], (loc, argv) => {
         return boxRoundBlock([...argv[0].c, ...argv[1].c], loc);

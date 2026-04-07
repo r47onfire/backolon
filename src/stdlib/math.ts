@@ -1,6 +1,6 @@
 import { NativeModule, rewriteAsApply, symbol_x, symbol_y } from ".";
 import { LocationTrace } from "../errors";
-import { boxNumber, boxString, Thing, ThingType } from "../objects/thing";
+import { boxNumber, Thing, ThingType } from "../objects/thing";
 
 const b = BigInt, n = Number, i = (x: number) => n.isInteger(x) && n.isSafeInteger(x);
 

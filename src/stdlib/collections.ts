@@ -76,7 +76,7 @@ export function collections(mod: NativeModule) {
     mod.defun("__implicit_key", "kv", (task, state) => {
         const val = state.argv[0]!;
         task.out();
-        task.enter(boxApply(BUILTIN_DICT, [boxApply(BUILTIN_QUOTE, [val], val.loc), val], val.loc), state.env);
+        task.enter(boxApply(BUILTIN_DICT, [boxApply(BUILTIN_QUOTE, [val], val.loc), val], val.loc), val.loc, state.env);
     });
     mod.defoverload("add", [ThingType.list, ThingType.list], (loc, argv) => {
         return boxList([...argv[0].c, ...argv[1].c], loc);

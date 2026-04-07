@@ -50,10 +50,10 @@ export function initCoreSyntax(mod: NativeModule) {
         const second = state.argv[1]!;
         task.updateCookie(1, 0);
         if (state.index === 0) {
-            task.enter(boxApply(first, [], first.loc), state.env);
+            task.enter(boxApply(first, [], first.loc), state.loc, state.env);
         } else if (second) {
             task.out(); // tail call
-            task.enter(boxApply(second, [], second.loc), state.env);
+            task.enter(boxApply(second, [], second.loc), state.loc, state.env);
         }
     });
     // MARK: Apply
