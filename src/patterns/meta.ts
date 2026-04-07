@@ -2,9 +2,9 @@ import { last } from "lib0/array";
 import { LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
 import { boxOperatorSymbol, Thing, ThingType, typecheck } from "../objects/thing";
 import { parse } from "../parser/parse";
-import { unparse } from "../parser/unparse";
 import { PatternType } from "./internals";
 import { matchPattern, MatchResult } from "./match";
+import { DEFAULT_UNPARSER } from "../parser/unparse";
 
 export const pattern = (type: PatternType, gsv: number | boolean, loc = UNKNOWN_LOCATION, children: readonly Thing[] = [], start = "", end = "", join = "") => new Thing(ThingType.pattern, children, { t: type, gsv }, start, end, join, loc);
 
@@ -84,7 +84,7 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
             const name = inner[0] as Thing<ThingType.name>;
             const tok = inner[2]!;
             const ty = typeNameToThingType(tok.v, tok.loc);
-            return [grouped(name, [matchtype(ty, "", tok.loc)], "[", squareblock.c.slice(1).map(o => unparse(o)).join("") + "]", name.loc)];
+            return [grouped(name, [matchtype(ty, "", tok.loc)], "[", squareblock.c.slice(1).map(o => DEFAULT_UNPARSER.unparse(o)).join("") + "]", name.loc)];
         }
         if (test(square_capture_subpattern)) {
             const name = inner[0] as Thing<ThingType.name>;
@@ -116,7 +116,7 @@ export function parsePattern(block: readonly Thing[]): Thing<ThingType.pattern> 
         }
         var patitem = parsePattern([item]);
         if (patitem.c.length === 1) patitem = patitem.c[0] as any;
-        const ending = matched.slice(1).map(i => unparse(i)).join("");
+        const ending = matched.slice(1).map(i => DEFAULT_UNPARSER.unparse(i)).join("");
         if (patitem.v.t === PatternType.capture_group) {
             var inner = patitem.c.slice(1), inner0 = inner[0]!;
             if (inner.length === 1 && inner0.v.t === PatternType.dot) {

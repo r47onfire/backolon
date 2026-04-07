@@ -1,9 +1,9 @@
 import { stringify } from "lib0/json.js";
-import { NativeModule, rewriteAsApply, sortPatternsList, symbol_x } from "./module";
 import { BackolonError, RuntimeError } from "../errors";
 import { boxApply, boxBlock, boxList, boxNativeFunc, boxOperatorSymbol, boxRoundBlock, boxString, CheckedType, isAtom, isBlock, Thing, ThingType, typecheck } from "../objects/thing";
 import { newEnv } from "../runtime/env";
 import { BUILTINS_LOC } from "./locations";
+import { NativeModule, rewriteAsApply, sortPatternsList, symbol_x } from "./module";
 
 export function metaprogramming(mod: NativeModule) {
     const x = [symbol_x];
@@ -63,7 +63,7 @@ function build_quasiquoted(value: Thing, level = 1): Thing {
     const items = value.c;
     const output: Thing[] = [];
     // console.log("{");
-    // console.log(items.map(x => unparse(x)));
+    // console.log(items.map(x => DEFAULT_UNPARSER.unparse(x)));
     var unquoteCount = 0;
     var firstUnquotePosition = -1;
     try {
@@ -105,7 +105,7 @@ function build_quasiquoted(value: Thing, level = 1): Thing {
             output.push(item);
         }
         const result = boxRoundBlock(output, value.loc);
-        // console.log("} OUT", JSON.stringify(output.map(e => unparse(e)), null, 4));
+        // console.log("} OUT", JSON.stringify(output.map(e => DEFAULT_UNPARSER.unparse(e)), null, 4));
         // throw 1;
         return result;
     } catch (e) {

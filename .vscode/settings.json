@@ -11,6 +11,7 @@
         "uncrush",
         "unhashable",
         "unhygenic",
-        "UNPARSE"
+        "UNPARSE",
+        "Unparser"
     ]
 }

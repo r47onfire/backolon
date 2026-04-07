@@ -3,11 +3,11 @@ import { NativeModule, rewriteAsApply, symbol_x, symbol_y, symbol_z } from "./mo
 import { RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
 import { boxApply, boxList, boxNativeFunc, boxOperatorSymbol, boxRoundBlock, boxSquareBlock, boxString, Thing, ThingType } from "../objects/thing";
-import { unparse } from "../parser/unparse";
 import { matchPattern } from "../patterns/match";
 import { p } from "../patterns/meta";
 import { BUILTINS_LOC } from "./locations";
 import { BUILTIN_QUOTE } from "./metaprogramming";
+import { DEFAULT_UNPARSER } from "../parser/unparse";
 
 const BUILTIN_LIST = boxNativeFunc("__list", BUILTINS_LOC);
 const BUILTIN_DICT = boxNativeFunc("__dict", BUILTINS_LOC);
@@ -108,7 +108,7 @@ export function collections(mod: NativeModule) {
         const key = argv[1];
         const value = mapGetKey(map, key, loc);
         if (value === undefined) {
-            throw new RuntimeError(`key ${unparse(key)} not found in map`, loc);
+            throw new RuntimeError(`key ${DEFAULT_UNPARSER.unparse(key)} not found in map`, loc);
         }
         return value;
     });

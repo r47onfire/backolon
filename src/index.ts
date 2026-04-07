@@ -47,8 +47,8 @@ export {
     tokenize
 } from "./parser/tokenizer";
 export {
-    unparse,
-    type UnparseContext
+    Unparser,
+    DEFAULT_UNPARSER,
 } from "./parser/unparse";
 export {
     compile as compilePattern

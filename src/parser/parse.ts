@@ -2,7 +2,7 @@ import { ErrorNote, LocationTrace, ParseError, RuntimeError, UNKNOWN_LOCATION } 
 import { boxBlock, boxString, boxStringBlock, isBlock, isSymbol, Thing, ThingType } from "../objects/thing";
 import { blockParse, BlockRule } from "./blockParse";
 import { tokenize } from "./tokenizer";
-import { unparse } from "./unparse";
+import { DEFAULT_UNPARSER } from "./unparse";
 
 export enum BlockHandler {
     round = "r",
@@ -32,7 +32,7 @@ function makeBlock(this: BlockRule, items: Thing[], start: string, end: string, 
 }
 
 function makeComment(items: Thing[], start: string, end: string, loc: LocationTrace) {
-    return new Thing(ThingType.space, [], start, start + items.map(i => unparse(i)).join(""), end, "", loc);
+    return new Thing(ThingType.space, [], start, start + items.map(i => DEFAULT_UNPARSER.unparse(i)).join(""), end, "", loc);
 }
 
 const defaultBlockRules: Record<BlockHandler, BlockRule> = {
@@ -75,7 +75,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
         i: {},
         p(items, start, end, loc) {
             if (end !== start) throw new ParseError("unreachable", loc);
-            const raw = items.map(item => unparse(item)).join("");
+            const raw = items.map(item => DEFAULT_UNPARSER.unparse(item)).join("");
             return boxString(raw.replaceAll(/\\(['\\])/g, "$1"), loc, raw, start);
         },
         b: []
@@ -119,7 +119,7 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
                                 throw new ParseError(`expected \"{\" after \"\\${next.v}\"`, (curlyblock ?? next).loc,
                                     [new ErrorNote("note: use ' instead of \" to make this a raw string", loc)]);
                             }
-                            const fullEscape = "u" + unparse(curlyblock);
+                            const fullEscape = "u" + DEFAULT_UNPARSER.unparse(curlyblock);
                             curStringRaw += "\\" + fullEscape;
                             curString += unescape(fullEscape, curlyblock.loc, true);
                         } else {

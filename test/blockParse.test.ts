@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parse, ThingType, unparse } from "../src";
+import { parse, ThingType, DEFAULT_UNPARSER } from "../src";
 import { expectParse, expectParseError, makespec } from "./astCheck";
 
 test("top-level block", () => {
@@ -135,8 +135,8 @@ describe("blocks", () => {
                     makespec(ThingType.space, null)));
         });
         test("comments round-trip", () => {
-            expect(unparse(parse("## hi ##"))).toEqual("## hi ##")
-            expect(unparse(parse("# hi\n"))).toEqual("# hi\n")
+            expect(DEFAULT_UNPARSER.unparse(parse("## hi ##"))).toEqual("## hi ##")
+            expect(DEFAULT_UNPARSER.unparse(parse("# hi\n"))).toEqual("# hi\n")
         });
         test("block comments complain if they're not closed", () => {
             expectParseError("##", "\"##\" was never closed");

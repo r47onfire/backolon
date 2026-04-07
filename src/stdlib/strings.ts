@@ -1,9 +1,9 @@
 import { stringify } from "lib0/json";
-import { NativeModule, symbol_x } from "./module";
 import { mapGetKey } from "../objects/map";
 import { boxApply, boxNativeFunc, boxOperatorSymbol, boxRoundBlock, boxString, isBlock, Thing, ThingType, typecheck } from "../objects/thing";
-import { unparse } from "../parser/unparse";
+import { DEFAULT_UNPARSER } from "../parser/unparse";
 import { BUILTINS_LOC } from "./locations";
+import { NativeModule, symbol_x } from "./module";
 
 export function strings(mod: NativeModule) {
     mod.defoverload("add", [ThingType.string, ThingType.string], (loc, argv) => {
@@ -28,7 +28,7 @@ export function strings(mod: NativeModule) {
     });
     mod.defun("__tostring", "value", (task, state) => {
         const value = state.argv[0]!;
-        const string = typecheck(ThingType.string)(value) ? value.v : unparse(value);
+        const string = typecheck(ThingType.string)(value) ? value.v : DEFAULT_UNPARSER.unparse(value);
         task.out(boxString(string, value.loc, stringify(string), ""));
     });
 }

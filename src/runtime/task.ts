@@ -113,7 +113,7 @@ export class Task {
                         // @ts-expect-error
                         case BlockEvalState.initial:
                             top = this.updateArgs(children.slice());
-                        // console.log("initial match", this.stack.at(-1)!.argv.map(t => [ThingType[t.t], unparse(t)]));
+                        // console.log("initial match", this.stack.at(-1)!.argv.map(t => [ThingType[t.t], DEFAULT_UNPARSER.unparse(t)]));
                         // @ts-expect-error
                         case BlockEvalState.matching_patterns:
                             if (walkEnvTree(top.env, (_, patterns) => {
@@ -143,7 +143,7 @@ export class Task {
                                         })], top!.argv[result.span[0]!]!.loc), loc, top!.env, undefined, "<pattern expansion>");
                                         return true;
                                     } else {
-                                        // console.log("no match for", [unparse(pat)]);
+                                        // console.log("no match for", [DEFAULT_UNPARSER.unparse(pat)]);
                                     }
                                 }
                                 return false;
@@ -174,7 +174,7 @@ export class Task {
                             const length = top.data[1] as number - start;
                             const values = typecheck(ThingType.splat)(res) ? res.c : [res];
                             this.updateArgs(top.argv.toSpliced(start, length, ...values));
-                            // console.log("parse splice", this.stack.at(-1)!.argv.map(t => [ThingType[t.t], unparse(t)]));
+                            // console.log("parse splice", this.stack.at(-1)!.argv.map(t => [ThingType[t.t], DEFAULT_UNPARSER.unparse(t)]));
                             this.updateCookie(0, BlockEvalState.matching_patterns, null);
                             return true;
                         default:
