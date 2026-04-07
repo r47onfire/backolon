@@ -1,9 +1,9 @@
 import { stringify } from "lib0/json";
-import { NativeModule, symbol_x } from ".";
+import { NativeModule, symbol_x } from "./module";
 import { mapGetKey } from "../objects/map";
 import { boxApply, boxNativeFunc, boxOperatorSymbol, boxRoundBlock, boxString, isBlock, Thing, ThingType, typecheck } from "../objects/thing";
 import { unparse } from "../parser/unparse";
-import { BUILTINS_LOC } from "../runtime/functor";
+import { BUILTINS_LOC } from "./locations";
 
 export function strings(mod: NativeModule) {
     mod.defoverload("add", [ThingType.string, ThingType.string], (loc, argv) => {

@@ -1,4 +1,4 @@
-import { NativeModule } from ".";
+import { NativeModule } from "./module";
 import { boxNil, ThingType, typecheck } from "../objects/thing";
 import { unparse } from "../parser/unparse";
 

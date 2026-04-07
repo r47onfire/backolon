@@ -1,11 +1,12 @@
-import { NativeModule, rewriteAsApply, symbol_x, symbol_y } from ".";
+import { stringify } from "lib0/json";
+import { NativeModule, rewriteAsApply, symbol_x, symbol_y, symbol_z } from "./module";
 import { RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
-import { boxApply, boxList, boxNativeFunc, boxOperatorSymbol, boxRoundBlock, boxSquareBlock, Thing, ThingType } from "../objects/thing";
+import { boxApply, boxList, boxNativeFunc, boxOperatorSymbol, boxRoundBlock, boxSquareBlock, boxString, Thing, ThingType } from "../objects/thing";
 import { unparse } from "../parser/unparse";
 import { matchPattern } from "../patterns/match";
 import { p } from "../patterns/meta";
-import { BUILTINS_LOC } from "../runtime/functor";
+import { BUILTINS_LOC } from "./locations";
 import { BUILTIN_QUOTE } from "./metaprogramming";
 
 const BUILTIN_LIST = boxNativeFunc("__list", BUILTINS_LOC);
@@ -112,6 +113,36 @@ export function collections(mod: NativeModule) {
         return value;
     });
     mod.defsyntax("x -> y", -1, false, null, "__rewrite_getitem", rewriteAsApply([symbol_x, symbol_y], "__getitem"));
+    // Syntax sugar: x.y expands to x->"y"
+    mod.defsyntax("x . [y:name]", -1, false, null, "__rewrite_dot_getitem", (task, state) => {
+        const groups: Thing<ThingType.map> = state.argv[0]! as any;
+        const x = mapGetKey(groups, symbol_x)!;
+        const y = mapGetKey(groups, symbol_y)!;
+        // Create the expression: x -> "y"
+        const arrowExpr = new Thing(ThingType.splat, [
+            x,
+            boxOperatorSymbol("-", x.loc),
+            boxOperatorSymbol(">", x.loc),
+            boxString(y.v, y.loc, stringify(y.v), ""),
+        ], null, "", "", "", state.value.loc);
+        task.out(arrowExpr);
+    });
+    mod.defop("__setitem", "setitem");
+    mod.defoverload("setitem", [ThingType.list, ThingType.number, null], (loc, argv) => {
+        const list = argv[0];
+        const index = argv[1];
+        const value = argv[2];
+        list.c.splice(Number(index), 1, value);
+        return value;
+    });
+    mod.defoverload("setitem", [ThingType.map, null, null], (loc, argv) => {
+        const map = argv[0];
+        const key = argv[1];
+        const value = argv[2];
+        mapUpdateKeyMutating(map, key, value, loc);
+        return value;
+    });
+    mod.defsyntax("x -> y = z", -2, true, null, "__rewrite_setitem", rewriteAsApply([symbol_x, symbol_y, symbol_z], "__setitem"));
 }
 
 const empty_list_pattern = p("[^] [$]");

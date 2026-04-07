@@ -348,7 +348,15 @@ export class Task {
             const e = map.c.length === 0 ? functor.v : newEnv(map, boxList([]), callsite.loc, [functor.v]);
             this.enter(functor.c[0], callsite.loc, e, [], significant ? name : undefined);
         }
-        else throw new RuntimeError(`can't call ${typeNameOf(functor.t)}`, callsite.loc);
+        else {
+            // Try to find a custom applicator for this type
+            const applicator = this.scheduler.getApply(functor.t);
+            if (applicator) {
+                applicator.call(this, functor, argv, callsite, env, name, significant);
+                return;
+            }
+            throw new RuntimeError(`can't call ${typeNameOf(functor.t)}`, callsite.loc);
+        }
     }
     updateArgs(args: Thing[]) {
         const val = this.stack.at(-1)!.g(args);

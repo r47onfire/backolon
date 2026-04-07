@@ -1,12 +1,12 @@
 import { expect } from "bun:test";
 import { keys } from "lib0/object";
-import { BackolonError, BUILTINS_MODULE, ErrorNote, LocationTrace, parse, Scheduler, ThingType } from "../src";
+import { BackolonError, BUILTINS_MODULE, ErrorNote, FFI_MODULE, LocationTrace, parse, Scheduler, ThingType } from "../src";
 
 export const F = new URL("about:test");
 export const L = new LocationTrace(0, 0, F);
 
 type ASTSpec = {
-    t: ThingType,
+    t: ThingType | string,
     v?: any,
     c?: readonly ASTSpec[]
 }
@@ -60,23 +60,24 @@ export function expectParseError(p: string, error: string, note?: string) {
 
 export function expectEval(p: string, spec: ASTSpec) {
     const stdout: string[] = [];
-    const s = new Scheduler([BUILTINS_MODULE], stdout.push.bind(stdout));
+    const s = new Scheduler([BUILTINS_MODULE, FFI_MODULE], stdout.push.bind(stdout));
+    var t;
     try {
-        const t = s.startTask(1, p, null, F);
+        t = s.startTask(1, p, null, F);
         s.stepUntilSuspended();
-        expect(t.stack).toBeEmpty();
-        checkAST(t.result, spec, "");
     } catch (e) {
         if (e instanceof BackolonError) {
             expect.unreachable(e.displayOn({ [F.href]: p }) + e.stack);
         }
         else throw e;
     }
+    expect(t.stack.length).toBe(0);
+    checkAST(t.result, spec, "");
     return stdout;
 }
 
 export function expectEvalError(p: string, error: string | RegExp, note?: string) {
-    const s = new Scheduler([BUILTINS_MODULE]);
+    const s = new Scheduler([BUILTINS_MODULE, FFI_MODULE]);
     try {
         s.startTask(1, p, null, F);
         s.stepUntilSuspended();

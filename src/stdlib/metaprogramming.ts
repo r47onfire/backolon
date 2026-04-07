@@ -1,9 +1,9 @@
 import { stringify } from "lib0/json.js";
-import { NativeModule, rewriteAsApply, sort_patterns_list, symbol_x } from ".";
+import { NativeModule, rewriteAsApply, sortPatternsList, symbol_x } from "./module";
 import { BackolonError, RuntimeError } from "../errors";
 import { boxApply, boxBlock, boxList, boxNativeFunc, boxOperatorSymbol, boxRoundBlock, boxString, CheckedType, isAtom, isBlock, Thing, ThingType, typecheck } from "../objects/thing";
 import { newEnv } from "../runtime/env";
-import { BUILTINS_LOC } from "../runtime/functor";
+import { BUILTINS_LOC } from "./locations";
 
 export function metaprogramming(mod: NativeModule) {
     const x = [symbol_x];
@@ -24,7 +24,7 @@ export function metaprogramming(mod: NativeModule) {
             if (!typecheck(ThingType.pattern_entry)(item)) {
                 throw new RuntimeError("Invalid pattern", (item as any).loc);
             }
-            sort_patterns_list(patternsList);
+            sortPatternsList(patternsList);
         }
         const env = patternsIsNil && envIsNil ? state.env : newEnv(envIsNil ? state.env.c[1]! : envArg, patternsIsNil ? state.env.c[2]! : boxList(patternsList, patternsArg.loc), envArg.loc, inherit ? state.env.c[0]!.c as any[] : []);
         task.out();

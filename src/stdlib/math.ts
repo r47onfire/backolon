@@ -1,4 +1,4 @@
-import { NativeModule, rewriteAsApply, symbol_x, symbol_y } from ".";
+import { NativeModule, rewriteAsApply, symbol_x, symbol_y } from "./module";
 import { LocationTrace } from "../errors";
 import { boxNumber, Thing, ThingType } from "../objects/thing";
 

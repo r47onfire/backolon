@@ -1,6 +1,6 @@
 import { last } from "lib0/array";
 import { stringify } from "lib0/json";
-import { NativeModule, rewriteAsApply, symbol_x, symbol_y } from ".";
+import { NativeModule, rewriteAsApply, symbol_x, symbol_y } from "./module";
 import { ErrorNote, LocationTrace, RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating } from "../objects/map";
 import { boxApply, boxNativeFunc, boxNil, boxNumber, boxRoundBlock, boxSquareBlock, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";

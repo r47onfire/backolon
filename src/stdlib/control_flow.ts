@@ -1,4 +1,4 @@
-import { NativeModule } from ".";
+import { NativeModule } from "./module";
 import { boxApply } from "../objects/thing";
 
 export function control_flow(mod: NativeModule) {

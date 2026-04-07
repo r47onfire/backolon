@@ -7,6 +7,9 @@ export {
     UNKNOWN_LOCATION
 } from "./errors";
 export {
+    fromJS, toJS, type JSObjectRef
+} from "./objects/js_interop";
+export {
     mapDeleteKeyCopying,
     mapDeleteKeyMutating,
     mapGetKey,
@@ -65,12 +68,14 @@ export {
     Scheduler
 } from "./runtime/scheduler";
 export {
-    Task,
-    type StackEntry,
-    StackFlag
+    StackFlag, Task,
+    type StackEntry
 } from "./runtime/task";
 export {
     BUILTINS_MODULE,
-    rewriteAsApply,
+    FFI_MODULE
 } from "./stdlib";
+export {
+    rewriteAsApply
+} from "./stdlib/module";
 

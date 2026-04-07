@@ -4,7 +4,7 @@ import { LocationTrace, RuntimeError } from "../errors";
 import { newEmptyMap } from "../objects/map";
 import { boxList, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
 import { parse } from "../parser/parse";
-import { NativeModule } from "../stdlib";
+import { NativeModule } from "../stdlib/module";
 import { newEnv } from "./env";
 import { StackEntry, Task } from "./task";
 
@@ -88,5 +88,12 @@ export class Scheduler {
             }
         }
         throw new RuntimeError(`No overload exists for operator ${stringify(name)} with arguments types ${argv.map(t => stringify(typeNameOf(t.t))).join(", ")}`, loc);
+    }
+    getApply(functorType: ThingType | string) {
+        for (var module of this.builtins) {
+            const applicator = module.applicators[functorType];
+            if (applicator) return applicator;
+        }
+        return null;
     }
 }

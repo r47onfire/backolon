@@ -1,16 +1,13 @@
 import { last } from "lib0/array";
 import { stringify } from "lib0/json";
-import { LocationTrace, RuntimeError } from "../errors";
+import { RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
 import { boxList, boxNameSymbol, boxNil, boxNumber, isSymbol, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
-import { parse } from "../parser/parse";
-import { metapattern_location, nonoverlappingreplace, p, parsePattern, removed_whitespace, typeNameToThingType } from "../patterns/meta";
+import { nonoverlappingreplace, p, removed_whitespace, typeNameToThingType } from "../patterns/meta";
+import { BUILTINS_LOC } from "../stdlib/locations";
 import { type Scheduler } from "./scheduler";
 
-
-export const BUILTINS_LOC = new LocationTrace(0, 0, new URL("backolon:builtins"));
-
-type ParamDescriptor = Thing<ThingType.paramdescriptor> | Thing<ThingType.name>;
+export type ParamDescriptor = Thing<ThingType.paramdescriptor> | Thing<ThingType.name>;
 
 const CONTINUATION_SIGNATURE = [boxNameSymbol("value", BUILTINS_LOC)];
 const IMPLICIT_SIGNATURE = [new Thing(ThingType.paramdescriptor, [boxNameSymbol("env", BUILTINS_LOC), boxList([boxNumber(ThingType.map, BUILTINS_LOC)], BUILTINS_LOC)], [false, false, false], "", "", ":", BUILTINS_LOC)];
@@ -30,6 +27,10 @@ export function getParamDescriptors(fn: Thing, scheduler: Scheduler, callsite: T
     }
     else if (typecheck(ThingType.continuation)(fn)) {
         return CONTINUATION_SIGNATURE;
+    }
+    const desc = scheduler.getApply(fn.t);
+    if (desc) {
+        return desc.params(fn);
     }
     throw new RuntimeError(`can't call ${typeNameOf(fn.t)}`, callsite.loc);
 }

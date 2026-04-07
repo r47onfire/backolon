@@ -148,8 +148,10 @@ describe("lambdas", () => {
             t: ThingType.nil,
         })).toEqual(["1 2 []", "1 2 [3, 4, 5]"]);
         expectEvalError("[x... y...] => 1", "can only have 1 rest parameter");
-        // expectEval("let f = [x] => (x x; x x); f f", { t: ThingType.nil });
-        expectEval("let f = [x] => (if x > 0 (f x - 1) (g!)); let g = [] => f 10; g!", { t: ThingType.nil });
+    });
+    test("recurson is capped", () => {
+        expectEvalError("let f = [x] => (x x; x x); f f", "too much recursion");
+        expectEvalError("let f = [x] => (if x > 0 (f x - 1) (g!)); let g = [] => f 10; g!", "too much recursion");
     });
 });
 describe("conditionals", () => {
@@ -249,6 +251,11 @@ describe("collections", () => {
                 ]
             }]
         });
+    });
+    test("self-referential collections", () => {
+        expect(expectEval("let x = [0]; x->0 = x; print x", {
+            t: ThingType.nil
+        })).toEqual(["#0=[#0#]"]);
     });
     test("multiple element collections", () => {
         expectEval("[1, 2]", {
