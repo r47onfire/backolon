@@ -9,6 +9,7 @@ const DOCS_DIR = join(ROOT, "docs");
 await esbuild.build({
         bundle: true,
         splitting: true,
+        minify: true,
         format: "esm",
         platform: "browser",
         target: "esnext",

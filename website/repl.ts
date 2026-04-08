@@ -1,11 +1,8 @@
 import $ from "jquery";
 import init from "jquery.terminal";
 import * as Backolon from "../src/index";
-import packageJSON from "../package.json";
 
 init(window, $);
-
-const BACKOLON_VERSION = packageJSON.version;
 
 const HELP_TEXT = `
 Syntax Help:
@@ -91,7 +88,7 @@ function initREPL() {
             }
         },
         {
-            greetings: `Backolon ${BACKOLON_VERSION}\nType ".help" for more information.`,
+            greetings: `Backolon 0.0.0\nType ".help" for more information.`,
             name: "backolon_repl",
             prompt: "backolon> ",
             historySize: Infinity, // keep everything, since they're used in tracebacks

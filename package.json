@@ -10,7 +10,7 @@
         "build": "pnpm esbuild --bundle --sourcemap --platform=browser --target=esnext --format=esm src/index.ts --outfile=dist/backolon.js",
         "build-for-fuzzer": "pnpm esbuild --bundle --sourcemap --platform=node --target=esnext --format=cjs src/index.ts --outfile=dist/backolon.cjs",
         "build:website": "pnpm run \"/^build:website:.*/\"",
-        "build:website:js": "pnpm bun run build-website.js",
+        "build:website:js": "rm -rf docs/js && pnpm bun run build-website.js",
         "build:website:typedoc": "pnpm typedoc",
         "dev": "pnpm run \"/^dev:.*/\"",
         "dev:serve": "python3 -m http.server -d docs",
