@@ -108,16 +108,29 @@ Backolon task scheduler responsible for running code and native functions.
 constructor(builtins: [NativeModule, ...NativeModule[]], printHook?: (x: string) => void, customNames: Record<string, (args: any[]) => any>): Scheduler
 ```
 **Properties:**
-- `tasks: Task[]` — 
-- `recursionLimit: number` — 
-- `builtins: [NativeModule, ...NativeModule[]]` — 
-- `printHook: (x: string) => void` (optional) — 
+- `tasks: Task[]` — List of currently active tasks, sorted by priority (lowest first). Tasks that have finished executing but haven't been removed from the list yet will have an empty stack.
+- `recursionLimit: number` — Maximum allowed stack length before a task throws a recursion error.
+Backolon uses its own stack and not the JavaScript call stack, so this serves
+to prevent out-of-memory errors.
+- `builtins: [NativeModule, ...NativeModule[]]` — List of builtin modules available to tasks run by this scheduler.
+Each module's environment (native functions, patterns, variables) will be included
+in the search path for new tasks.
+- `printHook: (x: string) => void` (optional) — Called with a string whenever a task calls the Backolon `print` function.
+Can be used to capture printed output in a custom environment (e.g. a web REPL).
 **Methods:**
-- `startTask(priority: number, code: string, envs: (Thing<env> | Thing<nil>)[] | null, filename: URL): Task` — 
-- `serializeTasks(): string` — 
-- `loadFromSerialized(str: string): void` — 
-- `stepUntilSuspended(maxSteps: number): void` — 
-- `_getFunction(name: string): NativeFunctionDetails` — 
+- `startTask(priority: number, code: string, envs: (Thing<env> | Thing<nil>)[] | null, filename: URL): Task` — Start a new task with the given code and environment.
+The code can be provided as a string (in which case it will be parsed)
+or as a pre-parsed Thing. The environment is a list of env Things, which will be searched in order when looking up variables;
+if null or omitted, the environments of all builtin modules will be used.
+
+The new Task will have its top-level block in a *new* environment that has the provided envs
+as parents, so changes to the top-level block's environment won't affect the provided envs or other tasks that share those envs.
+- `serializeTasks(): string` — Dumps the state of all tasks into a string, which can later be loaded with `loadFromSerialized` to restore the tasks and their states.
+- `loadFromSerialized(str: string): void` — Deserializes a string produced by `serializeTasks` and adds the resulting tasks to the scheduler.
+Note that the deserialized tasks will share the same Scheduler instance (this) as each other and any tasks that were already in the scheduler,
+but will not share any state with tasks that were already in the scheduler before (e.g. they won't share environments or variables).
+- `stepUntilSuspended(maxSteps: number): boolean` — Run tasks until all tasks are suspended or complete or the optional maxSteps limit is reached (-1 or undefined means no limit).
+Returns true if any progress was made (i.e. any task executed at least one step).
 - `getParamDescriptors(name: string): (Thing<name> | Thing<paramdescriptor>)[]` — 
 - `callFunction(task: Task, name: string, entry: StackEntry): void` — 
 - `operator(name: string, state: StackEntry): Thing` — 

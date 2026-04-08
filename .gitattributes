@@ -1,4 +1,4 @@
-docs/docs/embedding/* linguist-generated
+docs/docs/embedding/**/* linguist-generated
 docs/js/* linguist-generated
-skills/* linguist-generated
-docs/llms/* linguist-generated
+skills/**/* linguist-generated
+docs/llms*.txt linguist-generated

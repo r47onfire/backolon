@@ -23,5 +23,5 @@
         "@to-skills/typedoc"
     ],
     "llmsTxt": true,
-    "llmsTxtOutDir": "docs/llms",
+    "llmsTxtOutDir": "docs",
 }

@@ -296,6 +296,7 @@ export class Task {
             if (!(e instanceof BackolonError)) {
                 const e2 = new BackolonError(`Javascript error: ${e?.stack ?? String(e)}`, UNKNOWN_LOCATION);
                 e2.cause = e;
+                e2.addNote(`Javascript traceback: ${e.stack}`, UNKNOWN_LOCATION);
                 e = e2;
             }
             for (var item of this.stack.toReversed()) {
@@ -303,7 +304,6 @@ export class Task {
                     e.addNote(`note: called by ${item.name}`, item.loc);
                 }
             }
-            e.addNote(`Javascript traceback: ${e.stack}`, UNKNOWN_LOCATION);
             throw e;
         }
     }
