@@ -1,12 +1,12 @@
 # Backolon Embedding Guide
 
-This guide explains how to embed Backolon in JavaScript and use the runtime API that you get when importing `"backolon"`.
+This guide explains how to embed Backolon in JavaScript and use the runtime API that you get when importing the package `"@r47onfire/backolon"`.
 
 Backolon provides a small API surface for parsing, tokenizing, and evaluating source:
 
 * `parse(source, location)` - returns the parsed AST.
 * `tokenize(source, location)` - returns raw tokens.
-* `Scheduler` - runs Backolon tasks and manages execution.
+* `Scheduler` - runs Backolon tasks and acts as a gateway from Backolon land to the Javascript world.
 * `BUILTINS_MODULE`, `FFI_MODULE` - modules to provide the core functionality and Javascript FFI.
 * `Unparser`, `DEFAULT_UNPARSER` - used to turn a Backolon object back into a readable string representation of it.
 

@@ -46,12 +46,12 @@ export function extractBackolonDocs(data) {
                         description,
                         examples,
                         returns: returnsTag?.name,
-                        returnType: returnsTag?.type?.slice(1, -1), // Remove {...},
+                        returnType: returnsTag?.type,
                         category,
                         params: params.map(tag => {
                             var name = tag.name;
                             const description = parseMarkdown(tag.value);
-                            const type = tag.type?.slice(1, -1); // Remove {...}
+                            const type = tag.type;
                             var lazy, rest;
                             [name, lazy] = name.startsWith("@") ? [name.slice(1), true] : [name, false];
                             [name, rest] = name.endsWith("...") ? [name.slice(0, -3), true] : [name, false];
@@ -68,7 +68,8 @@ export function extractBackolonDocs(data) {
                     });
                 } else if (tags.has("@value")) {
                     const name = tags.get("@value").value;
-                    const type = tags.get("@type")?.value;
+                    const typeTag = tags.get("@type");
+                    const type = typeTag?.type ?? typeTag?.value ?? undefined;
                     moduleDocs.values.push({
                         name,
                         type,

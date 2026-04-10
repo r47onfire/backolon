@@ -62,7 +62,7 @@ and the span.
 - `ParamDescriptor`
 - `NativeFunctionDetails`: Shape of native function metadata registered with the Backolon scheduler.
 - `StackEntry`: A single stack frame in the Backolon evaluator.
-- `CustomApplicator`
+- `CustomApplicator`: Defines what happens when an object of a particular non-builtin type is called as the functor in an apply expression.
 - `OperatorOverload`
 - `ThingType`
 - `PatternType`

@@ -21,8 +21,23 @@ import { strings } from "./strings";
  */
 
 export function initCoreSyntax(mod: NativeModule) {
+    /**
+     * @backolon
+     * @value nil
+     * @type {nil}
+     */
     mod.defvar("nil", boxNil(mod.loc));
+    /**
+     * @backolon
+     * @value false
+     * @type {number}
+     */
     mod.defvar("false", boxNumber(0, mod.loc, "false"));
+    /**
+     * @backolon
+     * @value true
+     * @type {number}
+     */
     mod.defvar("true", boxNumber(1, mod.loc, "true"));
     const xy = [symbol_x, symbol_y];
     // MARK: blocks and logical lines

@@ -27,6 +27,7 @@ export function metaprogramming(mod: NativeModule) {
         const item = state.argv[0] as Thing<ThingType.implicitfunc>;
         task.out(item.c[0]);
     });
+    // TODO: better wrapper for this
     mod.defun("__eval", "value env:[map nil]=nil patterns:[list nil]=nil inherit=true", (task, state) => {
         const valueToEval = state.argv[0]!;
         const envArg = state.argv[1]! as Thing<ThingType.map> | Thing<ThingType.nil>;
@@ -45,6 +46,12 @@ export function metaprogramming(mod: NativeModule) {
         task.out();
         task.enter(valueToEval, valueToEval.loc, env);
     });
+    /**
+     * Quasiquoting of values. Works exactly like Scheme's quasiquote and unquote.
+     * Currently there is no unquote-splicing.
+     * @backolon
+     * @syntax "{value value $interpolated {innerValue $$alsoInterpolated $notInterpolated}}"
+     */
     mod.defsyntax("[x:curlyblock]", -Infinity, false, null, "__rewrite_curlyblock", rewriteAsApply(x, "__quasiquoted"));
     mod.defun("__quasiquoted", "@template:curlyblock", (task, state) => {
         task.out();

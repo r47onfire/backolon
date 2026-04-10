@@ -5,11 +5,21 @@
     "entryPoints": [
         "./src/index.ts",
     ],
+    "sort": [
+        "kind",
+        "enum-member-source-order"
+    ],
     "out": "./docs/docs/embedding",
     "readme": "./website/api_readme.md",
     "plugin": [
         "@to-skills/typedoc"
     ],
     "llmsTxt": true,
-    "llmsTxtOutDir": "docs"
+    "llmsTxtOutDir": "docs",
+    "navigationLinks": {
+        "Home": "../../",
+        "REPL": "../../repl",
+        "Language Docs": "../../docs",
+        "Github": "https://github.com/r47onfire/backolon"
+    }
 }

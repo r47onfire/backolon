@@ -12,7 +12,7 @@
         "build:website": "./scripts/build-website.sh",
         "dev": "pnpm run \"/^dev:.*/\"",
         "dev:serve": "python3 -m http.server -d docs",
-        "dev:watch": "pnpm nodemon -e js,ts,tsx -i docs -w src -w website --exec \"pnpm build:website\"",
+        "dev:watch": "pnpm nodemon -e js,ts,md -i docs -w src -w website --exec \"pnpm build:website\"",
         "fuzz": "pnpm build-for-fuzzer; ./scripts/fuzz.sh",
         "test": "pnpm bun test",
         "test:watch": "pnpm test --watch",

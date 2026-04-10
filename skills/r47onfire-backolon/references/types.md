@@ -40,6 +40,8 @@ Shape of native function metadata registered with the Backolon scheduler.
 A single stack frame in the Backolon evaluator.
 
 ### `CustomApplicator`
+Defines what happens when an object of a particular non-builtin type is called as the functor in an apply expression.
+See NativeModule#defcall|NativeModule.defcall for details.
 
 ### `OperatorOverload`
 

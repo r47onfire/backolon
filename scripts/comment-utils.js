@@ -8,7 +8,7 @@ class Tag {
     constructor(id, name, type, value) {
         this.id = id;
         this.name = name;
-        this.type = type;
+        this.type = type ? type.slice(1, -1) : undefined; // Remove {...}
         this.content = value;
     }
     get value() {

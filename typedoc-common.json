@@ -18,7 +18,8 @@
     "useTsLinkResolution": true,
     "preservedTypeAnnotationTags": [
         "@param",
-        "@returns"
+        "@returns",
+        "@type",
     ],
     "ignoredHighlightLanguages": [
         "backolon"

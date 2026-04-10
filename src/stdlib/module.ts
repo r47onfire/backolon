@@ -15,6 +15,10 @@ export interface OperatorOverload {
     cb(opTrace: LocationTrace, argv: readonly any[]): Thing;
 }
 
+/**
+ * Defines what happens when an object of a particular non-builtin type is called as the functor in an apply expression.
+ * See {@link NativeModule#defcall|NativeModule.defcall} for details.
+ */
 export interface CustomApplicator {
     /**
      * Implements what happens when a functor of the given type is called.

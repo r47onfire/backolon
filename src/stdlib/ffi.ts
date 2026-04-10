@@ -15,7 +15,7 @@ export function initFFI(mod: NativeModule) {
      * A reference to the Javascript global object
      * @backolon
      * @value JS_GLOBAL
-     * @type JSObjectRef
+     * @type {JSObjectRef}
      */
     mod.defvar("JS_GLOBAL", fromJS(globalThis));
 
@@ -70,22 +70,31 @@ export function initFFI(mod: NativeModule) {
         }
         return String(obj.v);
     }
+    /**
+     * Get the key on the JSObject
+     * @backolon
+     * @syntax object->"key"
+     */
     mod.defoverload("getitem", [JSObjectType, null], (loc, argv) => {
         const obj = argv[0];
         const prop = ensure_name(argv[1]);
-        const jsObj = toJS(obj);
+        const jsObj = (obj.v as JSObjectRef).value;
         var value = jsObj[prop];
         if (typeof value === "function") {
             value = value.bind(jsObj);
         }
         return fromJS(value, loc);
     });
+    /**
+     * Set the key on the JSObject
+     * @backolon
+     * @syntax object->"key"
+     */
     mod.defoverload("setitem", [JSObjectType, null, null], (loc, argv) => {
-        const object = (argv[0].v as JSObjectRef).value;
+        const jsObj = (argv[0].v as JSObjectRef).value;
         const prop = ensure_name(argv[1]);
         const value = argv[2];
         try {
-            const jsObj = toJS(object);
             jsObj[prop] = toJS(value);
             return value;
         } catch (e) {
@@ -94,13 +103,12 @@ export function initFFI(mod: NativeModule) {
     });
 
     // Register applicator for calling js_object as a function
+    const JSFunc_params = [new Thing(ThingType.paramdescriptor, [boxNameSymbol("arguments")], [false, true, false], "", "", "", mod.loc)];  
     mod.defcall(JSObjectType, {
-        params() {
-            return [new Thing(ThingType.paramdescriptor, [boxNameSymbol("arguments")], [false, true, false], "", "", "", mod.loc)];
-        },
+        params: () => JSFunc_params,
         call(task, functor, argv, callsite) {
             try {
-                const jsFunc = toJS(functor);
+                const jsFunc = (functor.v as JSObjectRef).value;
                 if (typeof jsFunc !== "function") {
                     throw new RuntimeError(`JS object is not callable: ${typeof jsFunc}`, functor.loc);
                 }
