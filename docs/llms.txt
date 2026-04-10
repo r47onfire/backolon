@@ -28,7 +28,8 @@ Returns undefined if the key is not found.
 - `typecheck`: Return a helper function that returns true if the given Thing is any of the given types.
 - `typeNameOf`: Returns the human-readable name of a ThingType, or returns the string itself if it's not a ThingType.
 - `parse`: Parse Backolon source text into a syntax tree of Thing objects, but do not apply any patterns.
-- `tokenize`: Tokenize Backolon source text into a stream of Things. No further parsing is done; parens like "(" are kept as operator symbols.
+- `tokenize`: Tokenize Backolon source text into a stream of Things. No further parsing is done;
+parens like "(" are kept as operator symbols.
 - `compilePattern`: Compile a pattern Thing into an executable pattern program and memoize it on the pattern object.
 - `matchPattern`: Finds all of the matches of the pattern and returns (for each match) the bindings
 and the span.
@@ -53,6 +54,7 @@ and the span.
 
 - `JSObjectRef`: Internal wrapper for native JavaScript objects stored in Backolon values.
 - `CheckedType`
+- `Token`
 - `StackEntry`: A single stack frame in the Backolon evaluator.
 - `ThingType`
 - `StackFlag`: Flags used to record internal task evaluation state.

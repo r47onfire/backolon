@@ -3,22 +3,20 @@
 ## `fromJS`
 Convert a native JavaScript value into a Backolon Thing.
 ```ts
-fromJS(val: any, loc: LocationTrace, visited: WeakMap<WeakKey, any>): Thing
+fromJS(val: any, loc: LocationTrace): Thing
 ```
 **Parameters:**
 - `val: any` — 
 - `loc: LocationTrace` — default: `UNKNOWN_LOCATION` — 
-- `visited: WeakMap<WeakKey, any>` — default: `...` — 
 **Returns:** `Thing`
 
 ## `toJS`
 Convert a Backolon Thing into a native JavaScript value.
 ```ts
-toJS(thing: Thing, visited: WeakMap<WeakKey, any>): any
+toJS(thing: Thing): any
 ```
 **Parameters:**
 - `thing: Thing` — 
-- `visited: WeakMap<WeakKey, any>` — default: `...` — 
 **Returns:** `any`
 
 ## `mapDeleteKeyCopying`
@@ -256,14 +254,15 @@ parse(string: string, filename: URL): Thing<string | ThingType>
 **Returns:** `Thing<string | ThingType>`
 
 ## `tokenize`
-Tokenize Backolon source text into a stream of Things. No further parsing is done; parens like "(" are kept as operator symbols.
+Tokenize Backolon source text into a stream of Things. No further parsing is done;
+parens like "(" are kept as operator symbols.
 ```ts
-tokenize(source: string, filename: URL): Thing<string | ThingType>[]
+tokenize(source: string, filename: URL): Token[]
 ```
 **Parameters:**
 - `source: string` — 
 - `filename: URL` — default: `UNKNOWN_LOCATION.file` — 
-**Returns:** `Thing<string | ThingType>[]`
+**Returns:** `Token[]`
 
 ## `compilePattern`
 Compile a pattern Thing into an executable pattern program and memoize it on the pattern object.

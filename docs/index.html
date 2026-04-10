@@ -3,6 +3,9 @@
 
     <head>
         <meta charset="UTF-8" />
+        <meta property="og:title" content="Backolon" />
+        <meta property="og:description"
+            content="A tiny, homoiconic language where syntax is defined through pattern matching and control flow is continuation-based." />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Backolon</title>
         <link rel="stylesheet" href="./styles/main.css" />
@@ -21,38 +24,87 @@
         <main class="container">
             <section class="hero">
                 <h1>Backolon</h1>
-                <p>A tiny, homoiconic pattern-matching language with continuation-based control flow.</p>
+                <p>A tiny, homoiconic language where syntax is defined through pattern matching and control flow is
+                    continuation-based.</p>
                 <div class="hero-example">
-                    <pre><code>x := 42
+                    <pre class="language-backolon"><code>x := 42
 
 double := [n] => n * 2
 
-listSum := [1, 2, 3] + [4, 5]
+list := [1, 2, 3] + [4, 5]
 
-if (sum > 10) "big" "small"</code></pre>
+if (#list > 5) "many" "few"</code></pre>
                 </div>
                 <div class="cta-buttons">
                     <a href="./repl/" class="btn btn-primary">Try the REPL</a>
-                    <a href="./docs/" class="btn btn-secondary">View Language Docs</a>
-                    <a href="./docs/embedding/" class="btn btn-secondary">View JS API</a>
+                    <a href="./docs/" class="btn btn-secondary">Language Docs</a>
+                    <a href="./docs/embedding/" class="btn btn-secondary">JS API</a>
                 </div>
-                <section style="margin-top: 3rem; text-align: left;">
-                    <h2>Features</h2>
-                    <ul style="list-style: none; padding: 0;">
-                        <li style="margin: 1rem 0;"><strong>Homoiconic:</strong> Code and data share the same
-                            representation.</li>
-                        <li style="margin: 1rem 0;"><strong>Pattern matching:</strong> All syntax is defined through
-                            extensible patterns.</li>
-                        <li style="margin: 1rem 0;"><strong>Keywordless:</strong> Operators are functions, not reserved
-                            words.</li>
-                        <li style="margin: 1rem 0;"><strong>Continuations:</strong> return and break are ordinary
-                            continuation values.</li>
-                        <li style="margin: 1rem 0;"><strong>JS interop:</strong> Call JavaScript objects, constructors,
-                            and promises directly.</li>
-                    </ul>
-                </section>
+            </section>
+            <section class="feature-grid">
+                <article>
+                    <h2>Homoiconic</h2>
+                    <p>Expressions are structured data, so macros and syntax extensions stay concise and readable.</p>
+                </article>
+                <article>
+                    <h2>Keywordless</h2>
+                    <p>Operators and control flow are ordinary functions rather than reserved keywords.</p>
+                </article>
+                <article>
+                    <h2>Self-Extensible</h2>
+                    <div class="coming-soon">coming soon!</div>
+                    <p>Define a new syntax, and then immediately use it in the same file.</p>
+                </article>
+                <article>
+                    <h2>First-class Continuations</h2>
+                    <p><code>return</code> is just a variable holding a continuation, making nonlocal jumps,
+                        backtracking, coroutines, and cooperative multitasking easy.</p>
+                </article>
+                <article>
+                    <h2>JS/TS Embedding</h2>
+                    <p>Designed to be embedded in JavaScript applications for seamless scripting. You can use the
+                        provided FFI module, or create your own native functions.</p>
+                </article>
+            </section>
+            <section class="content-block">
+                <h2>Why Backolon?</h2>
+                <p>Backolon's extensible syntax makes it perfect for building domain-specific languages, such as
+                    configuration files, while also allowing full Turing-complete functions where traditional syntax
+                    falls short.</p>
+            </section>
+            <section class="content-block">
+                <h2>How it works</h2>
+                <h3>Parsing</h3>
+                <p>Backolon does not discard any token, meaning you can make whitespace significant or not as you
+                    desire, or even introspect and parse the contents of comments.</p>
+                <h3>Lambdas</h3>
+                <p>Parameters can be lazy, preventing normal evaluation and allowing block bodies to be run once, not at
+                    all, or multiple times, as determined by what they're passed to.</p>
+                <h3>Patterns</h3>
+                <p>Syntax is defined through structural patterns that match</p>
+                <h3>Runtime</h3>
+                <p>Every lambda receives a built-in <code>return</code> continuation, so <code>return</code>,
+                    <code>break</code>, and generators are ordinary values that can be passed around and stored.
+                </p>
+            </section>
+            <section class="content-block">
+                <h2>Embed from JavaScript</h2>
+                <pre class="language-javascript"><code>import * as Backolon from "backolon";
+
+const scheduler = new Backolon.Scheduler([
+    Backolon.BUILTINS_MODULE,
+    Backolon.FFI_MODULE
+], console.log);
+
+const task = scheduler.startTask(0, "x := 1", null, Backolon.UNKNOWN_LOCATION.file);
+scheduler.stepUntilSuspended();
+console.log(task.result);
+</code></pre>
             </section>
         </main>
+        <footer>
+            <p>Made with ❤️ by <a href="https://github.com/r47onfire/" target="_blank">Burning Resistor Games</a></p>
+        </footer>
     </body>
 
 </html>

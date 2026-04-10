@@ -1,7 +1,27 @@
 import { NativeModule } from "./module";
 import { boxApply } from "../objects/thing";
 
+/**
+ * @file
+ * @module Builtins
+ */
+
 export function control_flow(mod: NativeModule) {
+    /**
+     * Conditional branching.
+     *
+     * Evaluates condition; if truthy, evaluates true_expr, otherwise false_expr.
+     * @backolon
+     * @category Control Flow
+     * @function if
+     * @param cond
+     * @param \@ifTrue
+     * @param \@ifFalse
+     * @example
+     * ```backolon
+     * if (x > 0) "positive" "non-positive"
+     * ```
+     */
     mod.defun("if", "cond @true @false", (task, state) => {
         const condition = state.argv[0]!;
         const ifTrue = state.argv[1]!;

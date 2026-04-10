@@ -1,4 +1,4 @@
-import { build } from "./build-common";
+import { build } from "./build-common.js";
 
 await build({
     platform: "node",

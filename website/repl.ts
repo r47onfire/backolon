@@ -6,27 +6,33 @@ init(window, $);
 
 const HELP_TEXT = `
 Syntax Help:
-  Operators:        + - * / % ** = := => ! ; ,
   Control:          if <condition> <true_val> <false_val>
   Variables:        x := value     (declare)
                     x = new_value  (assign)
   Lambdas:          [x y] => body
   Collections:      [x, y] (list)  [x: y] (map)
   Indexing:         list->index  map->key
-  Dot Access:       obj.field (shorthand for obj->"field")
+  Dot access:       map.key (shorthand for map->"key")
 
 Built-in Functions:
   Math:             + - * / % ** << >> | & ^ || &&
-  Collections:      + (concatenate) # (length shorthand)
+  Collections:      + (concatenate) # (length)
   Control Flow:     if break return
-  Metaprogramming:  \`expr  {quasiquote}  \$unquote
+  Metaprogramming:  \`expr  {quasiquote}  $unquote
   I/O:              print
-  JavaScript:       JS_GLOBAL JS_new obj->"field" obj.field
+  FFI:              JS_GLOBAL JS_new obj->"field" obj.field
 
-Type "help" anytime to see this message again.
-Type "clear" to clear the terminal.
-Type "bye" to close (will reload page).
-Type Ctrl+D Ctrl+C to interrupt a long-running command.
+* Type "help" anytime to see this message again.
+* Type "clear" to clear the terminal.
+* Type "bye" to clear all variables (by reloading the page).
+* Type Ctrl+D Ctrl+C to interrupt a long-running command.
+`;
+
+const GREETINGS_TEXT = `Backolon 0.0.0 Web REPL
+* Type "help" for more information.
+* Type "clear" to clear the screen.
+* Type "bye" to clear all variables (by reloading the page).
+* Type Ctrl+D Ctrl+C to interrupt a long-running command.
 `;
 
 function textIsComplete(text: string) {
@@ -128,7 +134,7 @@ function initREPL() {
             term.pause();
         },
         {
-            greetings: "Backolon 0.0.0\nType \"help\" for more information.\nType Ctrl+D Ctrl+C to interrupt a long-running command.",
+            greetings: GREETINGS_TEXT,
             name: "backolon_repl",
             prompt(setPrompt) {
                 setPrompt(`backolon:${HISTORY.length}> `);

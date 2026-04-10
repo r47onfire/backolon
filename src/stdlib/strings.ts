@@ -5,7 +5,22 @@ import { DEFAULT_UNPARSER } from "../parser/unparse";
 import { BUILTINS_LOC } from "./locations";
 import { NativeModule, symbol_x } from "./module";
 
+/**
+ * @file
+ * @module Builtins
+ */
+
 export function strings(mod: NativeModule) {
+    /**
+     * Concatenate strings
+     * @backolon
+     * @category Strings
+     * @syntax string + string
+     * @example
+     * ```backolon
+     * "hello, " + "world!" # => "hello, world!"
+     * ```
+     */
     mod.defoverload("add", [ThingType.string, ThingType.string], (loc, argv) => {
         const x = argv[0].v + argv[1].v;
         return boxString(x, loc, stringify(x), "");

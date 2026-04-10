@@ -137,7 +137,7 @@ export function boxApply(func: Thing, args: readonly Thing[], trace = UNKNOWN_LO
 
 
 // hack to make it one per Thing
-type OneTypeThing<T extends (ThingType | string)> = T extends any ? Thing<T> : never;
+export type OneTypeThing<T extends (ThingType | string)> = T extends any ? Thing<T> : never;
 /**
  * Return a helper function that returns true if the given Thing is any of the given types.
  * 

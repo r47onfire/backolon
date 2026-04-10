@@ -4,6 +4,11 @@ import { blockParse, BlockRule } from "./blockParse";
 import { tokenize } from "./tokenizer";
 import { DEFAULT_UNPARSER } from "./unparse";
 
+/**
+ * @file
+ * @module Builtins
+ */
+
 export enum BlockHandler {
     round = "r",
     square = "s",
@@ -68,6 +73,12 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
         p: makeBlock,
         b: bannedInners,
     },
+    /**
+     * Raw string without escapes or interpolations processed
+     * @backolon
+     * @category Strings
+     * @syntax 'text {text} text \text'
+     */
     [BlockHandler.rawstring]: {
         t: ThingType.stringblock,
         e: ["'"],
@@ -80,6 +91,20 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
         },
         b: []
     },
+    /**
+     * Double-quoted strings with interpolation and escapes
+     * @backolon
+     * @category Strings
+     * @syntax "text {expression} \u{1F34}"
+     * @example
+     * ```backolon
+     * x := 0x123
+     * # objects that have been processed use the default stringification method
+     * "hello, {x + 0}" # => "hello, 291"
+     * # objects that have not been processed remember how they were originally written
+     * "hello, {x}" # => "hello, 0x123"
+     * ```
+     */
     [BlockHandler.string]: {
         t: ThingType.stringblock,
         e: ['"'],

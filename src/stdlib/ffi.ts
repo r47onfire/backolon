@@ -4,10 +4,29 @@ import { RuntimeError } from "../errors";
 import { fromJS, JSObjectRef, JSObjectType, toJS } from "../objects/js_interop";
 import { boxNameSymbol, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
 
+/**
+ * @file
+ * @module FFI
+ */
+
 export function initFFI(mod: NativeModule) {
     // Entry point functions for common JS globals
+    /**
+     * A reference to the Javascript global object
+     * @backolon
+     * @value JS_GLOBAL
+     * @type JSObjectRef
+     */
     mod.defvar("JS_GLOBAL", fromJS(globalThis));
 
+    /**
+     * Construct the object (Javascript `new` operator)
+     * @backolon
+     * @function JS_new
+     * @param {JSObjectRef} class - The class to construct
+     * @param args... - constructor arguments
+     * @returns {JSObjectRef}
+     */
     mod.defun("JS_new", "class args...", (task, state) => {
         const ctor = state.argv[0]!;
         const args = state.argv.slice(1);

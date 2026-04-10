@@ -7,7 +7,7 @@ export {
     UNKNOWN_LOCATION
 } from "./errors";
 export {
-    fromJS, JSObjectType, toJS, type JSObjectRef
+    fromJS, JSObjectType, toJS as toJS, type JSObjectRef
 } from "./objects/js_interop";
 export {
     mapDeleteKeyCopying,
@@ -37,16 +37,14 @@ export {
     isPattern,
     isSymbol,
     Thing,
-    ThingType,
-    type CheckedType,
-    typecheck,
-    typeNameOf
+    ThingType, typecheck,
+    typeNameOf, type CheckedType
 } from "./objects/thing";
 export {
     parse
 } from "./parser/parse";
 export {
-    tokenize
+    tokenize, type Token
 } from "./parser/tokenizer";
 export {
     DEFAULT_UNPARSER, Unparser

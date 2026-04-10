@@ -29,7 +29,10 @@ export const JSObjectType = "js_object";
 /**
  * Convert a Backolon Thing into a native JavaScript value.
  */
-export function toJS(thing: Thing, visited = new WeakMap()): any {
+export function toJS(thing: Thing) {
+    return toJSInner(thing, new WeakMap);
+}
+function toJSInner(thing: Thing, visited: WeakMap<Thing, any>): any {
     if (visited.has(thing)) {
         return visited.get(thing);
     }
@@ -43,15 +46,15 @@ export function toJS(thing: Thing, visited = new WeakMap()): any {
         case ThingType.list: {
             const arr: any[] = [];
             visited.set(thing, arr);
-            arr.push(...thing.c.map(t => toJS(t, visited)));
+            arr.push(...thing.c.map(t => toJSInner(t, visited)));
             return arr;
         }
         case ThingType.map: {
             const obj: any = {};
             visited.set(thing, obj);
             for (const pair of thing.c) {
-                const key = toJS(pair.c[0]!, visited);
-                const value = toJS(pair.c[1]!, visited);
+                const key = toJSInner(pair.c[0]!, visited);
+                const value = toJSInner(pair.c[1]!, visited);
                 obj[key] = value;
             }
             return obj;
@@ -69,7 +72,10 @@ export function toJS(thing: Thing, visited = new WeakMap()): any {
 /**
  * Convert a native JavaScript value into a Backolon Thing.
  */
-export function fromJS(val: any, loc = UNKNOWN_LOCATION, visited = new WeakMap()): Thing {
+export function fromJS(val: any, loc = UNKNOWN_LOCATION): Thing {
+    return fromJSInner(val, loc, new WeakMap);
+}
+function fromJSInner(val: any, loc = UNKNOWN_LOCATION, visited = new WeakMap()): Thing {
     if (undefinedToNull(val) === null) {
         return boxNil(loc);
     }
@@ -89,7 +95,7 @@ export function fromJS(val: any, loc = UNKNOWN_LOCATION, visited = new WeakMap()
     if (isArray(val)) {
         const result = boxList([], loc);
         visited.set(val, result);
-        result.c.push(...val.map((v) => fromJS(v, loc, visited)));
+        result.c.push(...val.map((v) => fromJSInner(v, loc, visited)));
         return result;
     }
     if (typeof val === "object"
@@ -100,7 +106,7 @@ export function fromJS(val: any, loc = UNKNOWN_LOCATION, visited = new WeakMap()
         visited.set(val, map);
         for (const [k, v] of Object.entries(val)) {
             const keyThing = boxString(k, loc, k, '"');
-            const valueThing = fromJS(v, loc, visited);
+            const valueThing = fromJSInner(v, loc, visited);
             mapUpdateKeyMutating(map, keyThing, valueThing, loc);
         }
         return map;

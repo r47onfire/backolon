@@ -91,7 +91,7 @@ describe("variables", () => {
         });
     });
     test("assignment requires the variable to exist", () => {
-        expectEvalError("thisWasNotDeclared = 1", "undefined: \"thisWasNotDeclared\"", "note: add \"let\" to declare \"thisWasNotDeclared\" to be in this scope");
+        expectEvalError("thisWasNotDeclared = 1", "undefined: \"thisWasNotDeclared\"", "note: change the \"=\" to \":=\" to declare \"thisWasNotDeclared\" to be in this scope");
     });
 });
 describe("lambdas", () => {
@@ -313,6 +313,42 @@ describe("collections", () => {
             v: 4,
         });
         expectEvalError("[1: 2, 3: 4]->4", "key 4 not found in map");
+    });
+    test("assigning to list indices", () => {
+        expectEval("x := [1, 2, 3]; x->1 = 42; x", {
+            t: ThingType.list,
+            c: [
+                {
+                    t: ThingType.number,
+                    v: 1,
+                },
+                {
+                    t: ThingType.number,
+                    v: 42,
+                },
+                {
+                    t: ThingType.number,
+                    v: 3,
+                }
+            ]
+        });
+        expectEval("x := [1, 2, 3]; x->1 = x->2; JS_GLOBAL.console.log x; x", {
+            t: ThingType.list,
+            c: [
+                {
+                    t: ThingType.number,
+                    v: 1,
+                },
+                {
+                    t: ThingType.number,
+                    v: 3,
+                },
+                {
+                    t: ThingType.number,
+                    v: 3,
+                }
+            ]
+        });
     });
     test("collections with dynamic values", () => {
         expectEval("x := 1; [x, x + 1, x + 2]->x", {

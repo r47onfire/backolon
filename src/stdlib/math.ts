@@ -2,6 +2,11 @@ import { NativeModule, rewriteAsApply, symbol_x, symbol_y } from "./module";
 import { LocationTrace } from "../errors";
 import { boxNumber, Thing, ThingType } from "../objects/thing";
 
+/**
+ * @file
+ * @module Builtins
+ */
+
 const b = BigInt, n = Number, i = (x: number) => n.isInteger(x) && n.isSafeInteger(x);
 
 type BinaryFun = (x: any, y: any) => any;
@@ -48,35 +53,161 @@ export function math(mod: NativeModule) {
     };
 
     operation("not");
+    /**
+     * Logical NOT (unary)
+     * @backolon
+     * @category Operators
+     * @syntax (!any)
+     */
     unary("not", "!", 0, true, x => x ? 0 : 1);
 
+    /**
+     * Exponentiation
+     * @backolon
+     * @category Operators
+     * @syntax number ** number
+     */
     operation("pow", "**", 1, true, (x, y) => x ** y);
+    /**
+     * Multiplication
+     * @backolon
+     * @category Operators
+     * @syntax number * number
+     */
     operation("mul", "*", 3, false, (x, y) => x * y);
+    /**
+     * Division
+     * @backolon
+     * @category Operators
+     * @syntax number / number
+     */
     operation("div", "/", 3, false, (x, y) => x / y);
+    /**
+     * Modulo (remainder)
+     * @backolon
+     * @category Operators
+     * @syntax number % number
+     */
     operation("mod", "%", 3, false, (x, y) => x % y);
 
+    /**
+     * Add 2 numbers
+     * @backolon
+     * @category Operators
+     * @syntax number + number
+     */
     operation("add", "+", 4, false, (x, y) => x + y);
 
+    /**
+     * Subtraction
+     * @backolon
+     * @category Operators
+     * @syntax number - number
+     */
     operation("sub", "-", 4, false, (x, y) => x - y);
+    /**
+     * Unary negation (only valid at start of expression)
+     * @backolon
+     * @category Operators
+     * @syntax (-number)
+     */
     unary("sub", "-", 2, true, x => -x);
 
     // TODO: make these short-circuit
+    /**
+     * Logical OR
+     * @backolon
+     * @category Operators
+     * @syntax any || any
+     */
     operation("bool_or", "||", 5, false, (x, y) => x || y);
+    /**
+     * Logical AND
+     * @backolon
+     * @category Operators
+     * @syntax any && any
+     */
     operation("bool_and", "&&", 5, false, (x, y) => x && y);
 
+    /**
+     * Bitwise left shift
+     * @backolon
+     * @category Operators
+     * @syntax number << number
+     */
     operation("shl", "<<", 5.9, false, (x, y) => x << y);
+    /**
+     * Bitwise right shift
+     * @backolon
+     * @category Operators
+     * @syntax number >> number
+     */
     operation("shr", ">>", 5.9, false, (x, y) => x >> y);
 
+    /**
+     * Bitwise OR
+     * @backolon
+     * @category Operators
+     * @syntax number | number
+     */
     operation("bit_or", "|", 6, false, (x, y) => x | y);
+    /**
+     * Bitwise AND
+     * @backolon
+     * @category Operators
+     * @syntax number & number
+     */
     operation("bit_and", "&", 6, false, (x, y) => x & y);
+    /**
+     * Bitwise XOR
+     * @backolon
+     * @category Operators
+     * @syntax number ^ number
+     */
     operation("bit_xor", "^", 6, false, (x, y) => x ^ y);
 
     // TODO: generalize equality operators
+    /**
+     * Equality
+     * @backolon
+     * @category Operators
+     * @syntax number == number
+     */
     operation("eqeq", "==", 7, false, (x, y) => x == y);
+    /**
+     * Inequality
+     * @backolon
+     * @category Operators
+     * @syntax number != number
+     */
     operation("noteq", "!=", 7, false, (x, y) => x != y);
+    /**
+     * Greater than
+     * @backolon
+     * @category Operators
+     * @syntax number > number
+     */
     operation("gt", ">", 7, false, (x, y) => x > y);
+    /**
+     * Less than
+     * @backolon
+     * @category Operators
+     * @syntax number < number
+     */
     operation("lt", "<", 7, false, (x, y) => x < y);
+    /**
+     * Greater than or equal
+     * @backolon
+     * @category Operators
+     * @syntax number >= number
+     */
     operation("gte", ">=", 6.9, false, (x, y) => x >= y);
+    /**
+     * Less than or equal
+     * @backolon
+     * @category Operators
+     * @syntax number <= number
+     */
     operation("lte", "<=", 6.9, false, (x, y) => x <= y);
 }
 

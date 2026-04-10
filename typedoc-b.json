@@ -1,0 +1,14 @@
+{
+    "$schema": "https://typedoc.org/schema.json",
+    "extends": [
+        "./typedoc-common.json"
+    ],
+    "entryPoints": [
+        "./src/index.ts"
+    ],
+    "out": "/dev/null",
+    "json": "dist/typedoc_output.json",
+    "plugin": [
+        "./scripts/backolon-comments.js"
+    ]
+}

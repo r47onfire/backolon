@@ -9,6 +9,11 @@ import { getNthDescriptor, getParamDescriptors, isLazy, parametersToVars, wrapIm
 import { type Scheduler } from "./scheduler";
 
 /**
+ * @file
+ * @module Builtins
+ */
+
+/**
  * Flags used to record internal task evaluation state.
  */
 export enum StackFlag {
@@ -327,7 +332,24 @@ export class Task {
     /** inject variables */
     private i(opTrace: LocationTrace, vars: Thing<ThingType.map>, extraVars: Record<string, Thing> = {}, injectReturn = true) {
         forEach(extraVars, (value, key) => mapUpdateKeyMutating(vars, boxNameSymbol(key, opTrace), value, opTrace));
-        if (injectReturn) mapUpdateKeyMutating(vars, boxNameSymbol("return"), this.continuation(opTrace));
+        if (injectReturn) {
+            /**
+             * Return from a lambda. Only valid inside one (it's not defined outside of one).
+             * @backolon
+             * @category Control Flow
+             * @function return
+             * @param {any} valueToReturn
+             * @returns {never}
+             * @example
+             * ```backolon
+             * [x] => (
+             *     if (x == 0) (return "zero")
+             *     # other code here that will be skipped if x == 0
+             * )
+             * ```
+             */
+            mapUpdateKeyMutating(vars, boxNameSymbol("return"), this.continuation(opTrace));
+        }
         return vars;
     }
     /** apply - for functions the parameters will need to have been evaluated / typechecked*/

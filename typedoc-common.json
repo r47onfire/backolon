@@ -1,0 +1,33 @@
+{
+    "$schema": "https://typedoc.org/schema.json",
+    "entryPointStrategy": "expand",
+    "tsconfig": "./tsconfig.json",
+    "exclude": [
+        "./test/**/*",
+        "./node_modules/**/*"
+    ],
+    "excludePrivate": true,
+    "excludeExternals": true,
+    "hideGenerator": true,
+    "includeVersion": true,
+    "disableSources": false,
+    "skipErrorChecking": true,
+    "preservedTypeAnnotationTags": [
+        "@param",
+        "@returns"
+    ],
+    "ignoredHighlightLanguages": [
+        "backolon"
+    ],
+    "intentionallyNotExported": [
+        "Hashed",
+        "NativeModule",
+        "ChildrenType",
+        "ValueType",
+        "PatternProgram",
+        "CustomApplicator",
+        "PatternType",
+        "TOKENIZE_RULES",
+        "OneTypeThing",
+    ]
+}

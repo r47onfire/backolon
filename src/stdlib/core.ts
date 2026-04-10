@@ -15,6 +15,11 @@ import { metaprogramming } from "./metaprogramming";
 import { misc } from "./misc";
 import { strings } from "./strings";
 
+/**
+ * @file
+ * @module Builtins
+ */
+
 export function initCoreSyntax(mod: NativeModule) {
     mod.defvar("nil", boxNil(mod.loc));
     mod.defvar("false", boxNumber(0, mod.loc, "false"));
@@ -69,6 +74,17 @@ export function initCoreSyntax(mod: NativeModule) {
     // Second one is with arguments
     mod.defsyntax("[^] x  y...[$]", APPLY_PRECEDENCE, false, null, "__rewrite_apply");
     // MARK: variable management
+    /**
+     * Declare a variable in the current scope and bind it to a value
+     * @backolon
+     * @category Variables & Assignment
+     * @syntax name := value
+     * @example
+     * ```backolon
+     * x := 10
+     * x := 10 # errors, x is already defined
+     * ```
+     */
     mod.defsyntax("x := y", VARIABLE_ASSIGNMENT_PRECEDENCE, false, null, "__rewrite_declaration", rewriteAsApply(xy, "__declare"));
     const binding_helper = (dipAmount: number, cb: (state: StackEntry, name: Thing<ThingType.name>, initialValue: Thing, loc: LocationTrace) => void): ((task: Task, state: StackEntry) => void) => {
         return (task, state) => {
@@ -85,13 +101,25 @@ export function initCoreSyntax(mod: NativeModule) {
     mod.defun("__declare", "@name! value=nil", binding_helper(1, (state, name, value, loc) => {
         const vars = state.env;
         if (mapGetKey(vars.c[1]!, name) !== undefined) {
-            throw new RuntimeError(`variable ${stringify(name.v)} already exists in this scope`, loc);
+            throw new RuntimeError(`variable ${stringify(name.v)} already exists in this scope`, loc, [new ErrorNote(`note: change the ":=" to "=" if you just want to reassign ${stringify(name.v)}`, loc)]);
         }
         mapUpdateKeyMutating(vars.c[1]!, name, value);
         if (typecheck(ThingType.func)(value)) {
             value.v ??= name.v;
         }
     }));
+    /**
+     * Assign a new value to an existing variable
+     * @backolon
+     * @category Variables & Assignment
+     * @syntax name = value
+     * @example
+     * ```backolon
+     * x := 10
+     * x = 20 # ok
+     * y = 20 # errors, y is not defined
+     * ```
+     */
     mod.defsyntax("x = y", VARIABLE_ASSIGNMENT_PRECEDENCE, true, null, "__rewrite_assign", rewriteAsApply(xy, "__assign"));
     mod.defun("__assign", "@name! value", binding_helper(2, (state, name, value, loc) => {
         if (!walkEnvTree(state.env, vars => {
@@ -104,10 +132,29 @@ export function initCoreSyntax(mod: NativeModule) {
             }
             return false;
         })) {
-            throw new RuntimeError(`undefined: ${stringify(name.v)}`, loc, [new ErrorNote(`note: add "let" to declare ${stringify(name.v)} to be in this scope`, loc)]);
+            throw new RuntimeError(`undefined: ${stringify(name.v)}`, loc, [new ErrorNote(`note: change the "=" to ":=" to declare ${stringify(name.v)} to be in this scope`, loc)]);
         };
     }));
     // MARK: lambdas
+    /**
+     * Define a lambda function
+     * @backolon
+     * @category Lambdas & Functions
+     * @syntax [params] => body
+     * @example
+     * ```backolon
+     * # simple parameters
+     * [a b c] => [x] => a * x * x + b * x + c
+     * # rest parameter
+     * [values...] => nil
+     * # lazy parameters for metaprogramming
+     * or := [@first @second] => (
+     *     temp = (first!)
+     *     if temp (return temp)
+     *     second!
+     * )
+     * ```
+     */
     mod.defsyntax("[x:squareblock] => y...", LAMBDA_PRECEDENCE, true, null, "__rewrite_lambda", (task, state) => {
         const groups: Thing<ThingType.map> = state.argv[0]! as any;
         const name = mapGetKey(groups, symbol_x)!;

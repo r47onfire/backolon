@@ -1,199 +1,125 @@
-import { get, make } from "vanilla";
+import { get, html, make } from "vanilla";
+import Prism from "prismjs";
+import { Documentation, FunctionDoc, ValueDoc, SyntaxDoc, Example } from "../scripts/doc";
+// @ts-ignore
+import LANGUAGE_DOCS from "$_DOCUMENTATION";
+declare const LANGUAGE_DOCS: Documentation;
 
-interface DocItem {
-    name: string;
-    signature?: string;
-    description: string;
-    example?: string;
-}
-
-interface OperatorGroup {
-    op: string;
-    description: string;
-}
-
-interface DocCategory {
-    functions?: DocItem[];
-    [key: string]: DocItem[] | OperatorGroup[] | undefined;
-}
-
-const LANGUAGE_DOCS: Record<string, DocCategory> = {
-    "Control Flow": {
-        functions: [
-            {
-                name: "if",
-                signature: "if condition true_expr false_expr",
-                description: "Conditional branching. Evaluates condition; if truthy, evaluates true_expr, otherwise false_expr.",
-                example: "if (x > 0) \"positive\" \"non-positive\""
-            },
-            // {
-            //     name: "break",
-            //     signature: "break",
-            //     description: "Continuation variable injected into every loop scope.",
-            //     example: "[x] => (if (x < 0) (break nil) (x * 2))"
-            // },
-            {
-                name: "return",
-                signature: "return",
-                description: "Continuation variable for returning from a function or lambda.",
-                example: "[x] => (if (x == 0) (return \"zero\") x)"
-            }
-        ]
-    },
-    "Operators": {
-        arithmetic: [
-            { op: "+", description: "Addition (also string/list concatenation)" },
-            { op: "-", description: "Subtraction or unary negation" },
-            { op: "*", description: "Multiplication" },
-            { op: "/", description: "Division" },
-            { op: "%", description: "Modulo (remainder)" },
-            { op: "**", description: "Exponentiation" }
-        ],
-        bitwise: [
-            { op: "<<", description: "Bitwise left shift" },
-            { op: ">>", description: "Bitwise right shift" },
-            { op: "|", description: "Bitwise OR" },
-            { op: "&", description: "Bitwise AND" },
-            { op: "^", description: "Bitwise XOR" }
-        ],
-        logical: [
-            { op: "||", description: "Logical OR" },
-            { op: "&&", description: "Logical AND" },
-            { op: "!", description: "Logical NOT (unary)" }
-        ],
-        comparison: [
-            { op: "==", description: "Equality" },
-            { op: "!=", description: "Inequality" },
-            { op: ">", description: "Greater than" },
-            { op: "<", description: "Less than" },
-            { op: ">=", description: "Greater than or equal" },
-            { op: "<=", description: "Less than or equal" }
-        ]
-    },
-    "Collections": {
-        functions: [
-            {
-                name: "[ ]",
-                signature: "[item1, item2, ...]",
-                description: "List literal for ordered values.",
-                example: "[1, 2, 3]"
-            },
-            {
-                name: "[:]",
-                signature: "[key: value, key2: value2, ...]",
-                description: "Map literal for key/value collections.",
-                example: "[name: \"Alice\", age: 30]"
-            },
-            {
-                name: "->",
-                signature: "collection->index_or_key",
-                description: "Access list indexes or map keys.",
-                example: "[1, 2, 3]->1"
-            },
-            {
-                name: "+",
-                signature: "list1 + list2",
-                description: "Concatenate lists or merge maps.",
-                example: "[1, 2] + [3, 4]"
-            },
-            {
-                name: "#",
-                signature: "#collection",
-                description: "Get the length of collections or strings.",
-                example: "#\"hello\""
-            }
-        ]
-    },
-    "Strings": {
-        functions: [
-            {
-                name: "String Literals",
-                signature: "\"text\"",
-                description: "Double-quoted strings with interpolation.",
-                example: "\"x = {x}\""
-            },
-            {
-                name: "+",
-                signature: "\"a\" + \"b\"",
-                description: "Concatenate strings.",
-                example: "\"hello, \" + \"world!\""
-            }
-        ]
-    },
-    "Variables & Assignment": {
-        functions: [
-            {
-                name: ":=",
-                signature: "x := value",
-                description: "Declare a variable and bind it to a value.",
-                example: "x := 10"
-            },
-            {
-                name: "=",
-                signature: "x = value",
-                description: "Assign a new value to an existing variable.",
-                example: "x = 20"
-            }
-        ]
-    },
-    "Lambdas & Functions": {
-        functions: [
-            {
-                name: "=>",
-                signature: "[params] => body",
-                description: "Define a lambda function.",
-                example: "[x] => x * 2"
-            }
-        ]
-    },
-    "Metaprogramming": {
-        functions: [
-            {
-                name: "`",
-                signature: "`expression",
-                description: "Quote a value without evaluating it.",
-                example: "`(thisvariabledoesnotexist + 1)"
-            }
-        ]
+function syntaxHighlight(string: string, lang: string): string {
+    if (lang === "backolon") {
+        // TODO: Backolon self-highlighting using an Unparser
+        return string;
     }
-};
+    return Prism.highlight(string, Prism.languages[lang]!, lang);
+}
 
-function renderDocItem(item: DocItem) {
+function renderExamples(examples: Example[]) {
+    return examples.map(ex => {
+        const el = make("pre.api-example", {});
+        el.innerHTML = syntaxHighlight(ex.code, ex.lang);
+        return el;
+    });
+}
+
+function renderNameThing<T extends keyof HTMLElementTagNameMap>(elType: T, name: string, type: string, lazy: boolean, description: string, colon: boolean) {
+    const el = make(elType);
+    el.append(name);
+    if (type || lazy) el.append(" (");
+    if (lazy) {
+        el.append("lazy");
+        if (type) el.append(" ");
+    }
+    if (type) el.append(type);
+    if (type || lazy) el.append(")");
+    if (description) {
+        if (colon) el.append(": ");
+        el.append(html(description));
+    }
+    return el;
+}
+
+function renderFunction(func: FunctionDoc) {
     return make("div.api-item", {},
-        make("strong", {}, item.name),
-        ...(item.signature ? [make("div.api-signature", {}, make("code", {}, item.signature))] : []),
-        make("p", {}, item.description),
-        ...(item.example ? [make("div", {}, make("strong", {}, "Example:"), make("div.api-example", {}, make("code", {}, item.example)))] : [])
+        make("strong.api-signature", {}, make("code", {}, func.name)),
+        make("div.api-info", {},
+            make("div", {}, "Parameters:",
+                make("ul", {},
+                    ...func.params.map(({ name, type, lazy, description }) => renderNameThing("li", name, type, lazy, description, true))
+                )
+            ),
+            ...(func.returns || func.returnType ? [renderNameThing("span", "Returns: ", func.returnType, false, func.returns, false)] : []),
+            make("p", {}, html(func.description))),
+        ...renderExamples(func.examples)
     );
 }
 
-function renderOperatorGroup(title: string, ops: OperatorGroup[]) {
-    return make("section.api-section", {},
-        make("h3", {}, title),
-        ...(ops.map((op) => (
-            make("div.api-item", {},
-                make("strong.api-param-name", {}, op.op)
-            )
-        )))
+function renderValue(val: ValueDoc) {
+    return make("div.api-item", {},
+        make("strong.api-signature", {}, make("code", {}, val.name)),
+        make("div.api-info", {}, "Type: ", val.type),
+        make("p", {}, html(val.description)),
+        ...renderExamples(val.examples),
     );
 }
 
+function renderSyntax(syn: SyntaxDoc) {
+    return make("div.api-item", {},
+        make("strong.api-signature", {}, make("code", {}, syn.shape)),
+        make("p", {}, html(syn.description)),
+        ...renderExamples(syn.examples),
+    );
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     const container = get("#language-content");
     if (!container) throw "unreachable";
 
-    const content = Object.entries(LANGUAGE_DOCS).map(([category, docs]) => (
-        make("section.api-section", {},
-            make("h2", {}, category),
-            ...(docs.functions ? docs.functions.map(renderDocItem) : []),
-            ...(
-                Object.entries(docs)
-                    .filter(([key]) => key !== "functions")
-                    .map(([groupTitle, items]) => renderOperatorGroup(groupTitle, items as OperatorGroup[]))
-            )
-        )
-    ));
+    const modules = Object.entries(LANGUAGE_DOCS);
 
-    container.append(...content);
+    const tabNav = make("nav.tab-navigation", {},
+        ...modules.map(([modName]) => make("button.tab-btn", { "data-tab": modName }, modName))
+    );
+
+    const tabContents = modules.map(([modName, modDoc]) => {
+        const sections = [];
+        if (modDoc.functions.length > 0) {
+            sections.push(make("section.api-section", {},
+                make("h2", {}, "Functions"),
+                ...modDoc.functions.map(renderFunction)
+            ));
+        }
+        if (modDoc.values.length > 0) {
+            sections.push(make("section.api-section", {},
+                make("h2", {}, "Values"),
+                ...modDoc.values.map(renderValue)
+            ));
+        }
+        if (modDoc.syntax.length > 0) {
+            sections.push(make("section.api-section", {},
+                make("h2", {}, "Syntax"),
+                ...modDoc.syntax.map(renderSyntax)
+            ));
+        }
+        return make("section.tab-content", { id: "tab-" + modName }, ...sections);
+    });
+
+    container.append(tabNav, ...tabContents);
+
+    // Add event listeners
+    const buttons = container.querySelectorAll(".tab-btn");
+    buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            // Remove active from all
+            buttons.forEach(b => b.classList.remove("active"));
+            container.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+            // Add to this
+            btn.classList.add("active");
+            container.querySelector(`#tab-${btn.getAttribute("data-tab")}`)?.classList.add("active");
+        });
+    });
+
+    // Set first active
+    if (buttons.length > 0) {
+        (buttons[0] as HTMLElement).click();
+    }
 });

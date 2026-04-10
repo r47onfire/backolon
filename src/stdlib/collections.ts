@@ -9,10 +9,36 @@ import { BUILTINS_LOC } from "./locations";
 import { BUILTIN_QUOTE } from "./metaprogramming";
 import { DEFAULT_UNPARSER } from "../parser/unparse";
 
+/**
+ * @file
+ * @module Builtins
+ */
+
 const BUILTIN_LIST = boxNativeFunc("__list", BUILTINS_LOC);
 const BUILTIN_DICT = boxNativeFunc("__dict", BUILTINS_LOC);
 const IMPLICIT_KEY = boxNativeFunc("__implicit_key", BUILTINS_LOC);
 export function collections(mod: NativeModule) {
+    /**
+     * List literal
+     * @backolon
+     * @category Collections
+     * @syntax [item1, item2, ...]
+     */
+    /**
+     * Key-value map literal (unordered)
+     * @backolon
+     * @category Collections
+     * @syntax [key: value, key2: value2, ...]
+     * @example
+     * ```backolon
+     * ["name": "Alice", "age": 30]
+     * # use the quote operator to use a symbol as the key
+     * [`name: "Alice", `age: 30]
+     * # Shorthand for symbol key and value being that variable:
+     * variable := 10
+     * [`variable:] # => [`variable: 10]
+     * ```
+     */
     mod.defsyntax("[x:squareblock]", -1e50, false, null, "__rewrite_squareblock", (task, state) => {
         const arg = state.argv[0]! as Thing<ThingType.map>;
         const loc = arg.loc;
@@ -79,9 +105,29 @@ export function collections(mod: NativeModule) {
         task.out();
         task.enter(boxApply(BUILTIN_DICT, [boxApply(BUILTIN_QUOTE, [val], val.loc), val], val.loc), val.loc, state.env);
     });
+    /**
+     * Concatenate lists
+     * @backolon
+     * @category Collections
+     * @syntax list1 + list2
+     * @example
+     * ```backolon
+     * [1, 2] + [3, 4] # => [1, 2, 3, 4]
+     * ```
+     */
     mod.defoverload("add", [ThingType.list, ThingType.list], (loc, argv) => {
         return boxList([...argv[0].c, ...argv[1].c], loc);
     });
+    /**
+     * Merge maps (2nd map's keys take priority)
+     * @backolon
+     * @category Collections
+     * @syntax map1 + map2
+     * @example
+     * ```backolon
+     * [1: 2, 2: 4] + [1: 3, 4: 5] # => [1: 3, 2: 4, 4: 5]
+     * ```
+     */
     mod.defoverload("add", [ThingType.map, ThingType.map], (loc, argv) => {
         const head = argv[0], tail = argv[1];
         const m2 = newEmptyMap(head.loc);
@@ -93,6 +139,17 @@ export function collections(mod: NativeModule) {
         }
         return m2;
     });
+    /**
+     * Access list indexes or map keys
+     * @backolon
+     * @category Collections
+     * @syntax map -> any
+     * @syntax list -> number
+     * @example
+     * ```backolon
+     * [1, 2, 3]->1 # => 2
+     * ```
+     */
     mod.defop("__getitem", "getitem");
     mod.defoverload("getitem", [ThingType.list, ThingType.number], (loc, argv) => {
         const list = argv[0].c;
@@ -132,7 +189,7 @@ export function collections(mod: NativeModule) {
         const list = argv[0];
         const index = argv[1];
         const value = argv[2];
-        list.c.splice(Number(index), 1, value);
+        list.c.splice(Number(index.v), 1, value);
         return value;
     });
     mod.defoverload("setitem", [ThingType.map, null, null], (loc, argv) => {
@@ -142,7 +199,20 @@ export function collections(mod: NativeModule) {
         mapUpdateKeyMutating(map, key, value, loc);
         return value;
     });
+    // TODO: this breaks for w->x=y->z it parses as (w->x=y)->z
     mod.defsyntax("x -> y = z", -2, true, null, "__rewrite_setitem", rewriteAsApply([symbol_x, symbol_y, symbol_z], "__setitem"));
+    /**
+     * Length of string, list, or map
+     * @backolon
+     * @category Collections
+     * @syntax #collection
+     * @example
+     * ```backolon
+     * #"hello" # => 5
+     * #[1, 2, 3] # => 3
+     * #[1: 2] # => 1
+     * ```
+     */
     mod.defop("__length", "length");
     mod.defoverload("length", [ThingType.list], (loc, argv) => boxNumber(argv[0].c.length, loc));
     mod.defoverload("length", [ThingType.map], (loc, argv) => boxNumber(argv[0].c.length, loc));

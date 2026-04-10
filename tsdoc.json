@@ -1,0 +1,45 @@
+{
+    "$schema": "https://developer.microsoft.com/json-schemas/tsdoc/v0/tsdoc.schema.json",
+    "tagDefinitions": [
+        {
+            "tagName": "@backolon",
+            "syntaxKind": "modifier",
+            "allowMultiple": false
+        },
+        {
+            "tagName": "@function",
+            "syntaxKind": "block",
+            "allowMultiple": false
+        },
+        {
+            "tagName": "@syntax",
+            "syntaxKind": "block",
+            "allowMultiple": false
+        },
+        {
+            "tagName": "@value",
+            "syntaxKind": "block",
+            "allowMultiple": false
+        },
+        {
+            "tagName": "@type",
+            "syntaxKind": "block",
+            "allowMultiple": false
+        },
+        {
+            "tagName": "@category",
+            "syntaxKind": "block",
+            "allowMultiple": false
+        },
+        {
+            "tagName": "@module",
+            "syntaxKind": "block",
+            "allowMultiple": false
+        },
+        {
+            "tagName": "@file",
+            "syntaxKind": "modifier",
+            "allowMultiple": false
+        }
+    ]
+}

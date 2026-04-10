@@ -10,6 +10,11 @@ Internal wrapper for native JavaScript objects stored in Backolon values.
 T extends (thing: Thing<any>) => thing is Thing<infer U> ? U : never
 ```
 
+### `Token`
+```ts
+OneTypeThing<typeof TOKENIZE_RULES[number][1] | end>
+```
+
 ### `StackEntry`
 A single stack frame in the Backolon evaluator.
 

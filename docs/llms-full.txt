@@ -5,13 +5,12 @@
 Convert a native JavaScript value into a Backolon Thing.
 
 ```ts
-fromJS(val: any, loc: LocationTrace, visited: WeakMap<WeakKey, any>): Thing
+fromJS(val: any, loc: LocationTrace): Thing
 ```
 
 **Parameters:**
 - `val: any` — 
 - `loc: LocationTrace` — 
-- `visited: WeakMap<WeakKey, any>` — 
 
 **Returns:** `Thing`
 
@@ -20,12 +19,11 @@ fromJS(val: any, loc: LocationTrace, visited: WeakMap<WeakKey, any>): Thing
 Convert a Backolon Thing into a native JavaScript value.
 
 ```ts
-toJS(thing: Thing, visited: WeakMap<WeakKey, any>): any
+toJS(thing: Thing): any
 ```
 
 **Parameters:**
 - `thing: Thing` — 
-- `visited: WeakMap<WeakKey, any>` — 
 
 **Returns:** `any`
 
@@ -342,17 +340,18 @@ parse(string: string, filename: URL): Thing<string | ThingType>
 
 ### tokenize
 
-Tokenize Backolon source text into a stream of Things. No further parsing is done; parens like "(" are kept as operator symbols.
+Tokenize Backolon source text into a stream of Things. No further parsing is done;
+parens like "(" are kept as operator symbols.
 
 ```ts
-tokenize(source: string, filename: URL): Thing<string | ThingType>[]
+tokenize(source: string, filename: URL): Token[]
 ```
 
 **Parameters:**
 - `source: string` — 
 - `filename: URL` — 
 
-**Returns:** `Thing<string | ThingType>[]`
+**Returns:** `Token[]`
 
 ### compilePattern
 
@@ -678,6 +677,12 @@ Internal wrapper for native JavaScript objects stored in Backolon values.
 
 ```ts
 type CheckedType = T extends (thing: Thing<any>) => thing is Thing<infer U> ? U : never
+```
+
+### Token
+
+```ts
+type Token = OneTypeThing<typeof TOKENIZE_RULES[number][1] | end>
 ```
 
 ### StackEntry

@@ -5,8 +5,23 @@ import { newEnv } from "../runtime/env";
 import { BUILTINS_LOC } from "./locations";
 import { NativeModule, rewriteAsApply, sortPatternsList, symbol_x } from "./module";
 
+/**
+ * @file
+ * @module Builtins
+ */
+
 export function metaprogramming(mod: NativeModule) {
     const x = [symbol_x];
+    /**
+     * Quote a value without evaluating it
+     * @backolon
+     * @category Metaprogramming
+     * @syntax \`expression
+     * @example
+     * ```backolon
+     * `(thisvariabledoesnotexist + 1) # won't error
+     * ```
+     */
     mod.defsyntax("` x", 0, true, null, "__rewrite_quote", rewriteAsApply(x, "__quote"));
     mod.defun("__quote", "@value", (task, state) => {
         const item = state.argv[0] as Thing<ThingType.implicitfunc>;

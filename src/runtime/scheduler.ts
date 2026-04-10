@@ -102,14 +102,15 @@ export class Scheduler {
      * Returns true if any progress was made (i.e. any task executed at least one step).
      */
     stepUntilSuspended(maxSteps: number = -1) {
-        var didMakeAnyProgress = false;
+        var madeAnyProgress = false;
         do {
-            var madeProgress = false;
+            var madeProgressThisRound = false;
             for (var i = 0; i < this.tasks.length; i++) {
-                madeProgress ||= didMakeAnyProgress ||= this.tasks[i]!.step();
+                madeProgressThisRound ||= this.tasks[i]!.step();
             }
-        } while (madeProgress && --maxSteps !== 0);
-        return didMakeAnyProgress;
+            madeAnyProgress ||= madeProgressThisRound;
+        } while (madeProgressThisRound && --maxSteps !== 0);
+        return madeAnyProgress;
     }
     private f(name: string): NativeFunctionDetails {
         const func = this.builtins.find(mod => name in mod.funcs)?.funcs[name];
