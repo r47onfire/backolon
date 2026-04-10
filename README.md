@@ -29,7 +29,7 @@ Backolon is meant for people who want a tiny language where syntax is data, macr
 Backolon exposes parsing, evaluation, and scheduler APIs so you can embed it directly in JS applications.
 
 ```js
-import * as Backolon from "backolon";
+import * as Backolon from "@r47onfire/backolon";
 
 const scheduler = new Backolon.Scheduler([
     Backolon.BUILTINS_MODULE,

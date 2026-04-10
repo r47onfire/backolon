@@ -13,7 +13,7 @@ Backolon provides a small API surface for parsing, tokenizing, and evaluating so
 ## Basic embedding example
 
 ```js
-import * as Backolon from "backolon";
+import * as Backolon from "@r47onfire/backolon";
 
 const scheduler = new Backolon.Scheduler(
     // the list of built-in modules to include

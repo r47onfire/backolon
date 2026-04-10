@@ -23,6 +23,7 @@
         "type": "git",
         "url": "https://github.com/r47onfire/backolon.git"
     },
+    "homepage": "https://r47onfire.github.io/backolon",
     "devDependencies": {
         "@gitlab-org/jsfuzz": "^1.2.4",
         "@to-skills/typedoc": "^0.5.1",
