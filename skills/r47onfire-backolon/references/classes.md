@@ -27,13 +27,13 @@ constructor(message: string, loc: LocationTrace): ErrorNote
 ## `LocationTrace`
 Source location information for Backolon parsing and runtime errors.
 ```ts
-constructor(line: number, col: number, file: URL, source: [string, LocationTrace] | null): LocationTrace
+constructor(line: number, col: number, file: URL, source: [parentMessage: string, parentLocation: LocationTrace] | null): LocationTrace
 ```
 **Properties:**
 - `line: number` — 
 - `col: number` — 
 - `file: URL` — 
-- `source: [string, LocationTrace] | null` — 
+- `source: [parentMessage: string, parentLocation: LocationTrace] | null` — 
 
 ## `ParseError`
 Thrown when an early-stage parse error occurs.

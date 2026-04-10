@@ -1,5 +1,4 @@
 import { Thing, ThingType } from "../objects/thing";
-import { disassemblePattern } from "./dis";
 import { Pattern, PatternType } from "./internals";
 
 export type Command =

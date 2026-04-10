@@ -28,8 +28,6 @@
         "Hashed",
         "ChildrenType",
         "ValueType",
-        "PatternProgram",
-        "PatternType",
         "TOKENIZE_RULES",
         "OneTypeThing",
     ]

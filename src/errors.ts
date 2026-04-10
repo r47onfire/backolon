@@ -9,7 +9,7 @@ export class LocationTrace {
         public line: number,
         public col: number,
         public file: URL,
-        public source: [string, LocationTrace] | null = null) { }
+        public source: [parentMessage: string, parentLocation: LocationTrace] | null = null) { }
 
 }
 /**

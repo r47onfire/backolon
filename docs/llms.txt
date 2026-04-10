@@ -56,10 +56,14 @@ and the span.
 - `JSObjectRef`: Internal wrapper for native JavaScript objects stored in Backolon values.
 - `CheckedType`
 - `Token`
-- `NativeFunctionDetails`: Shape of native function metadata registered with the Backolon scheduler.
+- `Command`
+- `PatternProgram`
+- `Pattern`: Represents a pattern variant for pattern-matching.
 - `ParamDescriptor`
+- `NativeFunctionDetails`: Shape of native function metadata registered with the Backolon scheduler.
 - `StackEntry`: A single stack frame in the Backolon evaluator.
-- `OperatorOverload`
 - `CustomApplicator`
+- `OperatorOverload`
 - `ThingType`
+- `PatternType`
 - `StackFlag`: Flags used to record internal task evaluation state.

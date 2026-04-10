@@ -5,23 +5,59 @@ import { PatternProgram } from "./compile";
 
 export enum PatternType {
     // containers
+    /**
+     * Sequence of things in order `abcd`
+     */
     sequence,
+    /**
+     * List of options to be matched `{a|b|c|d}`
+     */
     alternatives,
+    /**
+     * Repeat (one or more) `(a)...`
+     */
     repeat,
+    /**
+     * Capture group into a symbol name `[name(a)]`
+     */
     capture_group,
     // atoms
+    /**
+     * Matches anything as a wildcard. Used for bare names like `x`.
+     */
     dot,
+    /**
+     * Force the match to be at the start `[^]`, or at the end `[$]`.
+     */
     anchor,
+    /**
+     * Match a value with a certain {@link ThingType} `[:type]`
+     */
     match_type,
+    /**
+     * Match that literal value `[=value]`
+     */
     match_value,
 }
 
+/**
+ * Represents a pattern variant for pattern-matching.
+ */
 export interface Pattern {
-    /** program */
+    /**
+     * The compiled IR program of this pattern, if the pattern has been compiled.
+     */
     readonly p?: PatternProgram;
-    /** internal type */
+    /**
+     * The variant of the pattern.
+     */
     readonly t: PatternType,
-    /** greedy or start or value */
+    /**
+     * * For {@link PatternType#repeat repeat}, true if the repeat is greedy.
+     * * For {@link PatternType#anchor anchor}, true if the anchor is to the start.
+     * * For {@link PatternType#match_type match_type}, it is the numeric {@link ThingType} to be matched.
+     * * For all other pattern types, it is unused.
+     */
     readonly gsv: boolean | number;
 }
 

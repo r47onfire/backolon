@@ -50,8 +50,11 @@ export {
     DEFAULT_UNPARSER, Unparser
 } from "./parser/unparse";
 export {
-    compile as compilePattern
+    compile as compilePattern, type Command, type PatternProgram
 } from "./patterns/compile";
+export {
+    PatternType, type Pattern
+} from "./patterns/internals";
 export {
     matchPattern,
     MatchResult
@@ -64,12 +67,12 @@ export {
     newEnv
 } from "./runtime/env";
 export {
-    Scheduler,
-    type NativeFunctionDetails,
-} from "./runtime/scheduler";
-export {
     type ParamDescriptor
 } from "./runtime/functor";
+export {
+    Scheduler,
+    type NativeFunctionDetails
+} from "./runtime/scheduler";
 export {
     StackFlag, Task,
     type StackEntry
@@ -79,9 +82,6 @@ export {
     FFI_MODULE
 } from "./stdlib";
 export {
-    rewriteAsApply,
-    NativeModule,
-    type OperatorOverload,
-    type CustomApplicator
+    NativeModule, rewriteAsApply, type CustomApplicator, type OperatorOverload
 } from "./stdlib/module";
 

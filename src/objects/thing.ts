@@ -4,44 +4,136 @@ import { type StackEntry } from "../runtime/task";
 import { javaHash, rotate32 } from "../utils";
 
 export enum ThingType {
-    /** the empty value */
+    /**
+     * The empty value.
+     */
     nil,
-    /** represents the end-of-file marker for tokenization, or the end of a read stream, or the end of an iterable */
+    /**
+     * Represents the end-of-file marker for tokenization.
+     */
     end,
-    /** an alphanumeric symbol, such as x, hello, or _QWE_RTY_123 */
+    /**
+     * An alphanumeric symbol, such as `x`, `hello`, or `_QWE_RTY_123`.
+     */
     name,
-    /** an operator character (only ever one character) */
+    /**
+     * An operator character, such as `+`, `@`, or `$`, but never multiple characters
+     * like `+=` or `|>`.
+     */
     operator,
-    /** a symbol composed entirely of whitespace and/or comments. Newlines get their own Thing. */
+    /**
+     * A symbol composed entirely of whitespace (excluding newlines) and/or comments.
+     */
     space,
+    /**
+     * A symbol composed of entirely newlines.
+     */
     newline,
+    /**
+     * A math number - JS number or bigint.
+     */
     number,
+    /**
+     * A string - literal, or part of an interpolation block.
+     */
     string,
+    /**
+     * A block of code enclosed in `(...)`.
+     */
     roundblock,
+    /**
+     * A block of code enclosed in `[...]`.
+     */
     squareblock,
+    /**
+     * A block of code enclosed in `{...}`.
+     */
     curlyblock,
+    /**
+     * A block of code represented as written at the top-level of a file.
+     */
     topblock,
+    /**
+     * A string with interpolations, the literal bits are {@link string} children,
+     * and the interpolated blocks are included as {@link roundblock} blocks
+     * (even though they're written as `{...}`).
+     */
     stringblock,
-    /** represents a function call, children[0] is the function, children[1:] are the arguments */
+    /**
+     * Represents an unevaluated function call, `.c[0]` is the function, `.c[1:]`
+     * are the code blocks that evaluate to the arguments.
+     */
     apply,
-    /** closed-over lambda function or macro, children[0] is the call signature, children[1] is the body */
+    /**
+     * A closed-over lambda function or macro, `.c[0]` is the call signature,
+     * `.c[1]` is the body.
+     */
     func,
-    /** javascript function or macro, children is empty, value is the native function details */
+    /**
+     * A named javascript function or macro. The value is only the string name
+     * that it's stored under in the {@link Scheduler}, so as to allow the
+     * state to be serialized (since JSON can't serialize functions).
+     */
     nativefunc,
-    /** implicit block, value=env, children[0] is the body */
+    /**
+     * An implicit block (what a function gets if it declares a parameter as
+     * `@lazy`), `.v` is the closed-over {@link env}, `.c[0]` is the actual body.
+     */
     implicitfunc,
-    /** name, type, default; value=lazy */
+    /**
+     * An entry in a parameter list of a function (e.g. `.c[0]` of a
+     * {@link func}); the children are the name {@link name}, allowed
+     * types {@link list}, and the default value if it's optional.
+     * The value is a 3-tuple of booleans `[lazy, splat, mustUnpack]`.
+     */
     paramdescriptor,
+    /**
+     * Represents a continuation. The value is a copy of the {@link Task#stack stack}
+     * at the point at which it was captured, and invoking the continuation restores
+     * the stack.
+     */
     continuation,
-    /** pattern program in data, child nodes are just for reconstruction */
+    /**
+     * Represents a parsed pattern, for pattern-matching. The value is
+     * a {@link Pattern}.
+     */
     pattern,
+    /**
+     * A list of values. This is **NOT** a list literal - those are a {@link squareblock}
+     * and processed by the builtin patterns.
+     */
     list,
+    /**
+     * A mapping of keys to values. The children are {@link pair}. This is **NOT** a
+     * map literal - those are a {@link squareblock} and processed by the builtin patterns.
+     */
     map,
+    /**
+     * A key-value pair in a {@link map}. The hash value of this is ignored, since maps are
+     * keyed on the key's hash.
+     */
     pair,
+    /**
+     * An entry of a pattern-matching pattern in the environment's patterns list.
+     * The children are the {@link pattern} itself, the callable handler that processes
+     * the match, a {@link list} of types specifying which blocks the pattern applies in,
+     * and a {@link number} specifying the precedence of the pattern (for sorting, when
+     * defining a new pattern).
+     */
     pattern_entry,
-    /** triple (parent or nil, vars, patterns); patterns is list of (pattern, when, implementation) */
+    /**
+     * Represents an environment that variables and patterns can be stored in.
+     * The children are a {@link list} of parent envs or {@link nil} if there's no parent,
+     * a {@link map} of the variables, and a {@link list} of {@link pattern_entry}.
+     */
     env,
+    /**
+     * Returned by a function to signal its result is a macro body, and should be evaluated again.
+     */
     macroized,
+    /**
+     * Represents a function that should have its return value spliced into the callee's arguments list.
+     */
     splat,
 }
 
