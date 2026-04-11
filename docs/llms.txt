@@ -30,7 +30,6 @@ Returns undefined if the key is not found.
 - `parse`: Parse Backolon source text into a syntax tree of Thing objects, but do not apply any patterns.
 - `tokenize`: Tokenize Backolon source text into a stream of Things. No further parsing is done;
 parens like "(" are kept as operator symbols.
-- `compilePattern`: Compile a pattern Thing into an executable pattern program and memoize it on the pattern object.
 - `matchPattern`: Finds all of the matches of the pattern and returns (for each match) the bindings
 and the span.
 - `parsePattern`: Convert a parsed Backolon pattern block into an internal pattern Thing.

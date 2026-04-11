@@ -50,7 +50,7 @@ export {
     DEFAULT_UNPARSER, Unparser
 } from "./parser/unparse";
 export {
-    compile as compilePattern, type Command, type PatternProgram
+    type Command, type PatternProgram
 } from "./patterns/compile";
 export {
     PatternType, type Pattern

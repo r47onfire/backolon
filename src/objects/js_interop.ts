@@ -17,7 +17,16 @@ import {
  * Internal wrapper for native JavaScript objects stored in Backolon values.
  */
 export class JSObjectRef {
-    constructor(public value: any, public self: any | null) { }
+    constructor(
+        /**
+         * The current value stored
+         */
+        public value: any,
+        /**
+         * The "this" value (currently unused)
+         */
+        public self: any | null
+    ) { }
 }
 
 /**

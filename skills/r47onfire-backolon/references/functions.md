@@ -264,15 +264,6 @@ tokenize(source: string, filename: URL): Token[]
 - `filename: URL` — default: `UNKNOWN_LOCATION.file` — 
 **Returns:** `Token[]`
 
-## `compilePattern`
-Compile a pattern Thing into an executable pattern program and memoize it on the pattern object.
-```ts
-compilePattern(thing: Thing<pattern>): PatternProgram
-```
-**Parameters:**
-- `thing: Thing<pattern>` — 
-**Returns:** `PatternProgram`
-
 ## `matchPattern`
 Finds all of the matches of the pattern and returns (for each match) the bindings
 and the span.
