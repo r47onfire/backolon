@@ -1,11 +1,9 @@
 import { describe, expect, mock, test } from "bun:test";
 import { stringify } from "lib0/json";
 import { keys } from "lib0/object";
-import { BackolonError, boxNameSymbol, boxNumber, matchPattern, MatchResult, parse, parsePattern, pattern, Thing, ThingType, unparse } from "../src";
+import { BackolonError, boxNameSymbol, boxNumber, matchPattern, MatchResult, parse, parsePattern, pattern, Thing, ThingType } from "../src";
 import { compile } from "../src/patterns/compile";
-import { disassemblePattern } from "../src/patterns/dis";
 import { NFASubstate, PatternType } from "../src/patterns/internals";
-import { parseSignature } from "../src/runtime/functor";
 import { F, L } from "./astCheck";
 
 describe("step pattern NFA substates", () => {

@@ -14,22 +14,6 @@ import {
 } from "./thing";
 
 /**
- * Internal wrapper for native JavaScript objects stored in Backolon values.
- */
-export class JSObjectRef {
-    constructor(
-        /**
-         * The current value stored
-         */
-        public value: any,
-        /**
-         * The "this" value (currently unused)
-         */
-        public self: any | null
-    ) { }
-}
-
-/**
  * Type tag used for JavaScript object references.
  * (String instead of ThingType enum since the FFI module is separate.)
  */
@@ -69,7 +53,7 @@ function toJSInner(thing: Thing, visited: WeakMap<Thing, any>): any {
             return obj;
         }
         case JSObjectType:
-            return (thing.v as JSObjectRef).value;
+            return thing.v;
         case ThingType.name:
             // Symbols can be converted to strings for JS land
             return thing.v;
@@ -121,5 +105,5 @@ function fromJSInner(val: any, loc = UNKNOWN_LOCATION, visited = new WeakMap()):
         return map;
     }
     // For other types (functions, symbols, etc), create a reference
-    return new Thing(JSObjectType, [], new JSObjectRef(val, null), `<object ${val}>`, "", "", loc, false);
+    return new Thing(JSObjectType, [], val, `<object ${val[Symbol.toStringTag]}>`, "", "", loc, false);
 }

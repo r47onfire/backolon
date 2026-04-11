@@ -7,7 +7,7 @@ export {
     UNKNOWN_LOCATION
 } from "./errors";
 export {
-    fromJS, JSObjectType, toJS as toJS, type JSObjectRef
+    fromJS, JSObjectType, toJS
 } from "./objects/js_interop";
 export {
     mapDeleteKeyCopying,

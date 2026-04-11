@@ -52,7 +52,6 @@ and the span.
 
 ### Types
 
-- `JSObjectRef`: Internal wrapper for native JavaScript objects stored in Backolon values.
 - `CheckedType`
 - `Token`
 - `Command`

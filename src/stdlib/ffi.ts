@@ -1,7 +1,7 @@
 import { stringify } from "lib0/json";
 import { NativeModule } from "./module";
 import { RuntimeError } from "../errors";
-import { fromJS, JSObjectRef, JSObjectType, toJS } from "../objects/js_interop";
+import { fromJS, JSObjectType, toJS } from "../objects/js_interop";
 import { boxNameSymbol, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
 
 /**
@@ -78,7 +78,7 @@ export function initFFI(mod: NativeModule) {
     mod.defoverload("getitem", [JSObjectType, null], (loc, argv) => {
         const obj = argv[0];
         const prop = ensure_name(argv[1]);
-        const jsObj = (obj.v as JSObjectRef).value;
+        const jsObj = obj.v;
         var value = jsObj[prop];
         if (typeof value === "function") {
             value = value.bind(jsObj);
@@ -91,7 +91,7 @@ export function initFFI(mod: NativeModule) {
      * @syntax object->"key"
      */
     mod.defoverload("setitem", [JSObjectType, null, null], (loc, argv) => {
-        const jsObj = (argv[0].v as JSObjectRef).value;
+        const jsObj = argv[0].v;
         const prop = ensure_name(argv[1]);
         const value = argv[2];
         try {
@@ -108,7 +108,7 @@ export function initFFI(mod: NativeModule) {
         params: () => JSFunc_params,
         call(task, functor, argv, callsite) {
             try {
-                const jsFunc = (functor.v as JSObjectRef).value;
+                const jsFunc = functor.v;
                 if (typeof jsFunc !== "function") {
                     throw new RuntimeError(`JS object is not callable: ${typeof jsFunc}`, functor.loc);
                 }

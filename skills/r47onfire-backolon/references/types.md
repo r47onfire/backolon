@@ -2,9 +2,6 @@
 
 ## Types
 
-### `JSObjectRef`
-Internal wrapper for native JavaScript objects stored in Backolon values.
-
 ### `CheckedType`
 ```ts
 T extends (thing: Thing<any>) => thing is Thing<infer U> ? U : never

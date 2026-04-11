@@ -685,10 +685,6 @@ the handler will be called with the pattern variables as a single map argument).
 - `defoverload<T>(name: string, types: T, cb: (opTrace: LocationTrace, argv: MapValues<T>) => Thing): void` — Defines a new operator overload for the given operator name and argument types. The handler will be called with the operator arguments as an array, and should return the result of the operator application.
 - `defcall(type: string, applicator: CustomApplicator): void` — Defines a custom applicator for a given type of functor. The applicator will be called with the functor, arguments, and callsite information whenever an apply form with a functor of the given type is evaluated in Backolon code.
 
-### JSObjectRef
-
-Internal wrapper for native JavaScript objects stored in Backolon values.
-
 ### CheckedType
 
 ```ts
