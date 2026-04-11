@@ -149,6 +149,8 @@ export class Task {
                         // @ts-expect-error
                         case BlockEvalState.matching_patterns:
                             if (walkEnvTree(top.env, (_, patterns) => {
+                                // TODO: patterns should be sorted globally by precedence
+                                // so user code and native modules can affect it predictably
                                 for (var i = 0; i < patterns.length; i++) {
                                     const entry = patterns[i]!,
                                         rightAssociative = entry.v,
@@ -384,9 +386,9 @@ export class Task {
             this.updateFlags(StackFlag.native_func_being_evaluated, 0);
         }
         else if (typecheck(ThingType.continuation)(functor)) {
-            if (argv.length !== 1) throw new RuntimeError("expected an argument to continuation", callsite.loc);
+            if (argv.length > 1) throw new RuntimeError("too many arguments to continuation", callsite.loc);
             this.stack = functor.v;
-            this.result = argv[0]!;
+            this.result = argv[0] ?? boxNil(callsite.loc);
         }
         else if (typecheck(ThingType.implicitfunc)(functor)) {
             if (argv.length > 1) {

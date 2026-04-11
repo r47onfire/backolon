@@ -16,13 +16,13 @@ export function control_flow(mod: NativeModule) {
      * @function if
      * @param cond
      * @param \@ifTrue
-     * @param \@ifFalse
+     * @param \@ifFalse - defaults to `nil` if not provided
      * @example
      * ```backolon
      * if (x > 0) "positive" "non-positive"
      * ```
      */
-    mod.defun("if", "cond @true @false", (task, state) => {
+    mod.defun("if", "cond @true @false=nil", (task, state) => {
         const condition = state.argv[0]!;
         const ifTrue = state.argv[1]!;
         const ifFalse = state.argv[2]!;
