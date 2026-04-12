@@ -5,7 +5,16 @@
     "description": "",
     "keywords": [],
     "author": "dragoncoder047",
-    "main": "src/index.ts",
+    "exports": {
+        ".": {
+            "import": "./src/index.ts",
+            "types": "./src/index.ts"
+        },
+        "./esbuildPlugin": {
+            "import": "./src/esbuildPlugin.ts",
+            "types": "./src/esbuildPlugin.ts"
+        }
+    },
     "scripts": {
         "build": "pnpm bun run scripts/build.js",
         "build-for-fuzzer": "pnpm bun run scripts/build-for-fuzzer.js",
@@ -16,7 +25,8 @@
         "fuzz": "pnpm build-for-fuzzer; ./scripts/fuzz.sh",
         "test": "pnpm bun test",
         "test:watch": "pnpm test --watch",
-        "prepare": "pnpm build --minify"
+        "prepare": "pnpm build --minify",
+        "clean-dist": "rm -rf dist/*"
     },
     "license": "GPL-3.0-only",
     "repository": {

@@ -34,7 +34,6 @@ export {
     boxToplevelBlock,
     isBlock,
     isCallable,
-    isPattern,
     isSymbol,
     Thing,
     ThingType, typecheck,

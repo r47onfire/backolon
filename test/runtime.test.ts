@@ -332,7 +332,7 @@ describe("collections", () => {
                 }
             ]
         });
-        expectEval("x := [1, 2, 3]; x->1 = x->2; JS_GLOBAL.console.log x; x", {
+        expectEval("x := [1, 2, 3]; x->1 = x->2; x", {
             t: ThingType.list,
             c: [
                 {

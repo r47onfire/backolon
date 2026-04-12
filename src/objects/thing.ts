@@ -251,7 +251,6 @@ export function typecheck<T extends (ThingType | string)>(...types: T[]) {
 export const isBlock = typecheck(ThingType.roundblock, ThingType.squareblock, ThingType.curlyblock, ThingType.stringblock, ThingType.topblock);
 export const isSymbol = typecheck(ThingType.name, ThingType.operator, ThingType.space);
 export const isCallable = typecheck(ThingType.func, ThingType.nativefunc, ThingType.implicitfunc, ThingType.continuation);
-export const isPattern = typecheck(ThingType.pattern);
 export const isAtom = typecheck(ThingType.nil, ThingType.end, ThingType.name, ThingType.operator, ThingType.number, ThingType.string, ThingType.func, ThingType.implicitfunc, ThingType.nativefunc, ThingType.continuation, ThingType.list, ThingType.map, ThingType.splat, ThingType.macroized);
 
 export type CheckedType<T extends (thing: Thing<any>) => thing is Thing<any>> = T extends (thing: Thing<any>) => thing is Thing<infer U> ? U : never;
