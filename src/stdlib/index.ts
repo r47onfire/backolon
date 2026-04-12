@@ -33,7 +33,7 @@ import ast from "./core.bk";
 var CORE = ast;
 
 declare global { const TEST: boolean }
-if (typeof TEST === "undefined" ? !(ast instanceof Thing) : TEST) {
+if (typeof TEST === "undefined" ? typeof ast !== "object" : TEST) {
     // we're in a test
     const fs = await import("node:fs");
     const path = await import("node:path");

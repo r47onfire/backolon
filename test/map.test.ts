@@ -1,4 +1,3 @@
-(globalThis as any).TEST = true;
 import { boxNil, boxNumber, mapDeleteKeyCopying, mapDeleteKeyMutating, mapGetKey, mapUpdateKeyCopying, mapUpdateKeyMutating, newEmptyMap, RuntimeError, Thing, ThingType } from "@r47onfire/backolon";
 import { beforeEach, describe, expect, test } from "bun:test";
 import { L } from "./astCheck";

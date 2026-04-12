@@ -1,4 +1,3 @@
-(globalThis as any).TEST = true;
 import { JSObjectType, ThingType } from "@r47onfire/backolon";
 import { test } from "bun:test";
 import { expectEval } from "./astCheck";

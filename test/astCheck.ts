@@ -1,4 +1,3 @@
-(globalThis as any).TEST = true;
 import { BackolonError, BUILTINS_MODULE, ErrorNote, FFI_MODULE, LocationTrace, parse, Scheduler, ThingType } from "@r47onfire/backolon";
 import { expect } from "bun:test";
 import { keys } from "lib0/object";

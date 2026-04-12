@@ -1,4 +1,3 @@
-(globalThis as any).TEST = true;
 import { BackolonError, ErrorNote } from "@r47onfire/backolon";
 import { expect, test } from "bun:test";
 import { F, L } from "./astCheck";

@@ -1,4 +1,3 @@
-(globalThis as any).TEST = true;
 import { LocationTrace, Thing, ThingType, tokenize } from "@r47onfire/backolon";
 import { expect, test } from "bun:test";
 import { F } from "./astCheck";
