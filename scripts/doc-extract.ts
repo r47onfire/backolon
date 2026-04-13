@@ -1,10 +1,9 @@
+import markdown from "markdown-it";
 import { Reflection } from "typedoc";
 import { Tags, contentToText } from "./comment-utils";
 import type { Documentation } from "./doc";
 
-function parseMarkdown(string: string) {
-    return string;
-}
+const md = new markdown();
 
 function parseExample(string: string) {
     const match = /(```|~~~)(.+?)\n([\s\S]+)\1/.exec(string)!;
@@ -22,18 +21,17 @@ export function extractBackolonDocs(data: Reflection) {
             const backolonTag = tags.has("@backolon");
             if (backolonTag) {
                 const category = tags.get("@category")?.value ?? "Miscellaneous";
-                const moduleName = tags.get("@module")?.value ?? null;
+                const moduleName = tags.get("@module")?.value ?? ".";
                 const exampleTags = tags.getAll("@example");
                 const examples = exampleTags.map(example => parseExample(example.value));
-                const description = parseMarkdown(contentToText(comment.summary));
-                // console.log({ category, module, exampleTags, description });
+                const description = md.render(contentToText(comment.summary));
                 const moduleDocs = (docs[moduleName] ??= {
                     functions: [],
                     syntax: [],
                     values: []
                 });
                 if (tags.has("@function")) {
-                    const name = tags.get("@function").value;
+                    const name = tags.get("@function")!.value;
                     const params = tags.getAll("@param");
                     const returnsTag = tags.get("@returns");
                     moduleDocs.functions.push({
@@ -45,7 +43,7 @@ export function extractBackolonDocs(data: Reflection) {
                         category,
                         params: params.map(tag => {
                             var name = tag.name!;
-                            const description = parseMarkdown(tag.value);
+                            const description = md[/\n/.test(tag.value) ? "render" : "renderInline"](tag.value);
                             const type = tag.type;
                             var lazy, rest;
                             [name, lazy] = name.startsWith("@") ? [name.slice(1), true] : [name, false];
@@ -54,7 +52,7 @@ export function extractBackolonDocs(data: Reflection) {
                         }),
                     });
                 } else if (tags.has("@syntax")) {
-                    const syntax = tags.get("@syntax").value;
+                    const syntax = tags.get("@syntax")!.value;
                     moduleDocs.syntax.push({
                         shape: syntax,
                         description,
@@ -62,7 +60,7 @@ export function extractBackolonDocs(data: Reflection) {
                         category,
                     });
                 } else if (tags.has("@value")) {
-                    const name = tags.get("@value").value;
+                    const name = tags.get("@value")!.value;
                     const typeTag = tags.get("@type");
                     const type = typeTag?.type ?? typeTag?.value ?? undefined;
                     moduleDocs.values.push({

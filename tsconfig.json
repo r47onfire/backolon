@@ -15,7 +15,8 @@
             "bun",
             "jquery",
             "node",
-            "prismjs"
+            "prismjs",
+            "markdown-it"
         ],
         "lib": [
             "esnext",

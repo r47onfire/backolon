@@ -1,6 +1,6 @@
-import { get, html, make } from "vanilla";
 import Prism from "prismjs";
-import { Documentation, FunctionDoc, ValueDoc, SyntaxDoc, Example } from "../scripts/doc";
+import { get, html, make } from "vanilla";
+import { Documentation, Example, FunctionDoc, SyntaxDoc, ValueDoc } from "../scripts/doc";
 // @ts-ignore
 import LANGUAGE_DOCS from "$_DOCUMENTATION";
 declare const LANGUAGE_DOCS: Documentation;
@@ -62,7 +62,7 @@ function renderFunction(func: FunctionDoc) {
 function renderValue(val: ValueDoc) {
     return make("div.api-item", {},
         make("strong.api-signature", {}, make("code", {}, val.name)),
-        make("div.api-info", {}, "Type: ", val.type),
+        ...(val.type ? [make("div.api-info", {}, "Type: ", val.type)] : []),
         make("p", {}, html(val.description)),
         ...renderExamples(val.examples),
     );
@@ -80,13 +80,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const container = get("#language-content");
     if (!container) throw "unreachable";
 
-    const modules = Object.entries(LANGUAGE_DOCS);
 
-    const tabNav = make("nav.tab-navigation", {},
-        ...modules.map(([modName]) => make("button.tab-btn", { "data-tab": modName }, modName))
-    );
-
-    const tabContents = modules.map(([modName, modDoc]) => {
+    Object.entries(LANGUAGE_DOCS).forEach(([modName, modDoc]) => {
         const sections = [];
         if (modDoc.functions.length > 0) {
             sections.push(make("section.api-section", {},
@@ -106,26 +101,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 ...modDoc.syntax.map(renderSyntax)
             ));
         }
-        return make("section.tab-content", { id: "tab-" + modName }, ...sections);
+        container.append(
+            make("h2", {}, modName),
+            make("section", {}, ...sections)
+        );
     });
 
-    container.append(tabNav, ...tabContents);
-
-    // Add event listeners
-    const buttons = container.querySelectorAll(".tab-btn");
-    buttons.forEach(btn => {
-        btn.addEventListener("click", () => {
-            // Remove active from all
-            buttons.forEach(b => b.classList.remove("active"));
-            container.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-            // Add to this
-            btn.classList.add("active");
-            container.querySelector(`#tab-${btn.getAttribute("data-tab")}`)?.classList.add("active");
-        });
-    });
-
-    // Set first active
-    if (buttons.length > 0) {
-        (buttons[0] as HTMLElement).click();
-    }
 });

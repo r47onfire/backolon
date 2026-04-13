@@ -24,7 +24,7 @@ interface SyntaxDoc extends Documented {
     shape: string;
 }
 interface ValueDoc extends Documented, Named {
-    type: string;
+    type: string | undefined;
 }
 interface ParamDoc extends Named {
     description: string;

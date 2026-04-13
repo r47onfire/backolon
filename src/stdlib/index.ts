@@ -1,4 +1,3 @@
-import { Thing } from "../objects/thing";
 import { parse } from "../parser/parse";
 import { Scheduler } from "../runtime/scheduler";
 import { initCoreSyntax } from "./core";
