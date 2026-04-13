@@ -34,10 +34,7 @@ var CORE = ast;
 declare global { const TEST: boolean }
 if (typeof TEST === "undefined" ? typeof ast !== "object" : TEST) {
     // we're in a test
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const core = fs.readFileSync(path.join(import.meta.dir, "./core.bk"), "utf8");
-    CORE = parse(core, new URL("file://builtins/core.bk"));
+    CORE = parse(await Bun.file(await Bun.resolve("./core.bk", import.meta.dir)).text(), new URL("file://builtins/core.bk"));
 }
 
 const scheduler = new Scheduler([BUILTINS_MODULE]);
