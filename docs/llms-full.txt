@@ -2,6 +2,8 @@
 
 > homoiconic scripting language
 
+## index
+
 ### fromJS
 
 Convert a native JavaScript value into a Backolon Thing.
@@ -830,3 +832,9 @@ Flags used to record internal task evaluation state.
 when one is called it needs to be the StackEntry#value|value of the
 StackEntry it's in so that its arguments can be processed. That stack has this
 flag set to mark that it's actually being called and not just returned.
+
+---
+
+## plugin
+
+---
