@@ -22,13 +22,15 @@ export function collections(mod: NativeModule) {
      * List literal
      * @backolon
      * @category Collections
-     * @syntax [item1, item2, ...]
+     * @syntax List Literal
+     * @pattern [item1, item2, ...]
      */
     /**
      * Key-value map literal (unordered)
      * @backolon
      * @category Collections
-     * @syntax [key: value, key2: value2, ...]
+     * @syntax Map Literal
+     * @pattern [key: value, key2: value2, ...]
      * @example
      * ```backolon
      * ["name": "Alice", "age": 30]
@@ -109,7 +111,8 @@ export function collections(mod: NativeModule) {
      * Concatenate lists
      * @backolon
      * @category Collections
-     * @syntax list1 + list2
+     * @syntax Concatenate Lists
+     * @pattern list1 + list2
      * @example
      * ```backolon
      * [1, 2] + [3, 4] # => [1, 2, 3, 4]
@@ -122,7 +125,8 @@ export function collections(mod: NativeModule) {
      * Merge maps (2nd map's keys take priority)
      * @backolon
      * @category Collections
-     * @syntax map1 + map2
+     * @syntax Merge Maps
+     * @pattern map1 + map2
      * @example
      * ```backolon
      * [1: 2, 2: 4] + [1: 3, 4: 5] # => [1: 3, 2: 4, 4: 5]
@@ -143,7 +147,8 @@ export function collections(mod: NativeModule) {
      * Access list indices
      * @backolon
      * @category Collections
-     * @syntax list -> number
+     * @syntax Index List
+     * @pattern list -> number
      * @example
      * ```backolon
      * x := [1, 2, 3]
@@ -155,7 +160,8 @@ export function collections(mod: NativeModule) {
      * Access map keys
      * @backolon
      * @category Collections
-     * @syntax map -> any
+     * @syntax Query Map
+     * @pattern map -> any
      * @example
      * ```backolon
      * y := ["a": 1, "b": 2]
@@ -193,7 +199,8 @@ export function collections(mod: NativeModule) {
      * Dot-key shorthand for indexing with a name string.
      * @backolon
      * @category Collections
-     * @syntax map.name
+     * @syntax Query Map String Key Shorthand
+     * @pattern map.name
      * @example
      * ```backolon
      * ["a": 1, "b": 2].b # => 2
@@ -231,7 +238,8 @@ export function collections(mod: NativeModule) {
      * Length of string, list, or map
      * @backolon
      * @category Collections
-     * @syntax #collection
+     * @syntax Length
+     * @pattern #collection
      * @example
      * ```backolon
      * #"hello" # => 5

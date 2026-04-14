@@ -20,8 +20,8 @@ export interface FunctionDoc extends Documented, Named {
     returns: string | undefined;
     returnType: string | undefined;
 }
-export interface SyntaxDoc extends Documented {
-    shape: string;
+export interface SyntaxDoc extends Documented, Named {
+    shapes: string[];
 }
 export interface ValueDoc extends Documented, Named {
     type: string | undefined;

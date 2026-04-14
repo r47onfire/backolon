@@ -16,7 +16,8 @@ export function metaprogramming(mod: NativeModule) {
      * Quote a value without evaluating it
      * @backolon
      * @category Metaprogramming
-     * @syntax \`expression
+     * @syntax Quote
+     * @pattern \`expression
      * @example
      * ```backolon
      * `(thisvariabledoesnotexist + 1) # won't error
@@ -50,7 +51,8 @@ export function metaprogramming(mod: NativeModule) {
      * Quasiquoting of values. Works exactly like Scheme's quasiquote and unquote.
      * Currently there is no unquote-splicing.
      * @backolon
-     * @syntax "{value value $interpolated {innerValue $$alsoInterpolated $notInterpolated}}"
+     * @syntax Quasiquote Templating
+     * @pattern "{value value $interpolated {innerValue $$alsoInterpolated $notInterpolated}}"
      */
     mod.defsyntax("[x:curlyblock]", -Infinity, false, null, "__rewrite_curlyblock", rewriteAsApply(x, "__quasiquoted"));
     mod.defun("__quasiquoted", "@template:curlyblock", (task, state) => {

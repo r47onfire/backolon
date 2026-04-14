@@ -73,7 +73,8 @@ export function initFFI(mod: NativeModule) {
     /**
      * Get the key on the JSObject
      * @backolon
-     * @syntax object->"key"
+     * @syntax Subscript Object
+     * @pattern object->"key"
      */
     mod.defoverload("getitem", [JSObjectType, null], (loc, argv) => {
         const obj = argv[0];
@@ -88,7 +89,8 @@ export function initFFI(mod: NativeModule) {
     /**
      * Set the key on the JSObject
      * @backolon
-     * @syntax object->"key"
+     * @syntax Assign to Object
+     * @pattern object->"key" = value
      */
     mod.defoverload("setitem", [JSObjectType, null, null], (loc, argv) => {
         const jsObj = argv[0].v;

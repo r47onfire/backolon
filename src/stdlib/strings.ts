@@ -12,10 +12,10 @@ import { NativeModule, symbol_x } from "./module";
 
 export function strings(mod: NativeModule) {
     /**
-     * Concatenate strings
      * @backolon
      * @category Strings
-     * @syntax string + string
+     * @syntax Concatenate Strings
+     * @pattern string + string
      * @example
      * ```backolon
      * "hello, " + "world!" # => "hello, world!"

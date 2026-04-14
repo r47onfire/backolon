@@ -15,39 +15,8 @@ function renderExamples(examples: Example[]) {
     return examples.map(ex => `<pre class="api-example">${syntaxHighlight(ex.code, ex.lang)}</pre>`).join("");
 }
 
-function syntaxSlug(syntax: string) {
-    return syntax.replaceAll(/[!@#$%^&*()-+={}[\]|:'"<>,.?\\/]/g, match => {
-        return {
-            "!": "b",
-            "@": "a",
-            "#": "h",
-            "$": "d",
-            "%": "p",
-            "^": "k",
-            "&": "n",
-            "*": "s",
-            "(": "pL",
-            ")": "pR",
-            "-": "m",
-            "+": "u",
-            "=": "l",
-            "{": "cL",
-            "}": "cR",
-            "[": "sL",
-            "]": "sR",
-            "|": "i",
-            ":": "o",
-            "'": "q1",
-            "\"": "q2",
-            "<": "kR",
-            ">": "kL",
-            ",": "j",
-            ".": "w",
-            "?": "q",
-            "\\": "dB",
-            "/": "dF",
-        }[match]!;
-    }).replaceAll(/\s+/g, "-");
+function s(text: string) {
+    return text.replaceAll(/[^a-z0-9 -]/ig, "").replaceAll(/\s+/g, "-").replaceAll(/-+/g, "-").toLowerCase();
 }
 
 function renderNameThing<T extends keyof HTMLElementTagNameMap>(elType: T, name: string, type: string | undefined, lazy: boolean, rest: boolean, description: string | undefined, colon: boolean) {
@@ -78,9 +47,9 @@ function renderFunction(modName: string, func: FunctionDoc) {
         html: [
             '<div class="api-item">',
             // signature
-            `<strong class="api-signature" id="${e(modName)}-Function-${e(func.name)}"><code>${e(func.name)}</code></strong>`,
+            `<strong class="api-signature" id="${s(modName)}-function-${s(func.name)}"><code>${e(func.name)}</code></strong>`,
             // info
-            '<div class="api-info">Parameters: <ul>',
+            '<div class="api-info">Parameters:<ul>',
             func.params.map(({ name, type, lazy, rest, description }) => renderNameThing("li", name, type, lazy, rest, description, true)).join(""),
             "</ul>",
             func.returns || func.returnType ? renderNameThing("span", "Returns: ", func.returnType, false, false, func.returns, false) : "",
@@ -89,7 +58,7 @@ function renderFunction(modName: string, func: FunctionDoc) {
             renderExamples(func.examples),
             "</div>",
         ].join(""),
-        nav: `<a class="nav-entry function" href="#${e(modName)}-Function-${e(func.name)}">${e(func.name)}</a>`,
+        nav: `<a class="nav-entry function" href="#${s(modName)}-function-${s(func.name)}">${e(func.name)}</a>`,
     };
 }
 
@@ -98,7 +67,7 @@ function renderValue(modName: string, val: ValueDoc) {
         html: [
             '<div class="api-item">',
             // signature
-            `<strong class="api-signature" id="${e(modName)}-Value-${e(val.name)}"><code>${e(val.name)}</code></strong>`,
+            `<strong class="api-signature" id="${s(modName)}-value-${s(val.name)}"><code>${e(val.name)}</code></strong>`,
             // type
             val.type ? `<div class="api-info">Type: ${e(val.type)}</div>` : "",
             // description
@@ -107,7 +76,7 @@ function renderValue(modName: string, val: ValueDoc) {
             renderExamples(val.examples),
             "</div>",
         ].join(""),
-        nav: `<a class="nav-entry value" href="#${e(modName)}-Value-${e(val.name)}">${e(val.name)}</a>`,
+        nav: `<a class="nav-entry value" href="#${s(modName)}-value-${s(val.name)}">${e(val.name)}</a>`,
     };
 }
 
@@ -115,22 +84,26 @@ function renderSyntax(modName: string, syn: SyntaxDoc) {
     return {
         html: [
             '<div class="api-item">',
-            // signature
-            `<strong class="api-signature" id="${e(modName)}-Syntax-${syntaxSlug(syn.shape)}"><code>${e(syn.shape)}</code></strong>`,
+            // name
+            `<strong class="api-signature" id="${s(modName)}-syntax-${s(syn.name)}">${e(syn.name)}</strong>`,
+            // patterns
+            '<div class="api-info">Syntax:<ul>',
+            ...syn.shapes.map(sh => `<li><pre class="language-backolon">${syntaxHighlight(sh, "backolon")}</pre></li>`),
+            "</ul></div>",
             // description
             `<p>${syn.description}</p>`,
             // examples
             renderExamples(syn.examples),
             "</div>",
         ].join(""),
-        nav: `<a class="nav-entry syntax" href="#${e(modName)}-Syntax-${syntaxSlug(syn.shape)}">${e(syn.shape)}</a>`,
+        nav: `<a class="nav-entry syntax" href="#${s(modName)}-syntax-${s(syn.name)}">${e(syn.name)}</a>`,
     };
 }
 
 export function docsToHTML(docs: Documentation) {
     var html = "", sidebar = "";
     for (var [modName, modDoc] of Object.entries(docs)) {
-        sidebar += `<details open><summary><a href="#Module-${e(modName)}">${e(modName)}</a></summary>`;
+        sidebar += `<details open><summary><a href="#module-${s(modName)}">${e(modName)}</a></summary>`;
         var section = "";
         if (modDoc.functions.length > 0) {
             section += `<section class="api-section"><h3>Functions</h3>`;
@@ -160,7 +133,7 @@ export function docsToHTML(docs: Documentation) {
             section += "</section>";
         }
         sidebar += "</details>";
-        html += `<h2 id="Module-${e(modName)}">${e(modName)}</h2>`;
+        html += `<h2 id="module-${s(modName)}">${e(modName)}</h2>`;
         html += `<section>${section}</section>`;
     }
     return { html, sidebar };

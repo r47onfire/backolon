@@ -54,159 +54,160 @@ export function math(mod: NativeModule) {
 
     operation("not");
     /**
-     * Logical NOT (unary)
+     * @syntax Logical NOT
      * @backolon
      * @category Operators
-     * @syntax (!any)
+     * @pattern (!any)
      */
     unary("not", "!", 0, true, x => x ? 0 : 1);
 
     /**
-     * Exponentiation
+     * @syntax Exponentiation
      * @backolon
      * @category Operators
-     * @syntax number ** number
+     * @pattern number ** number
      */
     operation("pow", "**", 1, true, (x, y) => x ** y);
     /**
-     * Multiplication
+     * @syntax Multiplication
      * @backolon
      * @category Operators
-     * @syntax number * number
+     * @pattern number * number
      */
     operation("mul", "*", 3, false, (x, y) => x * y);
     /**
-     * Division
+     * @syntax Division
      * @backolon
      * @category Operators
-     * @syntax number / number
+     * @pattern number / number
      */
     operation("div", "/", 3, false, (x, y) => x / y);
     /**
-     * Modulo (remainder)
+     * @syntax Modulo
      * @backolon
      * @category Operators
-     * @syntax number % number
+     * @pattern number % number
      */
     operation("mod", "%", 3, false, (x, y) => x % y);
 
     /**
-     * Add 2 numbers
+     * @syntax Add
      * @backolon
      * @category Operators
-     * @syntax number + number
+     * @pattern number + number
      */
     operation("add", "+", 4, false, (x, y) => x + y);
 
     /**
-     * Subtraction
+     * @syntax Subtract
      * @backolon
      * @category Operators
-     * @syntax number - number
+     * @pattern number - number
      */
     operation("sub", "-", 4, false, (x, y) => x - y);
     /**
-     * Unary negation (only valid at start of expression)
+     * Only valid at start of expression!
+     * @syntax Unary negation
      * @backolon
      * @category Operators
-     * @syntax (-number)
+     * @pattern (-number)
      */
     unary("sub", "-", 2, true, x => -x);
 
     // TODO: make these short-circuit
     /**
-     * Logical OR
+     * @syntax Logical OR
      * @backolon
      * @category Operators
-     * @syntax any || any
+     * @pattern any || any
      */
     operation("bool_or", "||", 5, false, (x, y) => x || y);
     /**
-     * Logical AND
+     * @syntax Logical AND
      * @backolon
      * @category Operators
-     * @syntax any && any
+     * @pattern any && any
      */
     operation("bool_and", "&&", 5, false, (x, y) => x && y);
 
     /**
-     * Bitwise left shift
+     * @syntax Bitwise Left Shift
      * @backolon
      * @category Operators
-     * @syntax number << number
+     * @pattern number << number
      */
     operation("shl", "<<", 5.9, false, (x, y) => x << y);
     /**
-     * Bitwise right shift
+     * @syntax Bitwise Right Shift
      * @backolon
      * @category Operators
-     * @syntax number >> number
+     * @pattern number >> number
      */
     operation("shr", ">>", 5.9, false, (x, y) => x >> y);
 
     /**
-     * Bitwise OR
+     * @syntax Bitwise OR
      * @backolon
      * @category Operators
-     * @syntax number | number
+     * @pattern number | number
      */
     operation("bit_or", "|", 6, false, (x, y) => x | y);
     /**
-     * Bitwise AND
+     * @syntax Bitwise AND
      * @backolon
      * @category Operators
-     * @syntax number & number
+     * @pattern number & number
      */
     operation("bit_and", "&", 6, false, (x, y) => x & y);
     /**
-     * Bitwise XOR
+     * @syntax Bitwise XOR
      * @backolon
      * @category Operators
-     * @syntax number ^ number
+     * @pattern number ^ number
      */
     operation("bit_xor", "^", 6, false, (x, y) => x ^ y);
 
     // TODO: generalize equality operators
     /**
-     * Equality
+     * @syntax Equality
      * @backolon
      * @category Operators
-     * @syntax number == number
+     * @pattern number == number
      */
     operation("eqeq", "==", 7, false, (x, y) => x == y);
     /**
-     * Inequality
+     * @syntax Inequality
      * @backolon
      * @category Operators
-     * @syntax number != number
+     * @pattern number != number
      */
     operation("noteq", "!=", 7, false, (x, y) => x != y);
     /**
-     * Greater than
+     * @syntax Greater than
      * @backolon
      * @category Operators
-     * @syntax number > number
+     * @pattern number > number
      */
     operation("gt", ">", 7, false, (x, y) => x > y);
     /**
-     * Less than
+     * @syntax Less than
      * @backolon
      * @category Operators
-     * @syntax number < number
+     * @pattern number < number
      */
     operation("lt", "<", 7, false, (x, y) => x < y);
     /**
-     * Greater than or equal
+     * @syntax Greater than or equal
      * @backolon
      * @category Operators
-     * @syntax number >= number
+     * @pattern number >= number
      */
     operation("gte", ">=", 6.9, false, (x, y) => x >= y);
     /**
-     * Less than or equal
+     * @syntax Less than or equal
      * @backolon
      * @category Operators
-     * @syntax number <= number
+     * @pattern number <= number
      */
     operation("lte", "<=", 6.9, false, (x, y) => x <= y);
 }

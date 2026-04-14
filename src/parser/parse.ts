@@ -77,7 +77,8 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
      * Raw string without escapes or interpolations processed
      * @backolon
      * @category Strings
-     * @syntax 'text {text} text \text'
+     * @syntax Raw String
+     * @pattern 'text {text} text \text'
      */
     [BlockHandler.rawstring]: {
         t: ThingType.stringblock,
@@ -95,7 +96,8 @@ const defaultBlockRules: Record<BlockHandler, BlockRule> = {
      * Double-quoted strings with interpolation and escapes
      * @backolon
      * @category Strings
-     * @syntax "text {expression} \u{1F34}"
+     * @syntax Normal String
+     * @pattern "text {expression} \u{1F34}"
      * @example
      * ```backolon
      * x := 0x123

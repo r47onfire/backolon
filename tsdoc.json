@@ -17,6 +17,11 @@
             "allowMultiple": false
         },
         {
+            "tagName": "@pattern",
+            "syntaxKind": "block",
+            "allowMultiple": true
+        },
+        {
             "tagName": "@value",
             "syntaxKind": "block",
             "allowMultiple": false

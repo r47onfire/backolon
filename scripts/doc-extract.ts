@@ -52,9 +52,11 @@ export function extractBackolonDocs(data: Reflection) {
                         }),
                     });
                 } else if (tags.has("@syntax")) {
-                    const syntax = tags.get("@syntax")!.value;
+                    const name = tags.get("@syntax")!.value;
+                    const syntaxTags = tags.getAll("@pattern");
                     moduleDocs.syntax.push({
-                        shape: syntax,
+                        name,
+                        shapes: syntaxTags.map(tag => tag.value),
                         description,
                         examples,
                         category,

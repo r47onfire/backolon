@@ -94,7 +94,8 @@ export function initCoreSyntax(mod: NativeModule) {
      * Declare a variable in the current scope and bind it to a value
      * @backolon
      * @category Variables & Assignment
-     * @syntax name := value
+     * @syntax Declare Variable
+     * @pattern name := value
      * @example
      * ```backolon
      * x := 10
@@ -133,12 +134,15 @@ export function initCoreSyntax(mod: NativeModule) {
      * Assign a new value to an existing variable
      * @backolon
      * @category Variables & Assignment
-     * @syntax name = value
+     * @syntax Assign Value
+     * @pattern name = value
+     * @pattern lvalue = value
      * @example
      * ```backolon
      * x := 10
      * x = 20 # ok
      * y = 20 # errors, y is not defined
+     * x->1 = 20 # ok if x is indexable
      * ```
      */
     mod.defsyntax("x = y", VARIABLE_ASSIGNMENT_PRECEDENCE, true, null, "__rewrite_assign", rewriteAsApply(xy, "__assign"));
@@ -164,7 +168,8 @@ export function initCoreSyntax(mod: NativeModule) {
      * Define a lambda function
      * @backolon
      * @category Lambdas & Functions
-     * @syntax [params] => body
+     * @syntax Lambda
+     * @pattern [params] => body
      * @example
      * ```backolon
      * # simple parameters
