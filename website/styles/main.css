@@ -27,6 +27,25 @@ body {
 main {
     flex: 1;
     max-width: 80vw;
+
+    &.has-sidebar {
+        max-width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 3fr 1fr;
+
+        & nav {
+            padding-right: 1rem;
+            grid-area: 1 / 1 / 1 / 1;
+            display: flex;
+            flex-direction: column;
+            align-items: left;
+            gap: 0;
+        }
+
+        & article {
+            grid-area: 1 / 2 / 1 / 2;
+        }
+    }
 }
 
 header {
@@ -292,6 +311,53 @@ nav a:hover {
     margin-top: 0.5rem;
     font-family: monospace;
     font-size: 0.8em;
+}
+
+details {
+    display: block;
+    width: 100%;
+    margin: 0;
+    margin-right: auto;
+    padding: 1rem 0 0 1rem;
+}
+
+.nav-entry {
+    display: block;
+    margin: 0.1rem;
+    font-family: monospace;
+}
+
+.nav-entry::before {
+    user-select: text;
+    display: inline-grid;
+    place-items: center;
+    line-height: 1;
+    vertical-align: middle;
+    color: var(--bg1);
+    width: 1.25em;
+    aspect-ratio: 1 / 1;
+    margin-right: 0.2rem;
+    border-radius: 50%;
+    padding: 0;
+}
+
+.nav-entry.function::before {
+    content: "F";
+    background-color: #dc63cc;
+}
+
+.nav-entry.syntax::before {
+    content: "S";
+    background-color: #dcdc63;
+}
+
+.nav-entry.value::before {
+    content: "V";
+    background-color: #63dc6d;
+}
+
+.api-item [id] {
+    scroll-margin-top: 2rem;
 }
 
 /* Footer */

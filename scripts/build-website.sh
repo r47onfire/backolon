@@ -1,4 +1,4 @@
-set -exuo
+set -exu
 
 # build HTML, Javascript and CSS
 pnpm build --minify
