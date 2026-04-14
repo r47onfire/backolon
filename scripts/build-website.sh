@@ -1,5 +1,4 @@
-#! /bin/sh
-set -exuo pipefail
+set -exuo
 
 # build HTML, Javascript and CSS
 pnpm build --minify
