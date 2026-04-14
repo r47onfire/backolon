@@ -6,27 +6,27 @@ interface Documented {
 interface Named {
     name: string;
 }
-interface Example {
+export interface Example {
     code: string;
     lang: string;
 }
-interface ModuleDoc {
+export interface ModuleDoc {
     functions: FunctionDoc[];
     syntax: SyntaxDoc[];
     values: ValueDoc[];
 }
-interface FunctionDoc extends Documented, Named {
+export interface FunctionDoc extends Documented, Named {
     params: ParamDoc[];
     returns: string | undefined;
     returnType: string | undefined;
 }
-interface SyntaxDoc extends Documented {
+export interface SyntaxDoc extends Documented {
     shape: string;
 }
-interface ValueDoc extends Documented, Named {
+export interface ValueDoc extends Documented, Named {
     type: string | undefined;
 }
-interface ParamDoc extends Named {
+export interface ParamDoc extends Named {
     description: string;
     type: string | undefined;
     lazy: boolean;

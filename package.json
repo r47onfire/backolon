@@ -18,7 +18,7 @@
     "scripts": {
         "build": "pnpm bun run scripts/build.ts",
         "build-for-fuzzer": "pnpm bun run scripts/build-for-fuzzer.ts",
-        "build:website": "pnpm clean-dist && pnpm clean-docs && ./scripts/build-website.sh",
+        "build:website": "pnpm clean-dist && pnpm clean-docs && . scripts/build-website.sh",
         "dev": "pnpm run \"/^dev:.*/\"",
         "dev:serve": "python3 -m http.server -d docs",
         "dev:watch": "pnpm nodemon -e js,json,ts,css,md,html,bk -i docs -w src -w website -w scripts --exec \"pnpm build:website\"",
@@ -27,7 +27,7 @@
         "test:watch": "pnpm test --watch",
         "prepare": "pnpm build --minify",
         "clean-dist": "rm -rf dist/*",
-        "clean-docs": "rm -rf docs/* && rm -rf skills/*"
+        "clean-docs": "rm -rf docs/*"
     },
     "license": "GPL-3.0-only",
     "repository": {
@@ -53,8 +53,7 @@
         "nodemon": "^3.1.14",
         "prismjs": "^1.30.0",
         "typedoc": "^0.28.18",
-        "typescript": "^5.6.2",
-        "vanilla": "github:dragoncoder047/vanilla"
+        "typescript": "^5.6.2"
     },
     "type": "module",
     "pnpm": {

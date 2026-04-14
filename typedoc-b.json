@@ -7,7 +7,7 @@
         "./src/index.ts"
     ],
     "out": "/dev/null",
-    "json": "dist/typedoc_output.json",
+    "json": "typedoc_output.json",
     "plugin": [
         "./scripts/backolon-comments"
     ]

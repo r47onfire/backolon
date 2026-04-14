@@ -5,7 +5,10 @@ await build({
     splitting: true,
     outdir: "dist/",
     entrypoints: ["src/index.ts", "src/plugin/index.ts"],
-    naming: "[dir]/[name].[ext]",
+    naming: {
+        entry: "[dir]/[name].[ext]",
+        chunk: "[dir]/[hash].[ext]",
+    },
     minify: process.argv.includes('--minify'),
     external: ["node:fs", "node:path"],
     plugins: [plugin]
