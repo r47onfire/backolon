@@ -11,6 +11,7 @@ await build({
     },
     minify: process.argv.includes('--minify'),
     external: ["node:fs", "node:path"],
-    plugins: [plugin]
+    plugins: [plugin],
+    target: "node",
 });
 console.log("Build OK");
