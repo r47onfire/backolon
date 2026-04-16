@@ -1,7 +1,7 @@
 import { stringify } from "lib0/json";
 import { RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
-import { boxApply, boxList, boxNativeFunc, boxNumber, boxOperatorSymbol, boxRoundBlock, boxSquareBlock, boxString, Thing, ThingType } from "../objects/thing";
+import { boxApply, boxBoolean, boxList, boxNativeFunc, boxNumber, boxOperatorSymbol, boxRoundBlock, boxSquareBlock, boxString, Thing, ThingType } from "../objects/thing";
 import { DEFAULT_UNPARSER } from "../parser/unparse";
 import { matchPattern } from "../patterns/match";
 import { p } from "../patterns/meta";
@@ -251,6 +251,27 @@ export function collections(mod: NativeModule) {
     mod.defoverload("length", [ThingType.list], (loc, argv) => boxNumber(argv[0].c.length, loc));
     mod.defoverload("length", [ThingType.map], (loc, argv) => boxNumber(argv[0].c.length, loc));
     mod.defsyntax("#x", 0, true, null, "__rewrite_length", rewriteAsApply([symbol_x], "__length"));
+    /**
+     * Test if a collection contains an item
+     * @backolon
+     * @category Collections
+     * @syntax Containment
+     * @pattern item <: collection
+     * @pattern collection :> item
+     * @example
+     * ```backolon
+     * [1, 2, 3] :> 1 # => true
+     * 1 <: [1: 3, 2: 4] # => true
+     */
+    mod.defop("__in", "in");
+    mod.defop("__has", "has");
+    mod.defsyntax("x <: y", 6.9, false, null, "__rewrite_in", rewriteAsApply([symbol_x, symbol_y], "__in"));
+    mod.defsyntax("x :> y", 6.9, false, null, "__rewrite_has", rewriteAsApply([symbol_x, symbol_y], "__has"));
+    // TODO: generalize these to use the equality operator
+    mod.defoverload("in", [null, ThingType.map], (loc, argv) => boxBoolean(!!mapGetKey(argv[1], argv[0], loc), loc));
+    mod.defoverload("has", [ThingType.map, null], (loc, argv) => boxBoolean(!!mapGetKey(argv[0], argv[1], loc), loc));
+    mod.defoverload("in", [null, ThingType.list], (loc, argv) => boxBoolean(argv[1].c.some(({ h }) => h === argv[0].h), loc));
+    mod.defoverload("has", [ThingType.list, null], (loc, argv) => boxBoolean(argv[0].c.some(({ h }) => h === argv[1].h), loc));
 }
 
 const empty_list_pattern = p("[^] [$]");
@@ -258,3 +279,4 @@ const empty_map_pattern = p("[^] : [$]");
 const split_on_comma = p("[^] x... {, y...|} [$]");
 const split_on_colon = p("[^] x... : y... [$]");
 const implicit_key = p("[^] x... : [$]");
+

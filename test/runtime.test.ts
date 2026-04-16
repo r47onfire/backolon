@@ -395,7 +395,7 @@ describe("string interpolation", () => {
             t: ThingType.string,
             v: "1",
         });
-    })
+    });
 });
 describe("homoiconicity", () => {
     describe("quoting", () => {
@@ -503,6 +503,33 @@ describe("homoiconicity", () => {
                     ]
                 }
             ]
-        })
+        });
+    });
+});
+describe("recursion stress tests with memoization", () => {
+    const MEMOIZE = "memoize := [f] => (cache := [:]; [x] => (if x <: cache cache->x (cache->x = (f x))))";
+    test("A000142 (factorial)", async () => {
+        expectEval(`${MEMOIZE}; f := (memoize [a] => if a > 1 (a * (f a - 1)) 1); f 15`, {
+            t: ThingType.number,
+            v: 1307674368000
+        });
+    });
+    test("A000045 (Fibonacci sequence)", async () => {
+        expectEval(`${MEMOIZE}; f := (memoize [a] => if a <= 1 a ((f a - 1) + (f a - 2))); f 28`, {
+            t: ThingType.number,
+            v: 317811
+        });
+    });
+    test("A005185 (Hofstadter 'Q' sequence)", async () => {
+        expectEval(`${MEMOIZE}; f := (memoize [a] => if a < 3 1 ((f a - (f a - 1)) + (f a - (f a - 2)))); f 25`, {
+            t: ThingType.number,
+            v: 14
+        });
+    });
+    test("A063510", async () => {
+        expectEval(`${MEMOIZE}; f := (memoize [a] => if a > 1 ((f a ** .5 | 0) + 1) 1); f 110`, {
+            t: ThingType.number,
+            v: 4
+        });
     });
 });

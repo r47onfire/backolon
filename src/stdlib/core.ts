@@ -2,7 +2,7 @@ import { last } from "lib0/array";
 import { stringify } from "lib0/json";
 import { ErrorNote, LocationTrace, RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating } from "../objects/map";
-import { boxApply, boxNativeFunc, boxNil, boxNumber, boxRoundBlock, boxSquareBlock, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
+import { boxApply, boxBoolean, boxNativeFunc, boxNil, boxNumber, boxRoundBlock, boxSquareBlock, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
 import { removed_whitespace } from "../patterns/meta";
 import { walkEnvTree } from "../runtime/env";
 import { parseSignature } from "../runtime/functor";
@@ -38,13 +38,13 @@ export function initCoreSyntax(mod: NativeModule) {
      * @value false
      * @type {number}
      */
-    mod.defvar("false", boxNumber(0, mod.loc, "false"));
+    mod.defvar("false", boxBoolean(false, mod.loc));
     /**
      * @backolon
      * @value true
      * @type {number}
      */
-    mod.defvar("true", boxNumber(1, mod.loc, "true"));
+    mod.defvar("true", boxBoolean(true, mod.loc));
     /**
      * @backolon
      * @value done

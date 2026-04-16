@@ -219,6 +219,7 @@ export function boxNameSymbol(value: string, trace = UNKNOWN_LOCATION) { return 
 export function boxOperatorSymbol(value: string, trace = UNKNOWN_LOCATION) { return boxSymbol(value, ThingType.operator, trace); }
 export function boxSpaceSymbol(value: string, trace = UNKNOWN_LOCATION) { return boxSymbol(value, ThingType.space, trace); }
 export function boxNumber(value: number | bigint, trace = UNKNOWN_LOCATION, repr = value.toString().replace(/n$/, "")) { return new Thing(ThingType.number, [], value, repr, "", "", trace); }
+export function boxBoolean(value: boolean, trace = UNKNOWN_LOCATION, repr = value.toString()) { return new Thing(ThingType.number, [], +value, repr, "", "", trace); }
 export function boxString(value: string, trace = UNKNOWN_LOCATION, raw: string, quote: string) { return new Thing(ThingType.string, [], value, quote + raw, quote, "", trace); }
 export function boxBlock<T extends ThingType.roundblock | ThingType.squareblock | ThingType.curlyblock | ThingType.stringblock | ThingType.topblock>(children: Thing<T>["c"], kind: T, trace = UNKNOWN_LOCATION, start: string, end: string, join = ""): Thing<T> { return new Thing(kind, children, null as any, start, end, join, trace); }
 export function boxRoundBlock(children: readonly Thing[], trace = UNKNOWN_LOCATION) { return boxBlock(children, ThingType.roundblock, trace, "(", ")"); }

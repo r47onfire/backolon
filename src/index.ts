@@ -21,6 +21,7 @@ export {
 } from "./objects/map";
 export {
     boxBlock,
+    boxBoolean,
     boxCurlyBlock,
     boxEnd,
     boxList,
@@ -87,8 +88,8 @@ export {
 } from "./runtime/task";
 export {
     BUILTINS_MODULE,
-    FFI_MODULE,
     CORE_SOURCE,
+    FFI_MODULE
 } from "./stdlib";
 export {
     BUILTINS_LOC

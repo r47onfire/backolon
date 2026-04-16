@@ -74,7 +74,7 @@ export function math(mod: NativeModule) {
     /**
      * @syntax Logical NOT
      * @backolon
-     * @category Operators
+     * @category Logic
      * @pattern (!any)
      */
     unary("not", "!", 0, true, x => x ? 0 : 1);
@@ -82,28 +82,28 @@ export function math(mod: NativeModule) {
     /**
      * @syntax Exponentiation
      * @backolon
-     * @category Operators
+     * @category Math
      * @pattern number ** number
      */
     operation("pow", "**", 1, true, (x, y) => x ** y);
     /**
      * @syntax Multiplication
      * @backolon
-     * @category Operators
+     * @category Math
      * @pattern number * number
      */
     operation("mul", "*", 3, false, (x, y) => x * y);
     /**
      * @syntax Division
      * @backolon
-     * @category Operators
+     * @category Math
      * @pattern number / number
      */
     operation("div", "/", 3, false, (x, y) => x / y);
     /**
      * @syntax Modulo
      * @backolon
-     * @category Operators
+     * @category Math
      * @pattern number % number
      */
     operation("mod", "%", 3, false, (x, y) => x % y);
@@ -111,7 +111,7 @@ export function math(mod: NativeModule) {
     /**
      * @syntax Add
      * @backolon
-     * @category Operators
+     * @category Math
      * @pattern number + number
      */
     operation("add", "+", 4, false, (x, y) => x + y);
@@ -119,7 +119,7 @@ export function math(mod: NativeModule) {
     /**
      * @syntax Subtract
      * @backolon
-     * @category Operators
+     * @category Math
      * @pattern number - number
      */
     operation("sub", "-", 4, false, (x, y) => x - y);
@@ -127,7 +127,7 @@ export function math(mod: NativeModule) {
      * Only valid at start of expression!
      * @syntax Unary negation
      * @backolon
-     * @category Operators
+     * @category Math
      * @pattern (-number)
      */
     unary("sub", "-", 2, true, x => -x);
@@ -136,14 +136,14 @@ export function math(mod: NativeModule) {
     /**
      * @syntax Logical OR
      * @backolon
-     * @category Operators
+     * @category Logic
      * @pattern any || any
      */
     operation("bool_or", "||", 5, false, (x, y) => x || y);
     /**
      * @syntax Logical AND
      * @backolon
-     * @category Operators
+     * @category Logic
      * @pattern any && any
      */
     operation("bool_and", "&&", 5, false, (x, y) => x && y);
@@ -151,14 +151,14 @@ export function math(mod: NativeModule) {
     /**
      * @syntax Bitwise Left Shift
      * @backolon
-     * @category Operators
+     * @category Bit Manipulation
      * @pattern number << number
      */
     operation("shl", "<<", 5.9, false, (x, y) => x << y);
     /**
      * @syntax Bitwise Right Shift
      * @backolon
-     * @category Operators
+     * @category Bit Manipulation
      * @pattern number >> number
      */
     operation("shr", ">>", 5.9, false, (x, y) => x >> y);
@@ -166,21 +166,21 @@ export function math(mod: NativeModule) {
     /**
      * @syntax Bitwise OR
      * @backolon
-     * @category Operators
+     * @category Bit Manipulation
      * @pattern number | number
      */
     operation("bit_or", "|", 6, false, (x, y) => x | y);
     /**
      * @syntax Bitwise AND
      * @backolon
-     * @category Operators
+     * @category Bit Manipulation
      * @pattern number & number
      */
     operation("bit_and", "&", 6, false, (x, y) => x & y);
     /**
      * @syntax Bitwise XOR
      * @backolon
-     * @category Operators
+     * @category Bit Manipulation
      * @pattern number ^ number
      */
     operation("bit_xor", "^", 6, false, (x, y) => x ^ y);
@@ -189,42 +189,42 @@ export function math(mod: NativeModule) {
     /**
      * @syntax Equality
      * @backolon
-     * @category Operators
+     * @category Comparison
      * @pattern number == number
      */
-    operation("eqeq", "==", 7, false, (x, y) => x == y);
+    operation("equal", "==", 7, false, (x, y) => x == y);
     /**
      * @syntax Inequality
      * @backolon
-     * @category Operators
+     * @category Comparison
      * @pattern number != number
      */
-    operation("noteq", "!=", 7, false, (x, y) => x != y);
+    operation("notequal", "!=", 7, false, (x, y) => x != y);
     /**
      * @syntax Greater than
      * @backolon
-     * @category Operators
+     * @category Comparison
      * @pattern number > number
      */
     operation("gt", ">", 7, false, (x, y) => x > y);
     /**
      * @syntax Less than
      * @backolon
-     * @category Operators
+     * @category Comparison
      * @pattern number < number
      */
     operation("lt", "<", 7, false, (x, y) => x < y);
     /**
      * @syntax Greater than or equal
      * @backolon
-     * @category Operators
+     * @category COmparison
      * @pattern number >= number
      */
     operation("gte", ">=", 6.9, false, (x, y) => x >= y);
     /**
      * @syntax Less than or equal
      * @backolon
-     * @category Operators
+     * @category Comparison
      * @pattern number <= number
      */
     operation("lte", "<=", 6.9, false, (x, y) => x <= y);
