@@ -222,7 +222,7 @@ const repeat = (g: boolean, o: Thing[], start = "", end = "", loc = o[0]?.loc ??
 const anchor = (start: boolean, src = "", loc = metapattern_location) => pattern(PatternType.anchor, start, loc, [], src);
 const entire = (o: Thing[], start = "", end = "", loc = o[0]?.loc ?? metapattern_location) => sequence([anchor(true, start, loc), ...o, anchor(false, end, loc)], "", "", loc);
 const grouped = (name: Thing<ThingType.name>, body: readonly Thing[], start: string, end = "", loc = name.loc) => pattern(PatternType.capture_group, 0, loc, [name, ...body], start, end);
-const dot = (loc = metapattern_location) => pattern(PatternType.dot, 0, loc, []);
+const dot = (loc = metapattern_location) => pattern(PatternType.dot, 0, loc);
 
 const operator = (s: string) => boxOperatorSymbol(s, metapattern_location);
 

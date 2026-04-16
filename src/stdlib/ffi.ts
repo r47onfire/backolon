@@ -43,6 +43,7 @@ export function initFFI(mod: NativeModule) {
             // We got an exotic constructor that returns a Promise...
             if (typeof result?.then === "function") {
                 task.suspended = true;
+                // TODO: this borks the task if it rejects
                 Promise.resolve(result)
                     .then(resolved => {
                         task.suspended = false;
@@ -120,6 +121,7 @@ export function initFFI(mod: NativeModule) {
                 // Handle Promise results by suspending the task
                 if (typeof result?.then === "function") {
                     task.suspended = true;
+                    // TODO: this borks the task if it rejects
                     Promise.resolve(result)
                         .then(resolved => {
                             task.suspended = false;

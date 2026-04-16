@@ -10,8 +10,7 @@ import { parse } from "../parser/parse";
 
 /**
  * [ESBuild](https://esbuild.github.io) or [Bun](https://bun.com) plugin that loads `.bk`
- * files as their Backolon AST (the result of calling {@link parse} on their contents) as
- * well as exporting the source code as a string.
+ * files as their Backolon AST (the result of calling {@link parse} on their contents).
  */
 const plugin: BunPlugin = {
     name: "esbuild-plugin-backolon",
@@ -51,13 +50,12 @@ export const ast = /* @__PURE__ */ new Resurrect({
         LocationTrace,
     }),
 }).resurrect(decompress(${stringify(compress(stringified))}));
+export default ast;
 /*
 
 ${text.replaceAll("*/", "*)")}
 
 */
-export const source = /* @__PURE__ */ decompress(${stringify(compress(text))});
-export default ast;
 `,
     }
 }

@@ -87,7 +87,8 @@ export {
 } from "./runtime/task";
 export {
     BUILTINS_MODULE,
-    FFI_MODULE
+    FFI_MODULE,
+    CORE_SOURCE,
 } from "./stdlib";
 export {
     BUILTINS_LOC

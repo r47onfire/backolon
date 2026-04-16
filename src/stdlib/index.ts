@@ -1,4 +1,6 @@
+import { Thing, ThingType } from "../objects/thing";
 import { parse } from "../parser/parse";
+import { DEFAULT_UNPARSER } from "../parser/unparse";
 import { Scheduler } from "../runtime/scheduler";
 import { initCoreSyntax } from "./core";
 import { initFFI } from "./ffi";
@@ -36,6 +38,15 @@ if (typeof TEST === "undefined" ? typeof ast !== "object" : TEST) {
     // we're in a test
     CORE = parse(await Bun.file(await Bun.resolve("./core.bk", import.meta.dir)).text(), new URL("builtins://"));
 }
+
+/**
+ * The rest of the core functions that are implemented in pure Backolon code.
+ *
+ * This is always loaded and run when Backolon is imported and saved in {@link BUILTINS_MODULE},
+ * so you don't need to run it manually. However, if you want to show the source code in tracebacks,
+ * run this through {@link DEFAULT_UNPARSER} to obtain it.
+ */
+export const CORE_SOURCE: Thing<ThingType.topblock> = CORE;
 
 const scheduler = new Scheduler([BUILTINS_MODULE]);
 scheduler.startTaskRaw(0, CORE, BUILTINS_MODULE.env);
