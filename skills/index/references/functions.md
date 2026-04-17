@@ -97,6 +97,16 @@ boxBlock<T>(children: T extends ThingType ? ChildrenType<T> : Thing<string | Thi
 - `join: string` — default: `""` — 
 **Returns:** `Thing<T>`
 
+## `boxBoolean`
+```ts
+boxBoolean(value: boolean, trace: LocationTrace, repr: string): Thing<number>
+```
+**Parameters:**
+- `value: boolean` — 
+- `trace: LocationTrace` — default: `UNKNOWN_LOCATION` — 
+- `repr: string` — default: `...` — 
+**Returns:** `Thing<number>`
+
 ## `boxCurlyBlock`
 ```ts
 boxCurlyBlock(children: readonly Thing<string | ThingType>[], trace: LocationTrace): Thing<curlyblock>

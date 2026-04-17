@@ -509,25 +509,25 @@ describe("homoiconicity", () => {
 describe("recursion stress tests with memoization", () => {
     const MEMOIZE = "memoize := [f] => (cache := [:]; [x] => (if x <: cache cache->x (cache->x = (f x))))";
     test("A000142 (factorial)", async () => {
-        expectEval(`${MEMOIZE}; f := (memoize [a] => if a > 1 (a * (f a - 1)) 1); f 15`, {
+        expectEval(`${MEMOIZE}; f := (memoize [a] => if a > 1 (a * (f a - 1)) 1); f 50`, {
             t: ThingType.number,
-            v: 1307674368000
+            v: 30414093201713378043612608166064768844377641568960512000000000000n
         });
     });
     test("A000045 (Fibonacci sequence)", async () => {
-        expectEval(`${MEMOIZE}; f := (memoize [a] => if a <= 1 a ((f a - 1) + (f a - 2))); f 28`, {
+        expectEval(`${MEMOIZE}; f := (memoize [a] => if a <= 1 a ((f a - 1) + (f a - 2))); f 50`, {
             t: ThingType.number,
-            v: 317811
+            v: 12586269025
         });
     });
     test("A005185 (Hofstadter 'Q' sequence)", async () => {
-        expectEval(`${MEMOIZE}; f := (memoize [a] => if a < 3 1 ((f a - (f a - 1)) + (f a - (f a - 2)))); f 25`, {
+        expectEval(`${MEMOIZE}; f := (memoize [a] => if a < 3 1 ((f a - (f a - 1)) + (f a - (f a - 2)))); f 50`, {
             t: ThingType.number,
-            v: 14
+            v: 25
         });
     });
     test("A063510", async () => {
-        expectEval(`${MEMOIZE}; f := (memoize [a] => if a > 1 ((f a ** .5 | 0) + 1) 1); f 110`, {
+        expectEval(`${MEMOIZE}; f := (memoize [a] => if a > 1 ((f a ** .5 | 0) + 1) 1); f 50`, {
             t: ThingType.number,
             v: 4
         });

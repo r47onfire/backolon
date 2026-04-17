@@ -262,6 +262,7 @@ export function collections(mod: NativeModule) {
      * ```backolon
      * [1, 2, 3] :> 1 # => true
      * 1 <: [1: 3, 2: 4] # => true
+     * ```
      */
     mod.defop("__in", "in");
     mod.defop("__has", "has");
