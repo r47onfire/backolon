@@ -65,21 +65,26 @@ export function metaprogramming(mod: NativeModule) {
         task.out(boxRoundBlock([state.argv[0]!], state.value.loc));
     });
     mod.defun("__change_block_type", "type:string block:roundblock", (task, state) => {
-        const type = ThingType[state.argv[0]!.v as any] as unknown as CheckedType<typeof isBlock>;
+        const typeStr = state.argv[0]!.v;
+        const type = ThingType[typeStr as any] as unknown as CheckedType<typeof isBlock>;
         const { c, loc } = state.argv[1]!;
-        const { s0, s1 } = {
+        const result = {
             [ThingType.roundblock]: { s0: "(", s1: ")" },
             [ThingType.curlyblock]: { s0: "{", s1: "}" },
             [ThingType.squareblock]: { s0: "[", s1: "]" },
             [ThingType.topblock]: { s0: "", s1: "" },
             [ThingType.stringblock]: { s0: "\"", s1: "\"" },
         }[type];
+        if (!result) {
+            throw new RuntimeError(`invalid type name: ${stringify(typeStr)}`, state.argv[0]!.loc);
+        }
+        const { s0, s1 } = result;
         task.out(boxBlock(c, type, loc, s0, s1));
     });
     // /**
     //  * 
     //  */
-    // mod.defun("splat", "value:[list roundblock]", )
+    // mod.defun("splat", "value:[list roundblock]",)
 }
 
 const BUILTIN_CHANGE_BLOCK_TYPE = boxNativeFunc("__change_block_type", BUILTINS_LOC);
