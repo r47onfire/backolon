@@ -108,7 +108,7 @@ export function initCoreSyntax(mod: NativeModule) {
      * x := 10 # errors, x is already defined
      * ```
      */
-    mod.defsyntax("x := y", VARIABLE_ASSIGNMENT_PRECEDENCE, false, null, "__rewrite_declaration", rewriteAsApply(xy, "__declare"));
+    mod.defsyntax("x := y", VARIABLE_ASSIGNMENT_PRECEDENCE, true, null, "__rewrite_declaration", rewriteAsApply(xy, "__declare"));
     const binding_helper = (dip: boolean, cb: (state: StackEntry, name: Thing<ThingType.name>, value: Thing, loc: LocationTrace) => void, refCb: (state: StackEntry, task: Task, ref: Thing<ThingType.reference>, value: Thing, loc: LocationTrace) => void): ((task: Task, state: StackEntry) => void) => {
         return (task, state) => {
             const name = state.argv[0]!;

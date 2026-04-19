@@ -1,10 +1,32 @@
-import { stringify } from "lib0/json";
+import markdown from "markdown-it";
+import attrs from "markdown-it-attrs";
 import { parse } from "node-html-parser";
+import Prism from "prismjs";
 import plugin from "../src/plugin";
-import { renderMarkdown } from "../website_common/rendering";
 import { build } from "./build-common.js";
-import { extractBackolonDocs } from "./doc-extract";
 import { docsToHTML } from "./build-docs";
+import { extractBackolonDocs } from "./doc-extract";
+
+
+const md = new markdown({
+    html: true,
+    linkify: true,
+    typographer: true,
+    highlight: syntaxHighlight,
+});
+md.use(attrs);
+
+function syntaxHighlight(string: string, lang: string): string {
+    if (lang === "backolon") {
+        // TODO: Backolon self-highlighting using an Unparser
+        return string;
+    }
+    return Prism.highlight(string, Prism.languages[lang]!, lang);
+}
+
+function renderMarkdown(string: string, mode: "block" | "inline") {
+    return md[mode === "block" ? "render" : "renderInline"](string);
+}
 
 function dedent(str: string) {
     str = str.replace(/^(\s*)\n/, "");
@@ -15,7 +37,7 @@ function dedent(str: string) {
     return unIndented;
 }
 
-function markdown(html: HTMLElement) {
+function markdownElement(html: HTMLElement) {
     const elsWithMarkdown = html.querySelectorAll("[markdown]");
     for (var el of elsWithMarkdown) {
         const html2 = dedent(el.innerHTML);
@@ -61,7 +83,7 @@ await build({
                     const html = await Bun.file(args.path).text();
                     const dom = parse(html);
                     // 1. parse markdown
-                    markdown(dom as any);
+                    markdownElement(dom as any);
 
                     // 2. If we're on the docs page, insert the documentation stuffs
                     const docEl = dom.querySelector("#__DOCS_CONTENT__");
@@ -85,3 +107,4 @@ await build({
 });
 
 console.log("Web Build OK");
+

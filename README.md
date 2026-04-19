@@ -11,13 +11,18 @@ It is designed to be:
 ## Quick example
 
 ```backolon
-x := 42
+# Hello World
+print "Hello, World!"
 
-double := [n] => n * 2
+# Fizzbuzz
+fizzbuzz := [n] => n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : n % 3 == 0 ? "fizz" : "{n}"
+foreach i (range 1 100) (
+    print (fizzbuzz i)
+)
 
-numbers := [1, 2, 3] + [4, 5]
-
-print (if (#numbers > 5) "long list" "short list")
+# yin yang puzzle
+yinHelper := [char] => ((([cc] => (print char; cc)) (callcc [c] => c)))
+(([yin] => (([yang] => (yin yang)) (yinHelper "*"))) (yinHelper "@"))
 ```
 
 ## Why Backolon?

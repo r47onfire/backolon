@@ -75,7 +75,11 @@ export function metaprogramming(mod: NativeModule) {
             [ThingType.stringblock]: { s0: "\"", s1: "\"" },
         }[type];
         task.out(boxBlock(c, type, loc, s0, s1));
-    })
+    });
+    // /**
+    //  * 
+    //  */
+    // mod.defun("splat", "value:[list roundblock]", )
 }
 
 const BUILTIN_CHANGE_BLOCK_TYPE = boxNativeFunc("__change_block_type", BUILTINS_LOC);
