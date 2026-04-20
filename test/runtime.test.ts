@@ -508,32 +508,41 @@ describe("homoiconicity", () => {
 });
 describe("recursion stress tests with memoization", () => {
     const MEMOIZE = "memoize := [f] => (cache := [:]; [x] => (x <: cache ? cache->x : (cache->x = (f x))))";
+    const MEMOIZE_F = (f: (a: bigint) => bigint) => { const cache: Record<string, bigint> = {}; return (a: bigint) => (cache["" + a] ??= f(a)); }
     test("A000142 (factorial)", () => {
-        expectEval(`${MEMOIZE}; f := (memoize [a] => a > 1 ? (a * (f a - 1)) : 1); f 100`, {
+        const x = 100;
+        const factorial = (a: bigint): bigint => a > 1 ? a * factorial(a - 1n) : 1n;
+        expectEval(`factorial := [a] => a > 1 ? (a * (factorial a - 1)) : 1; factorial ${x}`, {
             t: ThingType.number,
-            v: 93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000n
+            v: factorial(BigInt(x)),
         });
     });
     test("A000045 (Fibonacci sequence)", () => {
-        expectEval(`${MEMOIZE}; f := (memoize [a] => a < 2 ? a : ((f a - 1) + (f a - 2))); f 100`, {
+        const x = 100;
+        const fibonacci = MEMOIZE_F(a => a < 2 ? a : fibonacci(a - 1n) + fibonacci(a - 2n));
+        expectEval(`${MEMOIZE}; fibonacci := (memoize [a] => a < 2 ? a : ((fibonacci a - 1) + (fibonacci a - 2))); fibonacci ${x}`, {
             t: ThingType.number,
-            v: 354224848179261915075n
+            v: fibonacci(BigInt(x)),
         });
     });
     test("A005185 (Hofstadter 'Q' sequence)", () => {
-        expectEval(`${MEMOIZE}; f := (memoize [a] => a < 3 ? 1 : ((f a - (f a - 1)) + (f a - (f a - 2)))); f 80`, {
+        const x = 80;
+        const q = MEMOIZE_F(a => a < 3 ? 1n : q(a - q(a - 1n)) + q(a - q(a - 2n)));
+        expectEval(`${MEMOIZE}; q := (memoize [a] => a < 3 ? 1 : ((q a - (q a - 1)) + (q a - (q a - 2)))); q ${x}`, {
             t: ThingType.number,
-            v: 43
+            v: Number(q(BigInt(x)))
         });
     });
     test("A063510", () => {
-        expectEval(`${MEMOIZE}; f := (memoize [a] => a < 2 ? 1 : ((f a ** .5 | 0) + 1)); f 100`, {
+        const x = 65536;
+        const A063510 = (a: number): number => a < 2 ? 1 : 1 + A063510(a ** 0.5 | 0);
+        expectEval("f := [a] => a < 2 ? 1 : ((f a ** .5 | 0) + 1); f 65536", {
             t: ThingType.number,
-            v: 4
+            v: A063510(x),
         });
     });
     test("list building via splat", () => {
-        const x = 6;
+        const x = 8;
         expectEval(`f := [a n] => n > 0 ? [...(f a n - 1), ...(f a n - 1)] : [a]; f 1 ${x}`, {
             t: ThingType.list,
             c: new Array(2 ** x).fill({

@@ -161,7 +161,7 @@ export function makePrimitiveReference(startArgs: Thing[], getter: string, sette
     return new Thing(ThingType.reference, [
         wrapImplicitBlock(boxApply(boxNativeFunc(getter, loc), startArgs, loc), env),
         new Thing(ThingType.func, [boxSquareBlock([sym], loc), wrapImplicitBlock(boxApply(boxNativeFunc(setter, loc), [...startArgs, sym], loc), env)], "__set", "", "", " => ", loc),
-    ], null, "", "", "", loc);
+    ], null, "<ref ", " >", " | ", loc);
 }
 
 export function sortPatternsList(list: Thing<ThingType.pattern_entry>[]) {

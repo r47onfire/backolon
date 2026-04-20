@@ -8,7 +8,7 @@ import { MatchResult } from "../patterns/match";
  * Create a new Backolon environment frame with variables and pattern definitions.
  */
 export function newEnv(newVars: Thing<ThingType.map>, newPatterns: Thing<ThingType.list>, callsite: LocationTrace, parents: Thing<ThingType.nil | ThingType.env>[] = [boxNil(callsite)]): Thing<ThingType.env> {
-    return new Thing(ThingType.env, [boxList(parents, callsite), newVars, newPatterns], null, "", "", "", callsite);
+    return new Thing(ThingType.env, [boxList(parents, callsite), newVars, newPatterns], null, "<env ", " >", " | ", callsite);
 }
 
 export function flatToVarMap(result: MatchResult, location: LocationTrace): Thing<ThingType.map> {
