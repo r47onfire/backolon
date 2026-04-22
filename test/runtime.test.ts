@@ -165,6 +165,11 @@ describe("conditionals", () => {
             t: ThingType.nil,
         })).toEqual(["2"]);
     });
+    test("inline torture test", () => {
+        expectEval("0?1:2?3:4", { t: ThingType.number, v: 3 });
+        expectEval("1?2?3:4:5", { t: ThingType.number, v: 3 });
+        expectEval("x:=1?2:3", { t: ThingType.number, v: 2 });
+    });
 });
 describe("operators", () => {
     test("add", () => {
