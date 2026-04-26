@@ -181,7 +181,7 @@ constructor(name: string, loc: LocationTrace): NativeModule
 - `env: Thing<env>` — 
 - `funcs: Record<string, NativeFunctionDetails>` — 
 - `ops: Record<string, Partial<Record<number, OperatorOverload[]>>>` — 
-- `applicators: Partial<Record<string, CustomApplicator>>` — 
+- `applicators: Partial<Record<ThingType | string, CustomApplicator>>` — 
 - `name: string` — 
 - `loc: LocationTrace` — 
 **Methods:**
@@ -195,4 +195,4 @@ The function should "return" its result by calling `task.out(result)`. If the Ja
 the handler will be called with the pattern variables as a single map argument).
 - `defop(builtin: string, name: string): void` — Defines a new operator overload native function, mapping to the given operator name.
 - `defoverload<T>(name: string, types: T, cb: (opTrace: LocationTrace, argv: MapValues<T>) => Thing): void` — Defines a new operator overload for the given operator name and argument types. The handler will be called with the operator arguments as an array, and should return the result of the operator application.
-- `defcall(type: string, applicator: CustomApplicator): void` — Defines a custom applicator for a given type of functor. The applicator will be called with the functor, arguments, and callsite information whenever an apply form with a functor of the given type is evaluated in Backolon code.
+- `defcall(type: string | ThingType, applicator: CustomApplicator): void` — Defines a custom applicator for a given type of functor. The applicator will be called with the functor, arguments, and callsite information whenever an apply form with a functor of the given type is evaluated in Backolon code.
