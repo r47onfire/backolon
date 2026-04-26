@@ -4,9 +4,9 @@ import { LocationTrace, RuntimeError } from "../errors";
 import { newEmptyMap } from "../objects/map";
 import { boxList, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
 import { parse } from "../parser/parse";
-import { NativeModule } from "../stdlib/module";
+import { NativeModule, OperatorOverload } from "../stdlib/module";
 import { newEnv } from "./env";
-import { StackEntry, Task } from "./task";
+import { StackFrame, Task } from "./task";
 import { compress, decompress } from "lz-string";
 
 /**
@@ -14,7 +14,7 @@ import { compress, decompress } from "lz-string";
  */
 export interface NativeFunctionDetails {
     params: (Thing<ThingType.paramdescriptor> | Thing<ThingType.name>)[],
-    impl(task: Task, state: StackEntry): void;
+    impl(task: Task, state: StackFrame): void;
 }
 
 /**
@@ -58,7 +58,7 @@ export class Scheduler {
                 Task,
                 Thing,
                 LocationTrace,
-                StackEntry,
+                StackFrame,
             }),
         });
     }
@@ -126,27 +126,38 @@ export class Scheduler {
     getParamDescriptors(name: string): (Thing<ThingType.paramdescriptor> | Thing<ThingType.name>)[] {
         return this.f(name).params ?? [];
     }
-    callFunction(task: Task, name: string, entry: StackEntry) {
-        const result = this.f(name).impl(task, entry);
+    callFunction(task: Task, name: string, frame: StackFrame) {
+        const result = this.f(name).impl(task, frame);
         if (result !== undefined) {
             console.warn(`Native function implementation ${name} should call task.out(result), not return result`);
             task.out(result);
         }
     }
-    operator(name: string, state: StackEntry): Thing {
+    operator(name: string, state: StackFrame): Thing {
         const argv = state.argv;
         const argc = argv.length;
         const loc = argv[0]!.loc;
+        var bestOverload: OperatorOverload["cb"] | undefined = undefined, bestScore = -1;
         for (var module of this.builtins) {
             const overloads = module.ops[name]?.[argc];
-            if (overloads) for (var overload of overloads) {
-                const typeMatches = overload.types.every((t, i) => t === null ? true : typecheck(t)(argv[i]!));
-                if (typeMatches) {
-                    return overload.cb(loc, argv);
+            if (overloads) outer: for (var { types, cb } of overloads) {
+                var score = 0;
+                for (var i = 0; i < types.length; i++) {
+                    const gottenType = argv[i]!.t;
+                    const requestedType = types[i]!;
+                    if (requestedType === null) score += 1;
+                    else if (requestedType === gottenType) score += 3;
+                    else continue outer;
+                }
+                if (score > bestScore) {
+                    bestOverload = cb;
+                    bestScore = score;
                 }
             }
         }
-        throw new RuntimeError(`No overload exists for operator ${stringify(name)} with argument types ${argv.map(t => stringify(typeNameOf(t.t))).join(", ")}`, loc);
+        if (!bestOverload)
+            throw new RuntimeError(`No overload exists for operator ${stringify(name)} with argument types ${argv.map(t => stringify(typeNameOf(t.t))).join(", ")}`, loc);
+        return bestOverload(loc, argv);
     }
     getApply(functorType: ThingType | string) {
         for (var module of this.builtins) {

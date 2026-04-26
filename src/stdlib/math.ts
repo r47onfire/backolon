@@ -52,7 +52,7 @@ export function math(mod: NativeModule) {
     //         x,
     //         z,
     //         y,
-    //     ], null, "", "", "", state.value.loc);
+    //     ], null, "", "", "", state.loc);
     //     task.out(reassignExpr);
     // });
 
@@ -69,15 +69,6 @@ export function math(mod: NativeModule) {
         mod.defsyntax(`[^] ${operator} x`, precedence, right, null, `__rewrite_unary_${name}`, rewriteAsApply(x, `__${name}`));
         mod.defoverload(name, [ThingType.number], (loc, argv) => boxNumber(impl(argv[0].v as number), loc));
     };
-
-    operation("not");
-    /**
-     * @syntax Logical NOT
-     * @backolon
-     * @category Logic
-     * @pattern (!any)
-     */
-    unary("not", "!", 0, true, x => x ? 0 : 1);
 
     /**
      * @syntax Exponentiation
@@ -132,22 +123,6 @@ export function math(mod: NativeModule) {
      */
     unary("sub", "-", 2, true, x => -x);
 
-    // TODO: make these short-circuit
-    /**
-     * @syntax Logical OR
-     * @backolon
-     * @category Logic
-     * @pattern any || any
-     */
-    operation("bool_or", "||", 5, false, (x, y) => x || y);
-    /**
-     * @syntax Logical AND
-     * @backolon
-     * @category Logic
-     * @pattern any && any
-     */
-    operation("bool_and", "&&", 5, false, (x, y) => x && y);
-
     /**
      * @syntax Bitwise Left Shift
      * @backolon
@@ -185,21 +160,6 @@ export function math(mod: NativeModule) {
      */
     operation("bit_xor", "^", 6, false, (x, y) => x ^ y);
 
-    // TODO: generalize equality operators
-    /**
-     * @syntax Equality
-     * @backolon
-     * @category Comparison
-     * @pattern number == number
-     */
-    operation("equal", "==", 7, false, (x, y) => x == y);
-    /**
-     * @syntax Inequality
-     * @backolon
-     * @category Comparison
-     * @pattern number != number
-     */
-    operation("notequal", "!=", 7, false, (x, y) => x != y);
     /**
      * @syntax Greater than
      * @backolon

@@ -133,8 +133,8 @@ but will not share any state with tasks that were already in the scheduler befor
 - `stepUntilSuspended(maxSteps: number): boolean` — Run tasks until all tasks are suspended or complete or the optional maxSteps limit is reached (-1 or undefined means no limit).
 Returns true if any progress was made (i.e. any task executed at least one step).
 - `getParamDescriptors(name: string): (Thing<name> | Thing<paramdescriptor>)[]` — 
-- `callFunction(task: Task, name: string, entry: StackEntry): void` — 
-- `operator(name: string, state: StackEntry): Thing` — 
+- `callFunction(task: Task, name: string, frame: StackFrame): void` — 
+- `operator(name: string, state: StackFrame): Thing` — 
 - `getApply(functorType: string | ThingType): CustomApplicator | null` — 
 
 ## `Task`
@@ -145,8 +145,10 @@ constructor(priority: number, scheduler: Scheduler, code: Thing, env: Thing<env>
 **Properties:**
 - `suspended: boolean` — Whether this task is currently suspended (e.g. waiting for a promise to resolve).
 If true, the scheduler will not run this task until it is resumed by setting suspended to false.
-- `stack: readonly StackEntry[]` — 
+- `stack: readonly StackFrame[]` — 
 - `result: Thing<string | ThingType> | null` — Represents the result of the last evaluated expression, used for returning values to whatever started this task.
+- `failed: boolean` — If true, the current frame has failed with an error value. The error is stored in result.
+If a frame doesn't have handles_error or on_exit set, the error will propagate up the stack.
 - `priority: number` — 
 - `scheduler: Scheduler` — 
 **Methods:**
@@ -156,18 +158,21 @@ If the task throws an error during evaluation, the task may end up in an undefin
 which when called will return to this point with the given value as the result of the current expression.
 
 The continuation will capture the entire stack, so it has infinite extent.
-- `updateArgs(args: Thing<string | ThingType>[]): StackEntry` — Update the current stack entry with new arguments, returning the new stack entry.
-- `updateCookie(index: number, state: number, data?: any): StackEntry` — Update the current stack entry with a new cookie value(s), returning the new stack entry.
+- `updateArgs(args: Thing<string | ThingType>[]): StackFrame` — Update the current stack frame with new arguments, returning the new stack frame.
+- `updateCookie(index: number, state: number, data?: any): StackFrame` — Update the current stack frame with a new cookie value(s), returning the new stack frame.
 The cookie is used to track internal evaluation state for constructs that call back into Backolon code,
 so the Javascript implementation knows where it was and can resume evaluation from the correct point when the Backolon code returns.
 
 The exact meaning of the cookie value(s) depends on the construct being evaluated.
-- `updateFlags(toSet: number, toClear: number): StackEntry` — Updates the current stack entry with new flags, returning the new stack entry.
-- `updateEnv(newEnv: Thing<env>): StackEntry` — Updates the current stack entry with a new environment, returning the new stack entry. This is used when entering a new scope (e.g. injecting context-sensitive information).
+- `updateFlags(toSet: number, toClear: number): StackFrame` — Updates the current stack frame with new flags, returning the new stack frame.
+- `updateEnv(newEnv: Thing<env>): StackFrame` — Updates the current stack frame with a new environment, returning the new stack frame. This is used when entering a new scope (e.g. injecting context-sensitive information).
 - `enter(code: Thing, loc: LocationTrace, env: Thing<env> | Thing<nil>, args: readonly Thing<string | ThingType>[], name?: string | null): void` — Enters a new stack frame with the given code, location, environment, and arguments.
-- `out(result?: Thing<string | ThingType>): StackEntry` — Exit the current stack frame, optionally with a result to return to the caller.
+- `setCall(func: Thing, argv: Thing<string | ThingType>[], loc: LocationTrace, env: Thing<env> | Thing<nil>): void` — 
+- `out(result?: Thing<string | ThingType>, failed?: boolean): StackFrame` — Exit the current stack frame, optionally with a result to return to the caller.
 The result will be passed back to whatever got us here (e.g. the parent stack frame or the creator of the task).
-- `dip(depth: number, cb: (state: StackEntry) => void): void` — Temporarily pop the given number of stack frames, call the callback with the new top of the stack, and then restore the popped stack frames.
+If the `failed` parameter is provided, it sets Task#failed|this.failed to it.
+Returns the new top stack frame.
+- `dip(depth: number, cb: (state: StackFrame) => void): void` — Temporarily pop the given number of stack frames, call the callback with the new top of the stack, and then restore the popped stack frames.
 This is used for things like variable declaration and assignment where we need to access the correct environment to put the variable in.
 
 If depth is greater than or equal to the current stack size, the callback will be called with the bottom of the stack (which is usually the global scope).
@@ -186,12 +191,12 @@ constructor(name: string, loc: LocationTrace): NativeModule
 - `loc: LocationTrace` — 
 **Methods:**
 - `defvar(name: string, value: Thing): void` — Defines a variable in the module's environment.
-- `defun(name: string, signature: string, body: (task: Task, state: StackEntry) => void, defvar: boolean): void` — Defines a native function in the module.
+- `defun(name: string, signature: string, body: (task: Task, state: StackFrame) => void, defvar: boolean): void` — Defines a native function in the module.
 
 If the function needs to call into Backolon code, it can do so by updating the current cookie on the task to remember where it is in execution and then calling `task.enter(code, loc, env)` with the appropriate code, location, and environment.
 
 The function should "return" its result by calling `task.out(result)`. If the Javascript function does not call `task.out()` and just returns, the scheduler will call the implementation again until it does, so it's important to call `task.out()` at some point to avoid infinite loops.
-- `defsyntax(pattern: string, precedence: number, right: boolean, when: ThingType[] | null, handler: string, handlerBody?: (task: Task, state: StackEntry) => void): void` — Defines a new pattern syntax. The handler can be either a native function implementation, or a Backolon function defined in the same module (in either case
+- `defsyntax(pattern: string, precedence: number, right: boolean, when: ThingType[] | null, handler: string, handlerBody?: (task: Task, state: StackFrame) => void): void` — Defines a new pattern syntax. The handler can be either a native function implementation, or a Backolon function defined in the same module (in either case
 the handler will be called with the pattern variables as a single map argument).
 - `defop(builtin: string, name: string): void` — Defines a new operator overload native function, mapping to the given operator name.
 - `defoverload<T>(name: string, types: T, cb: (opTrace: LocationTrace, argv: MapValues<T>) => Thing): void` — Defines a new operator overload for the given operator name and argument types. The handler will be called with the operator arguments as an array, and should return the result of the operator application.

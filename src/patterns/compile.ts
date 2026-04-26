@@ -8,6 +8,7 @@ export type Command =
     | [PatternType.match_type, value: ThingType]
     | [PatternType.match_value, value: Thing]
     | [PatternType.capture_group, name: Thing<ThingType.name>, end: boolean, single: boolean]
+    | [PatternType.lookahead, isStart: boolean, isPositive?: boolean, relativeJump?: number]
     ;
 
 export type PatternProgram = Command[];
@@ -67,6 +68,13 @@ export function compile(thing: Thing<ThingType.pattern>): PatternProgram {
         case PatternType.match_value:
             prog.push([PatternType.match_value, thing.c[0]!]);
             break;
+        case PatternType.lookahead:
+            const cmd2: Command = [PatternType.lookahead, true, data.gsv as boolean, NaN];
+            const inner = compile(thing.c[0] as any);
+            cmd2[3] = inner.length + 2;
+            prog.push(cmd2, ...inner, [PatternType.lookahead, false]);
+            break;
+        default: data.t satisfies never;
     }
     (data as any).p = optimize(prog);
     return prog;
@@ -121,18 +129,26 @@ function optimize(prog: (Command | null)[]): PatternProgram {
             prog.splice(i, 1);
             // adjust things jumping backwards
             for (var j = i; j < prog.length; j++) {
-                if (prog[j]?.[0] === PatternType.alternatives) {
-                    (prog[j] as number[])!.forEach((d, index, a) => {
+                const cmd = prog[j];
+                if (!cmd) continue;
+                if (cmd[0] === PatternType.alternatives) {
+                    (cmd as number[])!.forEach((d, index, a) => {
                         if (index > 0 && (j + d) < i) a[index]!++;
                     });
+                } else if (cmd[0] === PatternType.lookahead) {
+                    if (cmd[3] && cmd[3] + j < i) cmd[3]++;
                 }
             }
             // adjust things jumping forwards
             for (var j = 0; j < i; j++) {
-                if (prog[j]?.[0] === PatternType.alternatives) {
-                    (prog[j] as number[])!.forEach((d, index, a) => {
+                const cmd = prog[j];
+                if (!cmd) continue;
+                if (cmd[0] === PatternType.alternatives) {
+                    (cmd as number[])!.forEach((d, index, a) => {
                         if (index > 0 && (j + d) > i) a[index]!--;
                     });
+                } else if (cmd[0] === PatternType.lookahead) {
+                    if (cmd[3] && cmd[3] + j > i) cmd[3]--;
                 }
             }
             i--;

@@ -4,3 +4,4 @@ node_modules
 .nyc_output
 crash-*
 typedoc_output.json
+debug_*.ts

@@ -14,7 +14,7 @@ OneTypeThing<typeof TOKENIZE_RULES[number][1] | done>
 
 ### `Command`
 ```ts
-[alternatives, ...number[]] | [dot] | [anchor, start: boolean] | [match_type, value: ThingType] | [match_value, value: Thing] | [capture_group, name: Thing<name>, end: boolean, single: boolean]
+[alternatives, ...number[]] | [dot] | [anchor, start: boolean] | [match_type, value: ThingType] | [match_value, value: Thing] | [capture_group, name: Thing<name>, end: boolean, single: boolean] | [lookahead, isStart: boolean, isPositive?: boolean, relativeJump?: number]
 ```
 
 ### `PatternProgram`
@@ -33,7 +33,7 @@ Thing<paramdescriptor> | Thing<name>
 ### `NativeFunctionDetails`
 Shape of native function metadata registered with the Backolon scheduler.
 
-### `StackEntry`
+### `StackFrame`
 A single stack frame in the Backolon evaluator.
 
 ### `CustomApplicator`
@@ -97,20 +97,29 @@ a map of the variables, and a list of pattern_entry.
 - `splat` = `26` — Represents a function that should have its return value spliced into the callee's arguments list.
 - `reference` = `27` — Represents a "generalized lvalue" that can be assigned to. The children are 2 functions that can be
 called to get or set the value that this reference refers to.
+- `error` = `28` — Represents an error value that can be caught and handled. The children are:
+[0] error type/name (name), [1] message (string), [2] restart options (map), [3] stack trace (list).
+This is a first-class value, not an exception.
 
 ### `PatternType`
 - `sequence` = `0` — Sequence of things in order `abcd`
 - `alternatives` = `1` — List of options to be matched `{a|b|c|d}`
 - `repeat` = `2` — Repeat (one or more) `(a)...`
 - `capture_group` = `3` — Capture group into a symbol name `[name(a)]`
-- `dot` = `4` — Matches anything as a wildcard. Used for bare names like `x`.
-- `anchor` = `5` — Force the match to be at the start `[^]`, or at the end `[$]`.
-- `match_type` = `6` — Match a value with a certain ThingType `[:type]`
-- `match_value` = `7` — Match that literal value `[=value]`
+- `lookahead` = `4` — Positive lookahead `[?a]` or negative lookahead `[!a]` - matches if pattern matches or doesn't match at current position
+- `dot` = `5` — Matches anything as a wildcard. Used for bare names like `x`.
+- `anchor` = `6` — Force the match to be at the start `[^]`, or at the end `[$]`.
+- `match_type` = `7` — Match a value with a certain ThingType `[:type]`
+- `match_value` = `8` — Match that literal value `[=value]`
 
 ### `StackFlag`
 Flags used to record internal task evaluation state.
 - `native_func_being_evaluated` = `1` — Normally, a native function is treated as a value and returned; however,
-when one is called it needs to be the StackEntry#value|value of the
-StackEntry it's in so that its arguments can be processed. That stack has this
+when one is called it needs to be the StackFrame#value|value of the
+StackFrame it's in so that its arguments can be processed. That stack has this
 flag set to mark that it's actually being called and not just returned.
+- `via_continuation_switch` = `2` — Flag used to indicate that a stack frame has been pushed as a result of a continuation switching stacks.
+- `on_enter` = `4` — Frame is the enter callback of a `with` construct and should be left
+on the stack to be called when a continuation jumps "in".
+- `on_exit` = `8` — Frame is the exit callback of a `with` construct and should be left
+on the stack to be called when a continuation jumps "out" or we're returning normally.

@@ -512,7 +512,7 @@ describe("homoiconicity", () => {
     });
 });
 describe("recursion stress tests with memoization", () => {
-    const MEMOIZE = "memoize := [f] => (cache := [:]; [x] => (x <: cache ? cache->x : (cache->x = (f x))))";
+    const MEMOIZE = "memoize := [f] => (cache := [:]; [x] => x <: cache ? cache->x : (cache->x = (f x)))";
     const MEMOIZE_F = (f: (a: bigint) => bigint) => { const cache: Record<string, bigint> = {}; return (a: bigint) => (cache["" + a] ??= f(a)); }
     test("A000142 (factorial)", () => {
         const x = 100;
@@ -525,7 +525,7 @@ describe("recursion stress tests with memoization", () => {
     test("A000045 (Fibonacci sequence)", () => {
         const x = 100;
         const fibonacci = MEMOIZE_F(a => a < 2 ? a : fibonacci(a - 1n) + fibonacci(a - 2n));
-        expectEval(`${MEMOIZE}; fibonacci := (memoize [a] => a < 2 ? a : ((fibonacci a - 1) + (fibonacci a - 2))); fibonacci ${x}`, {
+        expectEval(`${MEMOIZE}\nfibonacci := (memoize [a] => a < 2 ? a : ((fibonacci a - 1) + (fibonacci a - 2))); fibonacci ${x}`, {
             t: ThingType.number,
             v: fibonacci(BigInt(x)),
         });
@@ -533,7 +533,7 @@ describe("recursion stress tests with memoization", () => {
     test("A005185 (Hofstadter 'Q' sequence)", () => {
         const x = 80;
         const q = MEMOIZE_F(a => a < 3 ? 1n : q(a - q(a - 1n)) + q(a - q(a - 2n)));
-        expectEval(`${MEMOIZE}; q := (memoize [a] => a < 3 ? 1 : ((q a - (q a - 1)) + (q a - (q a - 2)))); q ${x}`, {
+        expectEval(`${MEMOIZE}\nq := (memoize [a] => a < 3 ? 1 : ((q a - (q a - 1)) + (q a - (q a - 2)))); q ${x}`, {
             t: ThingType.number,
             v: Number(q(BigInt(x)))
         });
@@ -555,5 +555,89 @@ describe("recursion stress tests with memoization", () => {
                 v: 1
             }),
         });
+    });
+});
+describe("error handling", () => {
+    test("error creates and throws a catchable error", () => {
+        expectEval("try_catch (error 'test_error' 'test message') [err] => (is_error err)", {
+            t: ThingType.number,
+            v: true,
+        });
+    });
+    test("is_error predicate", () => {
+        expectEval("is_error (try_catch (error 'type' 'msg') [err] => err)", {
+            t: ThingType.number,
+            v: 1,
+        });
+        expectEval("is_error 42", {
+            t: ThingType.number,
+            v: 0,
+        });
+    });
+    test("error_type extracts error type", () => {
+        expectEval("try_catch (error `foo 'message') [err] => (error_type err)", {
+            t: ThingType.name,
+            v: "foo",
+        });
+    });
+    test("error_message extracts error message", () => {
+        expectEval("try_catch (error 'type' 'my message') [err] => (error_message err)", {
+            t: ThingType.string,
+            v: "my message",
+        });
+    });
+    test("error_restarts extracts restart options", () => {
+        expectEval("try_catch (callcc [k] => error 'type' 'msg' [`resume: k]) [err] => (error_restarts err)", {
+            t: ThingType.map,
+            c: [
+                {
+                    t: ThingType.pair, c: [
+                        { t: ThingType.name, v: "resume" },
+                        { t: ThingType.continuation }
+                    ]
+                },
+            ],
+        });
+    });
+    test("try_catch catches errors and calls handler", () => {
+        expect(expectEval("try_catch (error 'bad' 'oops') [err] => (print (error_message err); 'handled')", {
+            t: ThingType.string,
+            v: "handled",
+        })).toEqual(["oops"]);
+    });
+    test("try_catch passes normal values through", () => {
+        expect(expectEval("try_catch 42 [err] => (print 'should not print'; 'handled')", {
+            t: ThingType.number,
+            v: 42,
+        })).toEqual([]);
+    });
+    test("try_catch with error in nested code", () => {
+        expect(expectEval("try_catch (if true (error 'type' 'nested') 0) [err] => (print (error_message err); 'caught')", {
+            t: ThingType.string,
+            v: "caught",
+        })).toEqual(["nested"]);
+    });
+    test("error propagates through frames without handlers", () => {
+        expect(expectEval("outer := [x] => (print 'in outer'; error 'fail' 'from outer'); try_catch (outer 1) [err] => (print (error_message err))", {
+            t: ThingType.nil,
+        })).toEqual(["in outer", "from outer"]);
+    });
+    test("with runs all three phases on normal path", () => {
+        expect(expectEval("with ([] => (print 'enter')) ([] => (print 'body'; 42)) [result] => (print 'exit' result)", {
+            t: ThingType.number,
+            v: 42,
+        })).toEqual(["enter", "body", "exit", "nil"]);
+    });
+    test("with exit runs even when body errors", () => {
+        expect(expectEval("with ([] => (print 'enter')) ([] => (print 'body'; error 'err' 'msg')) [result] => (if (is_error result) (print 'exit error') (print 'exit ok'))", {
+            t: ThingType.error,
+            v: "msg",
+        })).toEqual(["enter", "body", "exit error"]);
+    });
+    test("with nesting", () => {
+        expect(expectEval("with ([] => (print 'enter1')) ([] => (with ([] => (print 'enter2')) ([] => (print 'body2'; 'inner')) [r2] => (print 'exit2' r2))) [r1] => (print 'exit1' r1)", {
+            t: ThingType.string,
+            v: "inner",
+        })).toEqual(["enter1", "enter2", "body2", "exit2", "inner", "exit1", "inner"]);
     });
 });

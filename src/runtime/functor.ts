@@ -12,7 +12,7 @@ export type ParamDescriptor = Thing<ThingType.paramdescriptor> | Thing<ThingType
 const CONTINUATION_SIGNATURE = [boxNameSymbol("value", BUILTINS_LOC)];
 const IMPLICIT_SIGNATURE = [new Thing(ThingType.paramdescriptor, [boxNameSymbol("env", BUILTINS_LOC), boxList([boxNumber(ThingType.map, BUILTINS_LOC)], BUILTINS_LOC)], [false, false, false], "", "", ":", BUILTINS_LOC)];
 const NOT_A_PARAM = new Thing(ThingType.paramdescriptor, [boxNameSymbol("invalid", BUILTINS_LOC)], [true, false, false], "", "", "", BUILTINS_LOC);
-export function getParamDescriptors(fn: Thing, scheduler: Scheduler, callsite: Thing): ParamDescriptor[] {
+export function getParamDescriptors(fn: Thing, scheduler: Scheduler): ParamDescriptor[] {
     if (typecheck(ThingType.func)(fn)) {
         return fn.c[0].c as any;
     }
@@ -29,7 +29,7 @@ export function getParamDescriptors(fn: Thing, scheduler: Scheduler, callsite: T
     if (desc) {
         return desc.params(fn);
     }
-    throw new RuntimeError(`can't call ${typeNameOf(fn.t)}`, callsite.loc);
+    return [];
 }
 
 export function getNthDescriptor(descriptors: ParamDescriptor[], index: number): ParamDescriptor {

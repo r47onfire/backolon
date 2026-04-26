@@ -1,5 +1,6 @@
 # TODO: how to document all these self-defined ones
 callcc := [f] => f return
+
 while := [@cond @body] => callcc [break] => (
     continue := nil
     callcc [k] => continue = k
@@ -8,6 +9,7 @@ while := [@cond @body] => callcc [break] => (
         continue!
     )
 )
+
 generator := [@body] => (
     cont := nil
     resume := [] => (body [`yield:]; done)
@@ -20,6 +22,7 @@ generator := [@body] => (
         resume!
     )
 )
+
 foreach := [@varname:name list @body] => (
     i := 0
     while i < #list (
@@ -27,8 +30,27 @@ foreach := [@varname:name list @body] => (
         i = i + 1
     )
 )
+
 eval := [value] => __eval value
 evalin := [env value] => __eval value env
 sandboxed := [value] => __eval value nil nil false
+
+try_catch := [@body handlers:[func map]] => (
+    with nil ([err] => (
+        if err == nil (return!)
+        if handlers:type == `map (
+            if err:type <: handlers (
+                handlers->(err:type) err
+                true
+            ) (
+                throw err
+            )
+        ) (
+            handlers err
+            true
+        )
+    )) (body!)
+)
+
 # don't "return" anything
 ;;

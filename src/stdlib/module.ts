@@ -141,7 +141,7 @@ export function rewriteAsApply(symbols: Thing<ThingType.name>[], builtinName: st
         var values = symbols.map(sym => mapGetKey(groups, sym));
         // trim off undefined's
         if (values.includes(undefined)) values = values.slice(0, values.indexOf(undefined));
-        task.out(boxApply(boxNativeFunc(builtinName, state.value.loc), values as Thing[], state.value.loc, start, end));
+        task.out(boxApply(boxNativeFunc(builtinName, state.loc), values as Thing[], state.loc, start, end));
     };
 }
 

@@ -2,13 +2,15 @@ import { last } from "lib0/array";
 import { stringify } from "lib0/json";
 import { ErrorNote, LocationTrace, RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating } from "../objects/map";
-import { boxApply, boxBoolean, boxNativeFunc, boxNil, boxNumber, boxRoundBlock, boxSquareBlock, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
+import { boxApply, boxBoolean, boxNativeFunc, boxNil, boxRoundBlock, boxSquareBlock, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
 import { removed_whitespace } from "../patterns/meta";
 import { walkEnvTree } from "../runtime/env";
 import { parseSignature } from "../runtime/functor";
-import type { StackEntry, Task } from "../runtime/task";
+import type { StackFrame, Task } from "../runtime/task";
 import { collections } from "./collections";
 import { control_flow } from "./control_flow";
+import { error_handling } from "./error_handling";
+import { logic } from "./logic";
 import { math } from "./math";
 import { metaprogramming } from "./metaprogramming";
 import { misc } from "./misc";
@@ -55,16 +57,16 @@ export function initCoreSyntax(mod: NativeModule) {
     // MARK: blocks and logical lines
     mod.defsyntax("[^] {x...|}  ;  [y{_| }...] [$]", EXPLICIT_BLOCK_PRECEDENCE, false, null, "__rewrite_sequence", (task, state) => {
         const groups: Thing<ThingType.map> = state.argv[0]! as any;
-        var first = mapGetKey(groups, symbol_x);
-        var second = mapGetKey(groups, symbol_y);
+        const first = mapGetKey(groups, symbol_x) as Thing<ThingType.list>;
+        const second = mapGetKey(groups, symbol_y) as Thing<ThingType.list>;
         if (first) {
-            first = boxRoundBlock(first.c, first.loc);
+            const firstB = boxRoundBlock(first.c, first.loc);
             if (second && second.c.length > 0) {
-                second = boxRoundBlock(second.c, second.loc);
-                task.out(boxApply(boxNativeFunc("__sequence", first.loc), second ? [first, second] : [first], first.loc));
+                const secondB = boxRoundBlock(second.c, second.loc);
+                task.out(boxApply(boxNativeFunc("__sequence", first.loc), [firstB, secondB], first.loc));
             } else {
                 // effectively just strip the trailing line terminator
-                task.out(first);
+                task.out(firstB);
             }
         } else {
             // we get here if there are a sequence of consecutive newlines or semicolons.
@@ -109,7 +111,7 @@ export function initCoreSyntax(mod: NativeModule) {
      * ```
      */
     mod.defsyntax("x := y", VARIABLE_ASSIGNMENT_PRECEDENCE, true, null, "__rewrite_declaration", rewriteAsApply(xy, "__declare"));
-    const binding_helper = (dip: boolean, cb: (state: StackEntry, name: Thing<ThingType.name>, value: Thing, loc: LocationTrace) => void, refCb: (state: StackEntry, task: Task, ref: Thing<ThingType.reference>, value: Thing, loc: LocationTrace) => void): ((task: Task, state: StackEntry) => void) => {
+    const binding_helper = (dip: boolean, cb: (state: StackFrame, name: Thing<ThingType.name>, value: Thing, loc: LocationTrace) => void, refCb: (state: StackFrame, task: Task, ref: Thing<ThingType.reference>, value: Thing, loc: LocationTrace) => void): ((task: Task, state: StackFrame) => void) => {
         return (task, state) => {
             const name = state.argv[0]!;
             const value = state.argv[1]!;
@@ -198,7 +200,7 @@ export function initCoreSyntax(mod: NativeModule) {
         while (typecheck(ThingType.newline, ThingType.space)(values[0])) values.shift();
         while (typecheck(ThingType.newline, ThingType.space)(last(values))) values.pop();
         const value = boxRoundBlock(values, values[0]!.loc);
-        task.out(boxApply(boxNativeFunc("__build_lambda", state.value.loc), [name, value], state.value.loc));
+        task.out(boxApply(boxNativeFunc("__build_lambda", state.loc), [name, value], state.loc));
     });
     mod.defun("__build_lambda", "@params! @body", (task, state) => {
         const params = state.argv[0]!;
@@ -208,23 +210,25 @@ export function initCoreSyntax(mod: NativeModule) {
         task.out(new Thing(ThingType.func, [signature, body], null, "", "", " => ", params.loc));
     });
     /**
-     * Throw an error with the specified message
+     * Throw a fatal error with the specified message (cannot be caught using `with`)
      * @backolon
      * @category Errors
-     * @function error
+     * @function die
      * @param {string} message
      * @returns {never}
      * @example
      * ```backolon
-     * error "Something went wrong with {x}!"
+     * die "Something went very wrong with {x}!"
      * ```
      */
-    mod.defun("error", "message:string", (task, state) => {
-        throw new RuntimeError(state.argv[0]!.v, state.value.loc);
+    mod.defun("die", "message:string", (_, state) => {
+        throw new RuntimeError(state.argv[0]!.v, state.loc);
     });
     // initialize everything else
     control_flow(mod);
+    error_handling(mod);
     math(mod);
+    logic(mod);
     misc(mod);
     collections(mod);
     strings(mod);

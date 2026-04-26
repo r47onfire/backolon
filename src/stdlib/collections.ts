@@ -87,10 +87,10 @@ export function collections(mod: NativeModule) {
         }
     });
     mod.defun("__list", "items...", (task, state) => {
-        task.out(boxList(state.argv.slice(), state.value.loc));
+        task.out(boxList(state.argv.slice(), state.loc));
     });
     mod.defun("__dict", "items...", (task, state) => {
-        const loc = state.value.loc;
+        const loc = state.loc;
         const m = newEmptyMap(loc);
         const argv = state.argv;
         const len = argv.length;
@@ -192,7 +192,7 @@ export function collections(mod: NativeModule) {
         const groups: Thing<ThingType.map> = state.argv[0]! as any;
         const x = mapGetKey(groups, symbol_x)!;
         const y = mapGetKey(groups, symbol_y)!;
-        const loc = state.value.loc;
+        const loc = state.loc;
         task.out(makePrimitiveReference([x, y], "__getitem", "__setitem", state.env, loc));
     });
     /**
@@ -216,7 +216,7 @@ export function collections(mod: NativeModule) {
             boxOperatorSymbol("-", x.loc),
             boxOperatorSymbol(">", x.loc),
             boxString(y.v, y.loc, stringify(y.v), ""),
-        ], null, "", "", "", state.value.loc);
+        ], null, "", "", "", state.loc);
         task.out(arrowExpr);
     });
     mod.defop("__setitem", "setitem");

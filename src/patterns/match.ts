@@ -25,11 +25,17 @@ export class MatchResult {
 export function matchPattern(source: readonly Thing[], pattern: Thing<ThingType.pattern>, findAll = true): MatchResult[] {
     const queue: (NFASubstate | MatchResult)[] = [];
     const program: PatternProgram = compile(pattern);
+
     const addIfNotAlreadySeen = (item: NFASubstate, hashSet: Record<number, true>, i: number) => {
         if (hashSet[item.h]) return;
         hashSet[item.h] = true;
         queue.splice(i, 0, item);
-    }
+    };
+
+    // dependency stuff for lookahead groups
+    // Maps: stateHash -> Array<{isPositive, substateHashes}>
+    const lookaheadMap: Record<number, { s: number[], p: boolean }[]> = {};
+
     const zippy = (index: number, input: Thing | null, end: boolean) => {
         const waitingHashes = {};
         const progressHashes = {};
@@ -38,7 +44,7 @@ export function matchPattern(source: readonly Thing[], pattern: Thing<ThingType.
             if (orig instanceof MatchResult) continue;
             var k = i;
             queue.splice(i--, 1);
-            const result = orig.a(input, index, end);
+            const { n: result, d: deps, l: lookaheadFinished } = orig.a(input, index, end);
             for (var j = 0; j < result.length; j++) {
                 const newItem = result[j]!;
                 if (newItem.x) {

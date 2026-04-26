@@ -9,7 +9,7 @@ import { F, L } from "./astCheck";
 describe("step pattern NFA substates", () => {
     test("detects done", () => {
         const pat = compile(pattern(PatternType.sequence, 0));
-        expect(new NFASubstate(0, pat, 0).a(null, 1, true)[0]!.x).toBeTrue();
+        expect(new NFASubstate(0, pat, 0).a(null, 1, true).n[0]!.x).toBeTrue();
     })
     test("advances anchor cmds", () => {
         const pat = compile(pattern(PatternType.sequence, 0, L, [
@@ -19,13 +19,13 @@ describe("step pattern NFA substates", () => {
         const state = new NFASubstate(0, pat, 0);
         const sStep = new NFASubstate(0, pat, 1);
         const sStep2 = new NFASubstate(0, pat, 2);
-        expect(state.a(null, 0, false))
+        expect(state.a(null, 0, false).n)
             .toEqual([sStep]);
-        expect(state.a(null, 1, false))
+        expect(state.a(null, 1, false).n)
             .toEqual([]);
-        expect(sStep.a(null, 0, true))
+        expect(sStep.a(null, 0, true).n)
             .toEqual([sStep2]);
-        expect(sStep.a(null, 0, false))
+        expect(sStep.a(null, 0, false).n)
             .toEqual([]);
     });
     test("basic sequence", () => {
@@ -35,16 +35,16 @@ describe("step pattern NFA substates", () => {
             pattern(PatternType.match_value, 0, L, [boxNumber(4, L)])
         ]));
         const state = new NFASubstate(0, pat, 0);
-        const x1 = state.a(boxNumber(0, L), 0, false);
-        const c1 = state.a(boxNumber(2, L), 0, false);
+        const x1 = state.a(boxNumber(0, L), 0, false).n;
+        const c1 = state.a(boxNumber(2, L), 0, false).n;
         expect(x1).toEqual([]);
         expect(c1).toEqual([new NFASubstate(0, pat, 1)]);
-        const x2 = c1[0]!.a(boxNumber(1, L), 0, false);
-        const c2 = c1[0]!.a(boxNumber(3, L), 0, false);
+        const x2 = c1[0]!.a(boxNumber(1, L), 0, false).n;
+        const c2 = c1[0]!.a(boxNumber(3, L), 0, false).n;
         expect(x2).toEqual([]);
         expect(c2).toEqual([new NFASubstate(0, pat, 2)]);
-        const x3 = c2[0]!.a(boxNumber(2, L), 0, false);
-        const c3 = c2[0]!.a(boxNumber(4, L), 0, false);
+        const x3 = c2[0]!.a(boxNumber(2, L), 0, false).n;
+        const c3 = c2[0]!.a(boxNumber(4, L), 0, false).n;
         expect(x3).toEqual([]);
         expect(c3).toEqual([new NFASubstate(0, pat, 3)]);
         expect(c3[0]!.x).toBeTrue();
@@ -58,13 +58,13 @@ describe("step pattern NFA substates", () => {
         const input1 = boxNameSymbol("hi", L);
         const input2 = boxNameSymbol("bye", L);
         const input3 = boxNumber(123, L);
-        expect(state.a(null, 0, false))
+        expect(state.a(null, 0, false).n)
             .toEqual([state]);
-        expect(state.a(input1, 0, false))
+        expect(state.a(input1, 0, false).n)
             .toEqual([sStep]);
-        expect(state.a(input2, 0, false))
+        expect(state.a(input2, 0, false).n)
             .toEqual([sStep]);
-        expect(state.a(input3, 0, false))
+        expect(state.a(input3, 0, false).n)
             .toEqual([]);
     });
     test("matches by value", () => {
@@ -76,13 +76,13 @@ describe("step pattern NFA substates", () => {
         ]));
         const state = new NFASubstate(0, pat, 0);
         const sStep = new NFASubstate(0, pat, 1);
-        expect(state.a(null, 0, false))
+        expect(state.a(null, 0, false).n)
             .toEqual([state]);
-        expect(state.a(input1, 0, false))
+        expect(state.a(input1, 0, false).n)
             .toEqual([sStep]);
-        expect(state.a(input2, 0, false))
+        expect(state.a(input2, 0, false).n)
             .toEqual([]);
-        expect(state.a(input3, 0, false))
+        expect(state.a(input3, 0, false).n)
             .toEqual([]);
     });
     test("processed capture groups", () => {
@@ -93,13 +93,13 @@ describe("step pattern NFA substates", () => {
             ])
         ]));
         const state = new NFASubstate(0, pat, 0);
-        const stepped = state.a(null, 12345, false);
-        const stepped2 = stepped[0]!.a(boxNumber(123, L), 0, false);
+        const stepped = state.a(null, 12345, false).n;
+        const stepped2 = stepped[0]!.a(boxNumber(123, L), 0, false).n;
         expect(stepped).toEqual([new NFASubstate(0, pat, 1, { foo: [12345, null] }, ["foo"], { foo: boxNameSymbol("foo", L) })]);
-        expect(stepped[0]!.a(null, 0, false)).toEqual([stepped[0]!]);
+        expect(stepped[0]!.a(null, 0, false).n).toEqual([stepped[0]!]);
         expect(stepped2).toEqual([new NFASubstate(0, pat, 2, { foo: [12345, null] }, ["foo"], { foo: boxNameSymbol("foo", L) })]);
-        expect(stepped[0]!.a(boxNameSymbol("hi", L), 0, false)).toEqual([]);
-        expect(stepped2[0]!.a(null, 23456, false))
+        expect(stepped[0]!.a(boxNameSymbol("hi", L), 0, false).n).toEqual([]);
+        expect(stepped2[0]!.a(null, 23456, false).n)
             .toEqual([new NFASubstate(0, pat, 3, { foo: [12345, 23456] }, ["foo"], { foo: boxNameSymbol("foo", L) })]);
     });
     test("alternatives", () => {
@@ -109,13 +109,13 @@ describe("step pattern NFA substates", () => {
             inputs.map(n => pattern(PatternType.match_value, 0, L, [n])),
         ));
         const state = new NFASubstate(0, pat, 0);
-        const stepped = state.a(null, 0, false);
+        const stepped = state.a(null, 0, false).n;
         expect(stepped).toEqual(indexes.map(n =>
             new NFASubstate(0, pat, 2 * n + 1),
         ));
         for (var i = 0; i < stepped.length; i++) {
             for (var j = 0; j < inputs.length; j++) {
-                expect(stepped[i]!.a(inputs[j]!, 0, false))
+                expect(stepped[i]!.a(inputs[j]!, 0, false).n)
                     .toEqual(i === j ? [
                         new NFASubstate(0, pat, 2 * j + 2)
                     ] : [])
@@ -129,16 +129,16 @@ describe("step pattern NFA substates", () => {
             pattern(PatternType.match_value, 0, L, [input]),
         ]));
         const state = new NFASubstate(0, lazypattern, 0);
-        const stepped = state.a(null, 0, false);
+        const stepped = state.a(null, 0, false).n;
         expect(stepped).toEqual([
             new NFASubstate(0, lazypattern, 2),
             new NFASubstate(0, lazypattern, 1),
         ]);
-        expect(stepped[0]!.a(null, 0, false))
+        expect(stepped[0]!.a(null, 0, false).n)
             .toEqual([new NFASubstate(0, lazypattern, 2)]);
-        expect(stepped[1]!.a(null, 0, false))
+        expect(stepped[1]!.a(null, 0, false).n)
             .toEqual([stepped[1]!]);
-        expect(stepped[1]!.a(input, 0, false))
+        expect(stepped[1]!.a(input, 0, false).n)
             .toEqual([new NFASubstate(0, lazypattern, 2)]);
     });
     test("repeat", () => {
@@ -151,8 +151,8 @@ describe("step pattern NFA substates", () => {
         ]));
         const state = new NFASubstate(0, lazypattern, 0);
         const state2 = new NFASubstate(0, greedypattern, 0);
-        const stepped = state.a(input, 0, false)[0]!.a(null, 0, false);
-        const stepped2 = state2.a(input, 0, false)[0]!.a(null, 0, false);
+        const stepped = state.a(input, 0, false).n[0]!.a(null, 0, false).n;
+        const stepped2 = state2.a(input, 0, false).n[0]!.a(null, 0, false).n;
         // after repeat: the result index should have the exit first if lazy
         expect(stepped).toEqual([
             new NFASubstate(0, lazypattern, 2),
@@ -337,6 +337,96 @@ describe("full pattern match", () => {
         expect(resultslazysecond.map(r => (r.bindings[0]![1] as Thing[]).length))
             .toEqual(inputs.slice(1).map((_, i) => inputs.length - i - 1));
     })
+});
+describe("lookahead patterns", () => {
+    test("positive lookahead creates main and lookahead states", () => {
+        // Pattern: lookahead for number, then match dot
+        const lookaheadPattern = compile(pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.lookahead, true, L, [
+                pattern(PatternType.match_type, ThingType.number, L)
+            ]),
+            pattern(PatternType.dot, 0, L),
+        ]));
+        const state = new NFASubstate(0, lookaheadPattern, 0);
+        const stepped = state.a(null, 0, false).n;
+        // Should return 2 states: main state and lookahead state
+        expect(stepped.length).toBe(2);
+        const [mainState, lookaheadState] = stepped;
+        expect(mainState!.i).toBeGreaterThan(0); // Advanced past lookahead instruction
+    });
+    test("positive lookahead with matching input", () => {
+        const inputs = [boxNumber(1, L), boxNumber(2, L)];
+        const pat = pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.lookahead, true, L, [
+                pattern(PatternType.match_type, ThingType.number, L)
+            ]),
+            pattern(PatternType.match_type, ThingType.number, L),
+        ]);
+        const results = matchPattern(inputs, pat);
+        expect(results.length).toBeGreaterThan(0);
+    });
+    test("positive lookahead fails on wrong type", () => {
+        const input = boxNameSymbol("hi", L);
+        const lookaheadPattern = compile(pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.lookahead, true, L, [
+                pattern(PatternType.match_type, ThingType.number, L)
+            ]),
+            pattern(PatternType.dot, 0, L),
+        ]));
+        const state = new NFASubstate(0, lookaheadPattern, 0);
+        const stepped = state.a(null, 0, false).n;
+        const [, lookaheadState] = stepped;
+        const depStepped = lookaheadState!.a(input, 0, false).n;
+        // Should fail - lookahead doesn't match
+        expect(depStepped.length).toBe(0);
+    });
+    test("negative lookahead fails on match", () => {
+        const input = boxNumber(42, L);
+        const lookaheadPattern = compile(pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.lookahead, false, L, [
+                pattern(PatternType.match_type, ThingType.number, L)
+            ]),
+            pattern(PatternType.dot, 0, L),
+        ]));
+        const state = new NFASubstate(0, lookaheadPattern, 0);
+        const stepped = state.a(null, 0, false).n;
+        const [, lookaheadState] = stepped;
+        const depStepped = lookaheadState!.a(input, 0, false).n;
+        // Should succeed (but the negative lookahead semantics are inverted in the main loop)
+        expect(depStepped.length).toBe(1);
+    });
+    test("lookahead with sequence", () => {
+        const num1 = boxNumber(1, L);
+        const num2 = boxNumber(2, L);
+        const lookaheadPattern = compile(pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.lookahead, true, L, [
+                pattern(PatternType.sequence, 0, L, [
+                    pattern(PatternType.match_type, ThingType.number, L),
+                    pattern(PatternType.match_type, ThingType.number, L),
+                ])
+            ]),
+            pattern(PatternType.dot, 0, L),
+        ]));
+        const state = new NFASubstate(0, lookaheadPattern, 0);
+        const stepped = state.a(null, 0, false).n;
+        const [, lookaheadState] = stepped;
+        const depStep1 = lookaheadState!.a(num1, 0, false).n;
+        expect(depStep1.length).toBe(1);
+        const depStep2 = depStep1[0]!.a(num2, 0, false).n;
+        expect(depStep2.length).toBe(1);
+        expect(depStep2[0]!.x).toBeTrue();
+    });
+    test("lookahead state marking", () => {
+        const pat = compile(pattern(PatternType.sequence, 0, L, [
+            pattern(PatternType.lookahead, true, L, [
+                pattern(PatternType.dot, 0, L)
+            ]),
+            pattern(PatternType.dot, 0, L),
+        ]));
+        const state = new NFASubstate(0, pat, 0);
+        const stepped = state.a(null, 0, false).n;
+        const [mainState, lookaheadState] = stepped;
+    });
 });
 describe("metapattern", () => {
     const pstring = (src: string) => parsePattern(parse(src, F).c);

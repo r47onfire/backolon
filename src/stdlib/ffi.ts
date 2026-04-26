@@ -10,7 +10,6 @@ import { NativeModule } from "./module";
  */
 
 export function initFFI(mod: NativeModule) {
-    // Entry point functions for common JS globals
     /**
      * A reference to the Javascript global object
      * @backolon

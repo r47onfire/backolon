@@ -24,10 +24,8 @@ export function metaprogramming(mod: NativeModule) {
      * ```
      */
     mod.defsyntax("` x", 0, true, null, "__rewrite_quote", rewriteAsApply(x, "__quote"));
-    mod.defun("__quote", "@value", (task, state) => {
-        const item = state.argv[0] as Thing<ThingType.implicitfunc>;
-        task.out(item.c[0]);
-    });
+    mod.defun("__quote", "@value!", (task, state) => void task.out(state.argv[0]));
+
     mod.defun("__eval", "value env:[map nil]=nil patterns:[list nil]=nil inherit=true", (task, state) => {
         const valueToEval = state.argv[0]!;
         const envArg = state.argv[1]! as Thing<ThingType.map> | Thing<ThingType.nil>;
@@ -62,7 +60,7 @@ export function metaprogramming(mod: NativeModule) {
         return boxRoundBlock([...argv[0].c, ...argv[1].c], loc);
     });
     mod.defun("__block_wrap", "item", (task, state) => {
-        task.out(boxRoundBlock([state.argv[0]!], state.value.loc));
+        task.out(boxRoundBlock([state.argv[0]!], state.loc));
     });
     mod.defun("__change_block_type", "type:string block:roundblock", (task, state) => {
         const typeStr = state.argv[0]!.v;
@@ -79,7 +77,7 @@ export function metaprogramming(mod: NativeModule) {
             throw new RuntimeError(`invalid type name: ${stringify(typeStr)}`, state.argv[0]!.loc);
         }
         const { s0, s1 } = result;
-        task.out(boxBlock(c, type, loc, s0, s1));
+        task.out(boxBlock(c as Thing[], type, loc, s0, s1));
     });
     /**
      * Force the value to be spliced into its callsite.

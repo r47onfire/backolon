@@ -9,10 +9,14 @@ export function disassemblePattern(program: PatternProgram): string {
     if (program.length === 0) return "";
     const allSpans: Span[] = [];
     for (var i = 0; i < program.length; i++) {
-        if (program[i]?.[0] === PatternType.alternatives) {
-            for (var d of program[i]!.slice(1)) {
+        const inst = program[i];
+        if (!inst) continue;
+        if (inst[0] === PatternType.alternatives) {
+            for (var d of inst.slice(1)) {
                 allSpans.push([i, i + (d as number)]);
             }
+        } else if (inst[0] === PatternType.lookahead && inst[3]) {
+            allSpans.push([i, i + inst[3]]);
         }
     }
     const spanLanes: Span[][] = [];
@@ -78,5 +82,8 @@ function prettifyCommand(cmd: Command) {
             return `match type ${typeNameOf(cmd[1])}`;
         case PatternType.match_value:
             return `match ${stringify(cmd[1].v)}`;
+        case PatternType.lookahead:
+            return cmd[1] ? `${cmd[2] ? "positive" : "negative"} lookahead ${cmd[3]! > 0 ? `+${cmd[3]}` : cmd[3]}` : "end lookahead";
+        default: cmd[0] satisfies never;
     }
 }

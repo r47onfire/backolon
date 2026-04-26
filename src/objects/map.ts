@@ -1,6 +1,8 @@
 import { LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
 import { Thing, ThingType, typecheck } from "./thing";
 
+const isMap = typecheck(ThingType.map);
+
 /**
  * Create an empty Backolon map.
  */
@@ -21,7 +23,7 @@ export function newEmptyMap(srcLocation = UNKNOWN_LOCATION): Thing<ThingType.map
  * Returns undefined if the key is not found.
  */
 export function mapGetKey(map: Thing<ThingType.map>, key: Thing, opTrace?: LocationTrace): Thing | undefined {
-    if (!typecheck(ThingType.map)(map)){
+    if (!isMap(map)){
         throw new RuntimeError("Cannot search non-map", opTrace);
     }
     const pair = mapFindPair(map, key);
@@ -33,7 +35,7 @@ const childComparator = (a: Thing<ThingType.pair>, b: Thing<ThingType.pair>) => 
  * Add or update the value at the specified key, mutating the map.
  */
 export function mapUpdateKeyMutating(map: Thing<ThingType.map>, key: Thing, item: Thing, opTrace?: LocationTrace): void {
-    if (!typecheck(ThingType.map)(map)) {
+    if (!isMap(map)) {
         throw new RuntimeError("Cannot insert into non-map", opTrace);
     }
     const pair = mapFindPair(map, key);
@@ -49,7 +51,7 @@ export function mapUpdateKeyMutating(map: Thing<ThingType.map>, key: Thing, item
  * Return a new Backolon map with the given key inserted or updated. The original map is not modified.
  */
 export function mapUpdateKeyCopying(map: Thing<ThingType.map>, key: Thing, item: Thing, opTrace?: LocationTrace): Thing<ThingType.map> {
-    if (!typecheck(ThingType.map)(map)) {
+    if (!isMap(map)) {
         throw new RuntimeError("Cannot insert into non-map", opTrace);
     }
     const index = mapFindPairIndex(map, key);
@@ -61,7 +63,7 @@ export function mapUpdateKeyCopying(map: Thing<ThingType.map>, key: Thing, item:
  * Remove a key from a Backolon map by mutating the map. If the key is not present, nothing happens.
  */
 export function mapDeleteKeyMutating(map: Thing<ThingType.map>, key: Thing, opTrace?: LocationTrace): void {
-    if (!typecheck(ThingType.map)(map)) {
+    if (!isMap(map)) {
         throw new RuntimeError("Cannot delete from non-map", opTrace);
     }
     const index = mapFindPairIndex(map, key);
@@ -72,7 +74,7 @@ export function mapDeleteKeyMutating(map: Thing<ThingType.map>, key: Thing, opTr
  * Return a new Backolon map without the given key, or the original if the key is already gone.
  */
 export function mapDeleteKeyCopying(map: Thing<ThingType.map>, key: Thing, opTrace?: LocationTrace): Thing<ThingType.map> {
-    if (!typecheck(ThingType.map)(map)) {
+    if (!isMap(map)) {
         throw new RuntimeError("Cannot delete from non-map", opTrace);
     }
     const index = mapFindPairIndex(map, key);
@@ -87,7 +89,7 @@ function mapFindPairIndex(map: Thing<ThingType.map>, key: Thing, opTrace?: Locat
     if (targetKeyHash === null) {
         throw new RuntimeError("unhashable object", opTrace);
     }
-    if (len === 0) return undefined;
+    if (len === 0) return;
     var left = 0, right = lm1;
     for (; left <= right;) {
         const probe = left + ((right - left) >> 1);
@@ -102,7 +104,6 @@ function mapFindPairIndex(map: Thing<ThingType.map>, key: Thing, opTrace?: Locat
             right = probe - 1;
         }
     }
-    return undefined;
 }
 
 function mapFindPair(map: Thing<ThingType.map>, key: Thing, opTrace?: LocationTrace) {

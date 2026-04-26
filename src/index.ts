@@ -84,7 +84,7 @@ export {
 export {
     StackFlag,
     Task,
-    type StackEntry
+    type StackFrame
 } from "./runtime/task";
 export {
     BUILTINS_MODULE,

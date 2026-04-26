@@ -16,7 +16,7 @@ license: GPL-3.0-only
 
 **33 functions** — `fromJS`, `toJS`, `mapDeleteKeyCopying`, `mapDeleteKeyMutating`, `mapGetKey`, `mapUpdateKeyCopying`, `mapUpdateKeyMutating`, `newEmptyMap`, `boxBlock`, `boxBoolean`, `boxCurlyBlock`, `boxEnd`, `boxList`, `boxNameSymbol`, `boxNil`, `boxNumber`, `boxOperatorSymbol`, `boxRoundBlock`, `boxSpaceSymbol`, `boxSquareBlock`, `boxString`, `boxSymbol`, `boxToplevelBlock`, `typecheck`, `typeNameOf`, `parse`, `tokenize`, `matchPattern`, `parsePattern`, `pattern`, `newEnv`, `makePrimitiveReference`, `rewriteAsApply`
 **11 classes** — `BackolonError`, `ErrorNote`, `LocationTrace`, `ParseError`, `RuntimeError`, `Thing`, `Unparser`, `MatchResult`, `Scheduler`, `Task`, `NativeModule`
-**10 types** — `CheckedType`, `Token`, `Command`, `PatternProgram`, `Pattern`, `ParamDescriptor`, `NativeFunctionDetails`, `StackEntry`, `CustomApplicator`, `OperatorOverload`
+**10 types** — `CheckedType`, `Token`, `Command`, `PatternProgram`, `Pattern`, `ParamDescriptor`, `NativeFunctionDetails`, `StackFrame`, `CustomApplicator`, `OperatorOverload`
 **3 enums** — `ThingType`, `PatternType`, `StackFlag`
 
 ## Links

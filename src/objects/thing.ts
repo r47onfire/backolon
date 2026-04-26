@@ -1,6 +1,7 @@
+import { stringify } from "lib0/json";
 import { type LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
 import { type Pattern } from "../patterns/internals";
-import { type StackEntry } from "../runtime/task";
+import { type StackFrame } from "../runtime/task";
 import { javaHash, rotate32 } from "../utils";
 
 export enum ThingType {
@@ -140,6 +141,12 @@ export enum ThingType {
      * called to get or set the value that this reference refers to.
      */
     reference,
+    /**
+     * Represents an error value that can be caught and handled. The children are:
+     * [0] error type/name (name), [1] message (string), [2] restart options (map), [3] stack trace (list).
+     * This is a first-class value, not an exception.
+     */
+    error,
 }
 
 type ThingInternalTypes<T extends ThingType> = {
@@ -151,17 +158,17 @@ type ThingInternalTypes<T extends ThingType> = {
     [ThingType.newline]: [string, []],
     [ThingType.number]: [number | bigint, []],
     [ThingType.string]: [string, []],
-    [ThingType.roundblock]: [null, readonly Thing[]],
-    [ThingType.squareblock]: [null, readonly Thing[]],
-    [ThingType.curlyblock]: [null, readonly Thing[]],
-    [ThingType.topblock]: [null, readonly Thing[]],
+    [ThingType.roundblock]: [null, Thing[]],
+    [ThingType.squareblock]: [null, Thing[]],
+    [ThingType.curlyblock]: [null, Thing[]],
+    [ThingType.topblock]: [null, Thing[]],
     [ThingType.stringblock]: [null, readonly Thing<ThingType.string | ThingType.roundblock>[]],
     [ThingType.apply]: [significant: boolean, readonly Thing[]],
     [ThingType.func]: [name: string | null, readonly [signature: Thing<ThingType.squareblock>, body: Thing]],
     [ThingType.nativefunc]: [string, []],
     [ThingType.implicitfunc]: [Thing<ThingType.env> | Thing<ThingType.nil>, readonly [body: Thing]],
     [ThingType.paramdescriptor]: [[isLazy: boolean, isSplat: boolean, mustUnpack: boolean], readonly [name: Thing<ThingType.name>] | readonly [name: Thing<ThingType.name>, types: Thing<ThingType.list>] | readonly [name: Thing<ThingType.name>, types: Thing<ThingType.list>, defaultValue: Thing]],
-    [ThingType.continuation]: [readonly StackEntry[], []],
+    [ThingType.continuation]: [readonly StackFrame[], []],
     [ThingType.pattern]: [Pattern, readonly Thing[]],
     [ThingType.list]: [null, Thing[]],
     [ThingType.map]: [null, Thing<ThingType.pair>[]],
@@ -170,10 +177,11 @@ type ThingInternalTypes<T extends ThingType> = {
     [ThingType.env]: [null, readonly [parents: Thing<ThingType.list>, vars: Thing<ThingType.map>, patterns: Thing<ThingType.list>]]
     [ThingType.macroized]: [null, readonly [Thing]],
     [ThingType.splat]: [null, readonly Thing[]],
-    [ThingType.reference]: [null, readonly [get: Thing, set: Thing]]
+    [ThingType.reference]: [null, readonly [get: Thing, set: Thing]],
+    [ThingType.error]: [null, readonly [type: Thing<ThingType.name>, message: Thing<ThingType.string>, restarts: Thing<ThingType.map>, trace: Thing<ThingType.list>]]
 }[T];
 
-const unhashable = [ThingType.list, ThingType.map, ThingType.env];
+const unhashable = [ThingType.list, ThingType.map, ThingType.env, ThingType.error];
 type ValueType<T extends ThingType> = ThingInternalTypes<T>[0];
 type ChildrenType<T extends ThingType> = ThingInternalTypes<T>[1];
 
@@ -222,14 +230,15 @@ export function boxNumber(value: number | bigint, trace = UNKNOWN_LOCATION, repr
 export function boxBoolean(value: boolean, trace = UNKNOWN_LOCATION, repr = value.toString()) { return new Thing(ThingType.number, [], +value, repr, "", "", trace); }
 export function boxString(value: string, trace = UNKNOWN_LOCATION, raw: string, quote: string) { return new Thing(ThingType.string, [], value, quote + raw, quote, "", trace); }
 export function boxBlock<T extends ThingType.roundblock | ThingType.squareblock | ThingType.curlyblock | ThingType.stringblock | ThingType.topblock>(children: Thing<T>["c"], kind: T, trace = UNKNOWN_LOCATION, start: string, end: string, join = ""): Thing<T> { return new Thing(kind, children, null as any, start, end, join, trace); }
-export function boxRoundBlock(children: readonly Thing[], trace = UNKNOWN_LOCATION) { return boxBlock(children, ThingType.roundblock, trace, "(", ")"); }
-export function boxSquareBlock(children: readonly Thing[], trace = UNKNOWN_LOCATION, join = "") { return boxBlock(children, ThingType.squareblock, trace, "[", "]", join); }
-export function boxCurlyBlock(children: readonly Thing[], trace = UNKNOWN_LOCATION) { return boxBlock(children, ThingType.curlyblock, trace, "{", "}"); }
-export function boxToplevelBlock(children: readonly Thing[], trace = UNKNOWN_LOCATION) { return boxBlock(children, ThingType.topblock, trace, "", ""); }
+export function boxRoundBlock(children: Thing[], trace = UNKNOWN_LOCATION) { return boxBlock(children, ThingType.roundblock, trace, "(", ")"); }
+export function boxSquareBlock(children: Thing[], trace = UNKNOWN_LOCATION, join = "") { return boxBlock(children, ThingType.squareblock, trace, "[", "]", join); }
+export function boxCurlyBlock(children: Thing[], trace = UNKNOWN_LOCATION) { return boxBlock(children, ThingType.curlyblock, trace, "{", "}"); }
+export function boxToplevelBlock(children: Thing[], trace = UNKNOWN_LOCATION) { return boxBlock(children, ThingType.topblock, trace, "", ""); }
 export function boxStringBlock(children: Thing<ThingType.string | ThingType.roundblock>[], trace = UNKNOWN_LOCATION, quote: string) { return boxBlock(children, ThingType.stringblock, trace, quote, quote); }
 export function boxList(items: Thing[], trace = UNKNOWN_LOCATION, start = "[", end = "]", join = ", ") { return new Thing(ThingType.list, items, null, start, end, join, trace, false); }
 export function boxNativeFunc(name: string, trace = UNKNOWN_LOCATION) { return new Thing(ThingType.nativefunc, [], name, `<built-in ${name}>`, "", "", trace); }
 export function boxApply(func: Thing, args: readonly Thing[], trace = UNKNOWN_LOCATION, start = "(", end = ")", significant = false) { return new Thing(ThingType.apply, [func, ...args], significant, start, end, " ", trace); }
+export function boxErrorValue(type: Thing<ThingType.name>, message: Thing<ThingType.string>, restarts: Thing<ThingType.map>, trace: Thing<ThingType.list>, loc = UNKNOWN_LOCATION) { return new Thing(ThingType.error, [type, message, restarts, trace], null, "<error ", " >", " | ", loc, false); }
 
 
 // hack to make it one per Thing
@@ -252,16 +261,57 @@ export function typecheck<T extends (ThingType | string)>(...types: T[]) {
 export const isBlock = typecheck(ThingType.roundblock, ThingType.squareblock, ThingType.curlyblock, ThingType.stringblock, ThingType.topblock);
 export const isSymbol = typecheck(ThingType.name, ThingType.operator, ThingType.space);
 export const isCallable = typecheck(ThingType.func, ThingType.nativefunc, ThingType.implicitfunc, ThingType.continuation);
-export const isAtom = typecheck(ThingType.nil, ThingType.done, ThingType.name, ThingType.operator, ThingType.number, ThingType.string, ThingType.func, ThingType.implicitfunc, ThingType.nativefunc, ThingType.continuation, ThingType.list, ThingType.map, ThingType.splat, ThingType.macroized);
+export const isAtom = typecheck(ThingType.nil, ThingType.done, ThingType.name, ThingType.operator, ThingType.number, ThingType.string, ThingType.func, ThingType.implicitfunc, ThingType.nativefunc, ThingType.continuation, ThingType.list, ThingType.map, ThingType.splat, ThingType.macroized, ThingType.error);
 
 export type CheckedType<T extends (thing: Thing<any>) => thing is Thing<any>> = T extends (thing: Thing<any>) => thing is Thing<infer U> ? U : never;
 
-// Why does this exist
-export function extractSymbolName(thing: Thing): string {
-    if (!isSymbol(thing)) {
-        throw new RuntimeError("Expected symbol", thing.loc);
+const valueStringOrNil = (t: Thing) => t.v !== null ? boxString(t.v as string, t.loc, stringify(t.v), "") : boxNil(t.loc);
+const indexer = (i: number) => (t: Thing) => t.c[i]!;
+const childrenList = (t: Thing) => boxList(t.c as Thing[], t.loc);
+
+const FIELDS: Partial<Record<string | ThingType, Record<string, (thing: Thing) => Thing>>> = {
+    [ThingType.func]: {
+        name: valueStringOrNil,
+        body: indexer(1),
+    },
+    [ThingType.error]: {
+        type: indexer(0),
+        message: indexer(1),
+        restarts: indexer(2),
+        trace: indexer(3),
+    },
+    [ThingType.implicitfunc]: {
+        body: indexer(0),
+    },
+    [ThingType.roundblock]: {
+        body: childrenList,
+    },
+    [ThingType.squareblock]: {
+        body: childrenList,
+    },
+    [ThingType.curlyblock]: {
+        body: childrenList,
+    },
+    [ThingType.stringblock]: {
+        body: childrenList,
+    },
+    [ThingType.topblock]: {
+        body: childrenList,
     }
-    return thing.v;
+};
+
+/**
+ * Extracts a named field from a Thing object (used for the `:fieldName` operator).
+ * Returns the field value as a Thing, or throws an error if the field doesn't exist.
+ */
+export function getThingField(thing: Thing, fieldName: string): Thing {
+    const loc = thing.loc;
+    if (fieldName === "type") return boxNameSymbol(typeNameOf(thing.t), loc);
+    const table = FIELDS[thing.t];
+    if (!table) throw new RuntimeError(`${typeNameOf(thing.t)} has no fields`, loc);
+    const getter = table[fieldName];
+    if (!getter) throw new RuntimeError(`${typeNameOf(thing.t)} has no field ${stringify(fieldName)}`, loc);
+    return getter(thing);
 }
 
 /**

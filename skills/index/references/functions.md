@@ -109,10 +109,10 @@ boxBoolean(value: boolean, trace: LocationTrace, repr: string): Thing<number>
 
 ## `boxCurlyBlock`
 ```ts
-boxCurlyBlock(children: readonly Thing<string | ThingType>[], trace: LocationTrace): Thing<curlyblock>
+boxCurlyBlock(children: Thing<string | ThingType>[], trace: LocationTrace): Thing<curlyblock>
 ```
 **Parameters:**
-- `children: readonly Thing<string | ThingType>[]` — 
+- `children: Thing<string | ThingType>[]` — 
 - `trace: LocationTrace` — default: `UNKNOWN_LOCATION` — 
 **Returns:** `Thing<curlyblock>`
 
@@ -175,10 +175,10 @@ boxOperatorSymbol(value: string, trace: LocationTrace): Thing<operator>
 
 ## `boxRoundBlock`
 ```ts
-boxRoundBlock(children: readonly Thing<string | ThingType>[], trace: LocationTrace): Thing<roundblock>
+boxRoundBlock(children: Thing<string | ThingType>[], trace: LocationTrace): Thing<roundblock>
 ```
 **Parameters:**
-- `children: readonly Thing<string | ThingType>[]` — 
+- `children: Thing<string | ThingType>[]` — 
 - `trace: LocationTrace` — default: `UNKNOWN_LOCATION` — 
 **Returns:** `Thing<roundblock>`
 
@@ -193,10 +193,10 @@ boxSpaceSymbol(value: string, trace: LocationTrace): Thing<space>
 
 ## `boxSquareBlock`
 ```ts
-boxSquareBlock(children: readonly Thing<string | ThingType>[], trace: LocationTrace, join: string): Thing<squareblock>
+boxSquareBlock(children: Thing<string | ThingType>[], trace: LocationTrace, join: string): Thing<squareblock>
 ```
 **Parameters:**
-- `children: readonly Thing<string | ThingType>[]` — 
+- `children: Thing<string | ThingType>[]` — 
 - `trace: LocationTrace` — default: `UNKNOWN_LOCATION` — 
 - `join: string` — default: `""` — 
 **Returns:** `Thing<squareblock>`
@@ -224,10 +224,10 @@ boxSymbol<T>(value: string, kind: T, trace: LocationTrace): Thing<T>
 
 ## `boxToplevelBlock`
 ```ts
-boxToplevelBlock(children: readonly Thing<string | ThingType>[], trace: LocationTrace): Thing<topblock>
+boxToplevelBlock(children: Thing<string | ThingType>[], trace: LocationTrace): Thing<topblock>
 ```
 **Parameters:**
-- `children: readonly Thing<string | ThingType>[]` — 
+- `children: Thing<string | ThingType>[]` — 
 - `trace: LocationTrace` — default: `UNKNOWN_LOCATION` — 
 **Returns:** `Thing<topblock>`
 
@@ -357,11 +357,11 @@ makePrimitiveReference(startArgs: Thing<string | ThingType>[], getter: string, s
 ## `rewriteAsApply`
 Helper to rewrite pattern handlers into apply forms for native builtins.
 ```ts
-rewriteAsApply(symbols: Thing<name>[], builtinName: string, start?: string, end?: string): (task: Task, state: StackEntry) => void
+rewriteAsApply(symbols: Thing<name>[], builtinName: string, start?: string, end?: string): (task: Task, state: StackFrame) => void
 ```
 **Parameters:**
 - `symbols: Thing<name>[]` — 
 - `builtinName: string` — 
 - `start: string` (optional) — 
 - `end: string` (optional) — 
-**Returns:** `(task: Task, state: StackEntry) => void`
+**Returns:** `(task: Task, state: StackFrame) => void`

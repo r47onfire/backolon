@@ -5,6 +5,7 @@
         "callcc",
         "defop",
         "defun",
+        "esbuild",
         "exuo",
         "imaginarny",
         "jsfuzz",

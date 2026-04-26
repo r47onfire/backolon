@@ -1,7 +1,9 @@
+import { stringify } from "lib0/json";
 import { RuntimeError } from "../errors";
-import { boxList, boxNil, boxNumber, Thing, ThingType, typecheck } from "../objects/thing";
+import { mapGetKey } from "../objects/map";
+import { boxApply, boxList, boxNativeFunc, boxNil, boxNumber, boxString, getThingField, Thing, ThingType, typecheck } from "../objects/thing";
 import { DEFAULT_UNPARSER } from "../parser/unparse";
-import { NativeModule } from "./module";
+import { NativeModule, symbol_x, symbol_y } from "./module";
 
 /**
  * @file
@@ -66,7 +68,32 @@ export function misc(mod: NativeModule) {
         const step2 = BigInt(step);
         const list: Thing<ThingType.number>[] = [];
         for (var i = start2; (step2 > 0n ? i < stop2 : i > stop2); i += step2)
-            list.push(boxNumber(i, state.value.loc));
-        task.out(boxList(list, state.value.loc));
+            list.push(boxNumber(i, state.loc));
+        task.out(boxList(list, state.loc));
+    });
+    /**
+     * Access a field of a Thing using the `:` operator
+     * @backolon
+     * @category Object Access
+     * @syntax Field Access
+     * @pattern object : fieldname
+     * @example
+     * ```backolon
+     * x := [f] => 123
+     * y := x
+     * y:type # => func
+     * y:name # => "x"
+     * ```
+     */
+    mod.defsyntax("x : [y:name]", -1000, false, null, "__rewrite_field_access", (task, state) => {
+        const groups: Thing<ThingType.map> = state.argv[0]! as any;
+        const obj = mapGetKey(groups, symbol_x)!;
+        const field = mapGetKey(groups, symbol_y) as Thing<ThingType.name>;
+        task.out(boxApply(boxNativeFunc("__get_field", state.loc), [obj, boxString(field.v, field.loc, stringify(field.v), "")], state.loc));
+    });
+    mod.defun("__get_field", "obj field:string", (task, state) => {
+        const obj = state.argv[0]!;
+        const field = state.argv[1]!.v;
+        task.out(getThingField(obj, field));
     });
 }

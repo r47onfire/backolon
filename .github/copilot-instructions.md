@@ -19,7 +19,7 @@ for an overview of the language itself and its syntax and behavior, check out th
   * don't use `pnpm build-for-fuzzer`; that builds it as a CommonJS module which is only used by the fuzzer and not exported/uploaded to npm
   * don't use `pnpm tsc`; that will only lint and not build (tsc is set to `noEmit: true` since esbuild handles building)
 
-* to run the unit tests: `AGENT=1 pnpm test`, or start a background terminal and `AGENT=1 pnpm test:watch` (which reruns automatically on file changes).
+* to run the unit tests (doesn't require build beforehand): `AGENT=1 pnpm test`, or start a background terminal and `AGENT=1 pnpm test:watch` (which reruns automatically on file changes).
 
 * to fuzz test: `pnpm fuzz {entrypoint}`
   * this runs the fuzzer on `test/fuzz/{entrypoint}.fuzz.cjs`
@@ -40,9 +40,10 @@ src/
   stdlib/         # builtin macros/functions that define core syntax and functionality
 test/             # Bun-based tests and fuzzing harnesses
   fuzz/           # fuzz targets (inputs folder's contents is .gitignore'd; none of them are seeds)
+website/          # files for backolon.js.org
 ```
 
-Top‑level exports live in `src/index.ts`.
+Top‑level exports live in `src/index.ts` and `src/plugin/index.ts` for the esbuild/bun plugin.
 
 ---
 
@@ -55,7 +56,7 @@ Top‑level exports live in `src/index.ts`.
   * avoid unnecessary whitespace changes
 * always place the opening brace on the same line, and the closing brace on its own line, with the only exception being a `} else {` when it's a simple if-else (no else-ifs).
 * prefer double-quoted strings over single-quoted strings where possible
-* give all object properties that are not meant to be used directly (even if you can't mark them `private`) names that start with `_` - that way esbuild can name-mangle all the properties that start with `_` without consequence (currently turned off but it's easy to put back).
+* give all object properties that are not meant to be used directly (even if you can't mark them `private`) names that start with `_` - that way bun can name-mangle all the properties that start with `_` without consequence (currently turned off but it's easy to put back).
   * for user-facing properties, the name length should be inversely proportional to its frequency of use. For example all the properties of `Thing` get used a lot so they have one-character names (but doc comments to explain what they are).
 * let the code speak for itself. stating what the code does in a comment, when it would be obvious by reading it, just wastes time (and tokens). however, do not be shy about explaining potentially counterintuitive behavior or gotchas.
 

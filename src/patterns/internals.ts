@@ -1,5 +1,5 @@
 import { map } from "lib0/object";
-import { extractSymbolName, isAtom, isBlock, Thing, ThingType, typecheck } from "../objects/thing";
+import { isAtom, isBlock, Thing, ThingType, typecheck } from "../objects/thing";
 import { javaHash, rotate32, x23 } from "../utils";
 import { PatternProgram } from "./compile";
 
@@ -21,6 +21,10 @@ export enum PatternType {
      * Capture group into a symbol name `[name(a)]`
      */
     capture_group,
+    /**
+     * Positive lookahead `[?a]` or negative lookahead `[!a]` - matches if pattern matches or doesn't match at current position
+     */
+    lookahead,
     // atoms
     /**
      * Matches anything as a wildcard. Used for bare names like `x`.
@@ -54,11 +58,28 @@ export interface Pattern {
     readonly t: PatternType,
     /**
      * * For {@link PatternType#repeat repeat}, true if the repeat is greedy.
+     * * For {@link PatternType#lookahead lookahead}, true if the lookahead is a positive lookahead.
      * * For {@link PatternType#anchor anchor}, true if the anchor is to the start.
      * * For {@link PatternType#match_type match_type}, it is the numeric {@link ThingType} to be matched.
      * * For all other pattern types, it is unused.
      */
     readonly gsv: boolean | number;
+}
+
+export interface SubstateAdvanceResult {
+    /** new substates */
+    n: NFASubstate[];
+    /** dependency map */
+    d?: {
+        /** hash of main */
+        m: number,
+        /** hash of lookahead */
+        l: number,
+        /** positive */
+        p: boolean
+    }
+    /** lookahead finish */
+    l?: boolean;
 }
 
 export class NFASubstate {
@@ -87,23 +108,32 @@ export class NFASubstate {
         return this.i >= this.p.length;
     }
 
-    a(input: Thing | null, inputIndex: number, isAtEnd: boolean): NFASubstate[] {
+    a(input: Thing | null, inputIndex: number, isAtEnd: boolean): SubstateAdvanceResult {
         const item = this.p[this.i];
-        if (!item) return [this]; // we're done, but that will be caught
+        if (!item) return { n: [this] }; // we're done, but that will be caught
         switch (item[0]) {
             case PatternType.alternatives:
-                return item.slice(1).map(i => this.u(this.i + i));
+                return { n: item.slice(1).map(i => this.u(this.i + i)) };
             case PatternType.capture_group:
-                return [this.u(this.i + 1, item[1], inputIndex, item[2], item[3])];
+                return { n: [this.u(this.i + 1, item[1], inputIndex, item[2], item[3])] };
             case PatternType.dot:
                 // ThingType.pattern is needed to for the metapattern parsing to work
-                return input ? ((isAtom(input) || isBlock(input) || typecheck(ThingType.apply, ThingType.reference, ThingType.pattern)(input)) ? [this.n()] : []) : [this];
+                return { n: input ? ((isAtom(input) || isBlock(input) || typecheck(ThingType.apply, ThingType.reference, ThingType.pattern)(input)) ? [this.n()] : []) : [this] };
             case PatternType.anchor:
-                return (item[1] ? inputIndex === 0 : isAtEnd) ? [this.n()] : [];
+                return { n: (item[1] ? inputIndex === 0 : isAtEnd) ? [this.n()] : [] };
             case PatternType.match_type:
-                return input !== null ? (input.t === item[1] ? [this.n()] : []) : [this];
+                return { n: input !== null ? (input.t === item[1] ? [this.n()] : []) : [this] };
             case PatternType.match_value:
-                return input !== null ? (input.v === item[1].v ? [this.n()] : []) : [this];
+                return { n: input !== null ? (input.v === item[1].v ? [this.n()] : []) : [this] };
+            case PatternType.lookahead: {
+                if (!item[1]) return { n: [], l: true };
+                const lookaheadState = this.n();
+                const mainState = this.u(this.i + item[3]!);
+                return {
+                    n: [mainState, lookaheadState],
+                    d: { m: mainState.h, l: lookaheadState.h, p: item[2]! }
+                };
+            }
         }
     }
     n() {
@@ -115,7 +145,7 @@ export class NFASubstate {
         var sources = this.bs;
         var atomics = this.ab;
         if (binding) {
-            const name = extractSymbolName(binding);
+            const name = binding.v;
             bindings = { ...bindings };
             if (bindingIsSecond) {
                 bindings[name] = bindings[name]!.with(1, bindingIndex) as any;

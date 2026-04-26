@@ -19,17 +19,31 @@ import { type Scheduler } from "./scheduler";
 export enum StackFlag {
     /**
      * Normally, a native function is treated as a value and returned; however,
-     * when one is called it needs to be the {@link StackEntry#value|value} of the
-     * {@link StackEntry} it's in so that its arguments can be processed. That stack has this
+     * when one is called it needs to be the {@link StackFrame#value|value} of the
+     * {@link StackFrame} it's in so that its arguments can be processed. That stack has this
      * flag set to mark that it's actually being called and not just returned.
      */
     native_func_being_evaluated = 1,
+    /**
+     * Flag used to indicate that a stack frame has been pushed as a result of a continuation switching stacks.
+     */
+    via_continuation_switch = 2,
+    /**
+     * Frame is the enter callback of a `with` construct and should be left
+     * on the stack to be called when a continuation jumps "in".
+     */
+    on_enter = 4,
+    /**
+     * Frame is the exit callback of a `with` construct and should be left
+     * on the stack to be called when a continuation jumps "out" or we're returning normally.
+     */
+    on_exit = 8,
 }
 
 /**
  * A single stack frame in the Backolon evaluator.
  */
-export class StackEntry {
+export class StackFrame {
     constructor(
         /** current value being evaluated */
         public readonly value: Thing,
@@ -39,7 +53,7 @@ export class StackEntry {
         public readonly argv: readonly Thing[],
         /** current environment */
         public readonly env: Thing<ThingType.env> | Thing<ThingType.nil>,
-        /** resolved name of the stack entry if it is determined to be significant */
+        /** resolved name of the stack frame if it is determined to be significant */
         public readonly name: string | null,
         /** current index in evaluating args */
         public readonly index = 0,
@@ -49,19 +63,18 @@ export class StackEntry {
         public readonly data: any = null,
         /** state flags */
         public readonly flags = 0,
-        /** name of stack entry */
     ) { }
     sd(index: number, state: number, data: any) {
-        return new StackEntry(this.value, this.loc, this.argv, this.env, this.name, index, state, data, this.flags);
+        return new StackFrame(this.value, this.loc, this.argv, this.env, this.name, index, state, data, this.flags);
     }
     g(args: Thing[]) {
-        return new StackEntry(this.value, this.loc, args, this.env, this.name, this.index, this.cookie, this.data, this.flags);
+        return new StackFrame(this.value, this.loc, args, this.env, this.name, this.index, this.cookie, this.data, this.flags);
     }
     f(toSet: number, toClear: number) {
-        return new StackEntry(this.value, this.loc, this.argv, this.env, this.name, this.index, this.cookie, this.data, (this.flags & (~toClear)) | toSet);
+        return new StackFrame(this.value, this.loc, this.argv, this.env, this.name, this.index, this.cookie, this.data, (this.flags & (~toClear)) | toSet);
     }
     e(newEnv: Thing<ThingType.env>) {
-        return new StackEntry(this.value, this.loc, this.argv, newEnv, this.name, this.index, this.cookie, this.data, this.flags);
+        return new StackFrame(this.value, this.loc, this.argv, newEnv, this.name, this.index, this.cookie, this.data, this.flags);
     }
 }
 
@@ -88,11 +101,16 @@ export class Task {
      * If true, the scheduler will not run this task until it is resumed by setting suspended to false.
      */
     suspended = false;
-    stack: readonly StackEntry[] = [];
+    stack: readonly StackFrame[] = [];
     /**
      * Represents the result of the last evaluated expression, used for returning values to whatever started this task.
      */
     result: Thing | null = null;
+    /**
+     * If true, the current frame has failed with an error value. The error is stored in result.
+     * If a frame doesn't have handles_error or on_exit set, the error will propagate up the stack.
+     */
+    failed = false;
     constructor(public priority: number, public scheduler: Scheduler,
         code: Thing, env: Thing<ThingType.env> | Thing<ThingType.nil>) {
         this.enter(code, code.loc, env);
@@ -259,7 +277,7 @@ export class Task {
                                 this.a(val, top.argv[0]!, top.argv.slice(1), top.env, undefined, (val as Thing<ThingType.apply>).v);
                                 return true;
                             }
-                            const desc = getNthDescriptor(getParamDescriptors(top.argv[0]!, this.scheduler, val), top.argv.length - 1);  // -1 to account for offset of functor
+                            const desc = getNthDescriptor(getParamDescriptors(top.argv[0]!, this.scheduler), top.argv.length - 1);  // -1 to account for offset of functor
                             const arg = children[top.index]!;
                             this.updateCookie(top.index, ApplyEvalState.waiting_for_arg_result, null);
                             if (isLazy(desc)) {
@@ -421,7 +439,7 @@ export class Task {
         }
     }
     /**
-     * Update the current stack entry with new arguments, returning the new stack entry.
+     * Update the current stack frame with new arguments, returning the new stack frame.
      */
     updateArgs(args: Thing[]) {
         const val = this.stack.at(-1)!.g(args);
@@ -429,13 +447,13 @@ export class Task {
         return val;
     }
     /**
-     * Update the current stack entry with a new cookie value(s), returning the new stack entry.
+     * Update the current stack frame with a new cookie value(s), returning the new stack frame.
      * The cookie is used to track internal evaluation state for constructs that call back into Backolon code,
      * so the Javascript implementation knows where it was and can resume evaluation from the correct point when the Backolon code returns.
      *
      * The exact meaning of the cookie value(s) depends on the construct being evaluated.
      * 
-     * @param data An optional additional data to store in the stack entry. If not provided, the data value from the current stack entry is used.
+     * @param data An optional additional data to store in the stack frame. If not provided, the data value from the current stack frame is used.
      */
     updateCookie(index: number, state: number, data?: any) {
         const top = this.stack.at(-1)!;
@@ -444,7 +462,7 @@ export class Task {
         return updated;
     }
     /**
-     * Updates the current stack entry with new flags, returning the new stack entry.
+     * Updates the current stack frame with new flags, returning the new stack frame.
      * @see {@link StackFlag}
      * @param toClear Bitmask of flags to clear
      * @param toSet Bitmask of flags to set (takes precedence over `toClear`)
@@ -456,7 +474,7 @@ export class Task {
         return updated;
     }
     /**
-     * Updates the current stack entry with a new environment, returning the new stack entry. This is used when entering a new scope (e.g. injecting context-sensitive information).
+     * Updates the current stack frame with a new environment, returning the new stack frame. This is used when entering a new scope (e.g. injecting context-sensitive information).
      */
     updateEnv(newEnv: Thing<ThingType.env>) {
         const top = this.stack.at(-1)!;
@@ -470,14 +488,23 @@ export class Task {
      * @param name The name of the stack frame, if it is significant and should appear in a stack trace.
      */
     enter(code: Thing, loc: LocationTrace, env: Thing<ThingType.env> | Thing<ThingType.nil>, args: readonly Thing[] = [], name?: string | null) {
-        this.stack = this.stack.toSpliced(Infinity, 0, new StackEntry(code, loc, args, env, name ?? null));
+        this.stack = this.stack.toSpliced(Infinity, 0, new StackFrame(code, loc, args, env, name ?? null));
+    }
+    setCall(func: Thing, argv: Thing[], loc: LocationTrace, env: Thing<ThingType.env> | Thing<ThingType.nil>) {
+        // TODO: munge state so that it will call immediately when returning
+        this.enter(boxApply(func, [...argv, boxNil(loc)], loc), loc, env, argv);
+        this.updateCookie(argv.length, ApplyEvalState.waiting_for_arg_result);
+        throw 1;
     }
     /**
      * Exit the current stack frame, optionally with a result to return to the caller.
      * The result will be passed back to whatever got us here (e.g. the parent stack frame or the creator of the task).
+     * If the `failed` parameter is provided, it sets {@link Task#failed|this.failed} to it.
+     * Returns the new top stack frame.
      */
-    out(result?: Thing): StackEntry {
+    out(result?: Thing, failed?: boolean): StackFrame {
         this.result = result ?? this.result;
+        if (failed !== undefined) this.failed = failed;
         return (this.stack = this.stack.toSpliced(-1, 1)).at(-1)!;
     }
     /**
@@ -486,7 +513,7 @@ export class Task {
      *
      * If depth is greater than or equal to the current stack size, the callback will be called with the bottom of the stack (which is usually the global scope).
      */
-    dip(depth: number, cb: (state: StackEntry) => void) {
+    dip(depth: number, cb: (state: StackFrame) => void) {
         if (this.stack.length > depth) {
             const end = this.stack.slice(-depth);
             cb((this.stack = this.stack.slice(0, -depth)).at(-1)!);
