@@ -56,7 +56,7 @@ export class NativeModule {
     env: Thing<ThingType.env>;
     funcs: Record<string, NativeFunctionDetails> = {};
     ops: Record<string, Partial<Record<number, OperatorOverload[]>>> = {};
-    applicators: Partial<Record<string, CustomApplicator>> = {};
+    applicators: Partial<Record<ThingType | string, CustomApplicator>> = {};
     constructor(public name: string, public loc: LocationTrace) {
         this.env = newEnv(newEmptyMap(loc), boxList([], loc), loc);
     }
@@ -127,7 +127,7 @@ export class NativeModule {
     /**
      * Defines a custom applicator for a given type of functor. The applicator will be called with the functor, arguments, and callsite information whenever an apply form with a functor of the given type is evaluated in Backolon code.
      */
-    defcall(type: string, applicator: CustomApplicator) {
+    defcall(type: ThingType | string, applicator: CustomApplicator) {
         this.applicators[type] = applicator;
     }
 }
