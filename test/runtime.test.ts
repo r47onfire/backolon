@@ -1,4 +1,5 @@
-import { BackolonVM, Finder, Importer, IndexResolver, NoModuleError } from "@r47onfire/backolon";
+import { BackolonVM, Finder, Importer, IndexResolver, Module } from "@r47onfire/backolon";
+import { peekData, popData } from "@r47onfire/jeb";
 import { makeTestRun, runAsync } from "@r47onfire/jeb/test";
 import { expect, test } from "bun:test";
 
@@ -28,7 +29,9 @@ const testTest = makeTestRun(class extends BackolonVM { constructor() { super(ne
 testTest(test, "foo", async (vm, out) => {
     main(vm, "print 'hello world'");
     expect(await runAsync(vm, MAIN)).toBeTrue();
-    expect(vm.popData()).toBeUndefined();
+    const mod = popData(vm) as Module;
+    expect(mod).toBeInstanceOf(Module);
+    expect(mod.parent).toBeNull();
     expect(out).toEqual(["hello world"]);
 });
 

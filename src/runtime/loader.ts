@@ -1,9 +1,8 @@
-import { Continuation, OP_apply, OP_eval, OP_set_env, pushCommand, pushData } from "@r47onfire/jeb";
-import { Span } from "../parser/span";
-import { Importer, SourceTracker } from "./importer";
-import { JSONModule, JSONSourceMap } from "./jsmod";
+import { Continuation, OP_apply, pushCommand, pushData } from "@r47onfire/jeb";
+import { Importer } from "./importer";
 import { Module } from "./module";
 import { BackolonVM } from "./vm";
+import { OP_runModule } from "../parser";
 
 /**
  * Object whose job it is to download or open the file
@@ -35,32 +34,32 @@ export class JavascriptModuleLoader extends Loader {
     }
 }
 
-/**
- * Loader that handles loading compiled / pre-parsed JSON modules
- */
-export class JSONModuleLoader extends Loader {
-    match(url: URL): Loader | undefined {
-        if (url.pathname.endsWith(".bk.json")) return this;
-    }
-    async load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
-        var { code, sourceMap, files } = await importer.getJSON(url) as JSONModule;
-        vm.currentEnv = module.global;
-        const absFiles = files.map(f => new URL(f, url));
-        // TODO: make the data be sloinked and use sloink to rewrite the tagged indices on load time
-        if (sourceMap && files) {
-            absFiles.forEach(f => vm.fileIndex(f));
-            (importer.getJSON(new URL(sourceMap, url)) as Promise<JSONSourceMap>).then(({ mappings, contents }) => {
-                return absFiles.forEach((f, i) => {
-                    vm.maps[f.href] = mappings[i]!.map(({ 0: start, 1: end }) => new Span(url, start, end));
-                    return vm.sources[f.href] = new SourceTracker(f, contents[i]!, {});
-                });
-            });
-        }
-        pushCommand(vm, OP_set_env, vm.currentEnv);
-        pushCommand(vm, OP_eval, undefined);
-        pushData(vm, code);
-    }
-}
+// /**
+//  * Loader that handles loading compiled / pre-parsed JSON modules
+//  */
+// export class JSONModuleLoader extends Loader {
+//     match(url: URL): Loader | undefined {
+//         if (url.pathname.endsWith(".bk.json")) return this;
+//     }
+//     async load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
+//         var { code, sourceMap, files } = await importer.getJSON(url) as JSONModule;
+//         vm.currentEnv = module.global;
+//         const absFiles = files.map(f => new URL(f, url));
+//         // TODO: make the data be sloinked and use sloink to rewrite the tagged indices on load time
+//         if (sourceMap && files) {
+//             absFiles.forEach(f => vm.fileIndex(f));
+//             (importer.getJSON(new URL(sourceMap, url)) as Promise<JSONSourceMap>).then(({ mappings, contents }) => {
+//                 return absFiles.forEach((f, i) => {
+//                     vm.maps[f.href] = mappings[i]!.map(({ 0: start, 1: end }) => new Span(f, start, end));
+//                     return vm.sources[f.href] = new SourceTracker(f, contents[i]!, {});
+//                 });
+//             });
+//         }
+//         pushCommand(vm, OP_set_env, vm.currentEnv);
+//         pushCommand(vm, OP_eval, undefined);
+//         pushData(vm, code);
+//     }
+// }
 
 /**
  * Loader that handles loading Backolon source code
@@ -73,6 +72,7 @@ export class BackolonSourceModuleLoader extends Loader {
         const text = await importer.getText(url);
         pushData(vm, new Continuation(vm, []));
         pushCommand(vm, OP_apply, [module], undefined, true, true);
-        throw new Error("need to load " + JSON.stringify(text));
+        pushCommand(vm, OP_runModule, vm.registerSource(url, text));
+        vm.currentEnv = module.global;
     }
 }

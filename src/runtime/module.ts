@@ -17,6 +17,7 @@ export class Module {
     parent: Module | null;
     constructor(public global: Env, public id: URL, parent: Module | null) {
         this.parent = parent;
+        this.global.addConst(MODULE_SELF, this);
     }
 }
 
@@ -24,4 +25,10 @@ export class Module {
  * Special symbol identifier used to identify module names that can't be shadowed.
  */
 export const MODULE_NAME = Symbol("__name__");
+
+/**
+ * Special symbol identifier used to link a module's environment back to the module
+ * object itself
+ */
+export const MODULE_SELF = Symbol("__self__");
 

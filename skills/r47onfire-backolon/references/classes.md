@@ -1,21 +1,5 @@
 # Classes
 
-## errors
-
-### `BackolonError`
-An error from Backolon code that contains the location in the source that caused the error.
-*extends `JEBError`*
-```ts
-constructor(message: string, context: Record<string, any> & ErrorOptions, traceback?: StackTreeNode[]): BackolonError
-```
-
-### `NoModuleError`
-Error raised when the module is not found (404, network down, ENOENT, etc).
-*extends `BackolonError`*
-```ts
-constructor(message: string, context: Record<string, any> & ErrorOptions, traceback?: StackTreeNode[]): NoModuleError
-```
-
 ## parser
 
 ### `Token`
@@ -27,21 +11,26 @@ constructor(text: string, location: Location): Token
 - `location: Location`
 
 ### `Parser`
+Parser state; functionally immutable but contains some internal memoization
+tables that are computed when needed.
 ```ts
-constructor(source: SourceTracker, index: number, parselets: Parselet[], constraints: readonly Constraint<Parselet>[], skipErrors: boolean): Parser
+constructor(source: SourceTracker, index: number, parselets: Parselet[], constraints: readonly Constraint<Parselet>[]): Parser
 ```
 **Properties:**
 - `source: SourceTracker`
 - `index: number`
 - `parselets: Parselet[]`
 - `constraints: readonly Constraint<Parselet>[]`
-- `skipErrors: boolean`
+- `precedenceOf: Map<Parselet, number>`
 **Methods:**
 - `addParselet(parselet: Parselet): Parser`
 - `addConstraint(constraint: Constraint<Parselet>): Parser`
-- `sort(): void`
-- `test(regex: RegExp): RegExpExecArray | null`
-- `peek(vm: BackolonVM, minPrecedence: number, startPrecedence: number): [parselet: Parselet, token: Token] | undefined`
+- `isEOF(): boolean`
+- `commitToken(vm: BackolonVM, match: RegExpExecArray): Token`
+- `test(regex: string | RegExp): RegExpExecArray | null`
+- `peek(vm: BackolonVM, startIndex: number, maxPrecedence: number, orEqual: boolean): [parselet: Parselet, token: Token, nextIndex: number] | undefined`
+- `precedence(): number`
+- `advance(by: number): Parser`
 
 ### `Parselet`
 ```ts
@@ -135,19 +124,6 @@ via its load implementation.
 - `load(vm: BackolonVM, url: URL, module: Module, importer: Importer): Promise<void>` — Called when this loader has been selected to load the given URL
 into the given Module. Should push opcodes to do so.
 
-### `JSONModuleLoader`
-Loader that handles loading compiled / pre-parsed JSON modules
-*extends `Loader`*
-```ts
-constructor(): JSONModuleLoader
-```
-**Methods:**
-- `match(url: URL): Loader | undefined` — Returns undefined if this loader can't load the URL.
-Returns itself or another loader that will load the module
-via its load implementation.
-- `load(vm: BackolonVM, url: URL, module: Module, importer: Importer): Promise<void>` — Called when this loader has been selected to load the given URL
-into the given Module. Should push opcodes to do so.
-
 ### `BackolonSourceModuleLoader`
 Loader that handles loading Backolon source code
 *extends `Loader`*
@@ -212,4 +188,5 @@ constructor(importer: Importer): BackolonVM
 - `restoreState(state: BackolonVMState): void`
 - `start(url: URL): void` — Starts running the main module
 - `fileIndex(url: URL): number`
+- `registerSource(url: URL, src: string): SourceTracker`
 - `registerSpan(span: Span): Location`

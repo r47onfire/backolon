@@ -29,25 +29,25 @@ loadBuiltins(vm: JebVM): void
 ### `makeJSFun`
 Creates a builtin function.
 ```ts
-makeJSFun<T>(name: string, signature: T, fn: (args: Record<ShorthandToLonghand<T>[number]["name"], any> & (ExtractRest<T, true> extends { name: N } ? { [x in PropertyKey]: any[] } : {}) & (ExtractRest<T, false> extends { name: N } ? { [x in PropertyKey]: Record<any, any> } : {}), vm: JebVM, location: Location | undefined) => any, doc: string): JSFun<CallableSignatureFromShorthand<T>>
+makeJSFun<V, T>(name: Identifier, signature: T, fn: (args: Record<ShorthandToLonghand<T>[number]["name"], unknown> & (ExtractRest<T, true> extends { name: N } ? { [x in PropertyKey]: unknown[] } : {}) & (ExtractRest<T, false> extends { name: N } ? { [x in PropertyKey]: Record<PropertyKey, unknown> } : {}), vm: V, location: Location | undefined) => any, doc: string): JSFun<JebVM<any>, CallableSignatureFromShorthand<T>>
 ```
 **Parameters:**
-- `name: string`
+- `name: Identifier`
 - `signature: T` — Defines the parameters of the function and how they should be interpreted
-- `fn: (args: Record<ShorthandToLonghand<T>[number]["name"], any> & (ExtractRest<T, true> extends { name: N } ? { [x in PropertyKey]: any[] } : {}) & (ExtractRest<T, false> extends { name: N } ? { [x in PropertyKey]: Record<any, any> } : {}), vm: JebVM, location: Location | undefined) => any` — The function to implement the builtin. It should use the VM from the parameter, and **not**
+- `fn: (args: Record<ShorthandToLonghand<T>[number]["name"], unknown> & (ExtractRest<T, true> extends { name: N } ? { [x in PropertyKey]: unknown[] } : {}) & (ExtractRest<T, false> extends { name: N } ? { [x in PropertyKey]: Record<PropertyKey, unknown> } : {}), vm: V, location: Location | undefined) => any` — The function to implement the builtin. It should use the VM from the parameter, and **not**
 close over the one that is passed to the `vm` parameter of `defineBuiltin` (since this builtin may be reused for a sub-VM for
 e.g. an FFI callback).
 - `doc: string`
-**Returns:** `JSFun<CallableSignatureFromShorthand<T>>` — the builtin function, for referring to later
+**Returns:** `JSFun<JebVM<any>, CallableSignatureFromShorthand<T>>` — the builtin function, for referring to later
 
 ### `define`
 Defines the object in the VM's builtins scope as a constant.
 ```ts
-define(vm: JebVM, name: string, obj: any): void
+define(vm: JebVM, name: Identifier, obj: any): void
 ```
 **Parameters:**
 - `vm: JebVM`
-- `name: string`
+- `name: Identifier`
 - `obj: any`
 
 ### `makeOpcode`
@@ -64,10 +64,10 @@ makeOpcode<T>(id: string | null, fn: T, doc: string | null): T
 ### `defineApplier`
 Defines a new applier that can be used by the `jeb:apply` opcode to call something.
 ```ts
-defineApplier<T, PO>(vm: JebVM, type: T, run: PO["run"], describe: PO["describe"], doc: string): void
+defineApplier<V, T, PO>(vm: V, type: T, run: PO["run"], describe: PO["describe"], doc: string): void
 ```
 **Parameters:**
-- `vm: JebVM`
+- `vm: V`
 - `type: T`
 - `run: PO["run"]` — Should push opcodes to take the arguments object from the top of the stack and pass them to whatever the implementation is.
 It should not actually call that implementation as the arguments object is not actually on the stack at the point this is called.
@@ -77,99 +77,35 @@ It should not actually call that implementation as the arguments object is not a
 ### `defineEvaluator`
 Defines a new evaluator that can be used by the `jeb:eval` opcode to evaluate or unwrap something.
 ```ts
-defineEvaluator<T>(vm: JebVM, type: T, fn: (this: unknown, vm: JebVM, args: [TypeValue<T[number]>], flags: EvalFlags) => void, doc: string): void
+defineEvaluator<V, T>(vm: JebVM, type: T, fn: (this: unknown, vm: V, args: [TypeValue<T[number]>], flags: EvalFlags) => void, doc: string): void
 ```
 **Parameters:**
 - `vm: JebVM`
 - `type: T`
-- `fn: (this: unknown, vm: JebVM, args: [TypeValue<T[number]>], flags: EvalFlags) => void`
+- `fn: (this: unknown, vm: V, args: [TypeValue<T[number]>], flags: EvalFlags) => void`
 - `doc: string`
 
 ### `defineAccessor`
 Defines a new accessor that can be used by the `jeb:get` and `jeb:set` opcodes to look up or reassign a field on something.
 ```ts
-defineAccessor<T>(vm: JebVM, type: T, fn: (this: unknown, vm: JebVM, args: [TypeValue<T[number]>], flags: AccessFlags) => Reference, doc: string): void
+defineAccessor<V, T>(vm: JebVM, type: T, fn: (this: unknown, vm: V, args: [TypeValue<T[number]>], flags: AccessFlags) => Reference, doc: string): void
 ```
 **Parameters:**
 - `vm: JebVM`
 - `type: T`
-- `fn: (this: unknown, vm: JebVM, args: [TypeValue<T[number]>], flags: AccessFlags) => Reference`
+- `fn: (this: unknown, vm: V, args: [TypeValue<T[number]>], flags: AccessFlags) => Reference`
 - `doc: string`
 
 ### `defineUnwrapper`
 Defines a new unwrapper to define how a special wrapper should be unwrapped.
 ```ts
-defineUnwrapper<T>(vm: JebVM, type: T, fn: (this: unknown, vm: JebVM, args: [TypeValue<T[number]>], flags: void) => void, doc: string): void
+defineUnwrapper<V, T>(vm: JebVM, type: T, fn: (this: unknown, vm: V, args: [TypeValue<T[number]>], flags: void) => void, doc: string): void
 ```
 **Parameters:**
 - `vm: JebVM`
 - `type: T`
-- `fn: (this: unknown, vm: JebVM, args: [TypeValue<T[number]>], flags: void) => void`
+- `fn: (this: unknown, vm: V, args: [TypeValue<T[number]>], flags: void) => void`
 - `doc: string`
-
-## doc
-
-### `firstLineRegex`
-Creates a DocMetadataParser that asserts that there is tag content, and that the first line matches the given regex.
-The regex match is passed to the callback, and all remaining lines (including the rest of the first line if the
-regex didn't match all of it) are passed to parseParagraphs to form the tag description.
-```ts
-firstLineRegex(regex: RegExp, process: (match: RegExpExecArray) => Omit<DocMetadata, "tag" | "groups" | "description">): DocMetadataParser
-```
-**Parameters:**
-- `regex: RegExp` — Regex to match on the first line. It should be anchored to the start using `^`.
-- `process: (match: RegExpExecArray) => Omit<DocMetadata, "tag" | "groups" | "description">` — The callback that will be called on a successful match and return the partial DocMetadata.
-**Returns:** `DocMetadataParser` — The new parser
-
-### `deprecateTag`
-Wraps the parser to print a warning (`console.warn()`) that the tag name is not recommended or deprecated.
-The behavior is the same as the given parser (the parameters are just passed directly).
-```ts
-deprecateTag(newName: string, parser: DocMetadataParser): DocMetadataParser
-```
-**Parameters:**
-- `newName: string` — The preferred name that should be used instead
-- `parser: DocMetadataParser` — The implementation of the parser
-**Returns:** `DocMetadataParser` — the wrapped parser
-
-### `parseDoc`
-Parse the documentation string into Doc data
-```ts
-parseDoc(docstring: string, parsers: Record<string, DocMetadataParser>): Doc | undefined
-```
-**Parameters:**
-- `docstring: string`
-- `parsers: Record<string, DocMetadataParser>`
-**Returns:** `Doc | undefined` — the doc data, or undefined if it didn't parse right
-
-### `parseParagraphs`
-Parses the lines and creates ordered and unordered lists for groups
-of lines with bullets or number and creates paragraphs for all other lines
-```ts
-parseParagraphs(lines: string[]): DocNode[]
-```
-**Parameters:**
-- `lines: string[]`
-**Returns:** `DocNode[]`
-
-### `parseHeaderAndSummary`
-Parses the hiearchal metadata tags from the lines and returns the tree of DocMetadata nodes
-as well as all the lines that were untagged or tagged with `""` as the global summary
-```ts
-parseHeaderAndSummary(lines: string[], parsers: Record<string, DocMetadataParser>): [DocMetadata[], string[]]
-```
-**Parameters:**
-- `lines: string[]`
-- `parsers: Record<string, DocMetadataParser>`
-**Returns:** `[DocMetadata[], string[]]`
-
-### `parseInline`
-```ts
-parseInline(s: string): DocNode[]
-```
-**Parameters:**
-- `s: string`
-**Returns:** `DocNode[]`
 
 ## env
 
@@ -181,6 +117,17 @@ gensym(s: string): symbol
 **Parameters:**
 - `s: string` — default: `"$gensym"`
 **Returns:** `symbol`
+
+## errnoInheritance
+
+### `errnoIsSubclass`
+```ts
+errnoIsSubclass(sub: ErrnoCode, super_: ErrnoCode): boolean
+```
+**Parameters:**
+- `sub: ErrnoCode`
+- `super_: ErrnoCode`
+**Returns:** `boolean`
 
 ## errors
 
@@ -232,10 +179,10 @@ formatStackTraceCompact(nodes: StackTreeNode[]): string
 Runs the function, and if it throws an error that isn't a JEBError,
 wraps it in the given error type and re-throws it, otherwise returns the function result.
 ```ts
-wrapThrowToError<T>(kind: (message: string, options: { cause: any }) => JEBError, f: () => T): T
+wrapThrowToError<T>(kind: ErrnoCode, f: () => T): T
 ```
 **Parameters:**
-- `kind: (message: string, options: { cause: any }) => JEBError` — Kind of JEB error a thrown error causes
+- `kind: ErrnoCode` — Kind of JEB error a thrown error causes
 - `f: () => T` — The function to catch errors from
 **Returns:** `T`
 ```
@@ -316,16 +263,26 @@ typeOf(x: any): Type
 - `x: any`
 **Returns:** `Type`
 
-### `getProtocolHandler`
+### `withType`
 ```ts
-getProtocolHandler(protocols: Partial<JEBProtocols>, fast: boolean, name: PropertyKey, args: any[]): BaseProtocolObj<any, any[], {}, any> | DescribedProtocolObj<any, any[], {}, any, any> | undefined
+withType<T>(x: unknown, t: T, paramName?: string): TypeValue<T[number]>
 ```
 **Parameters:**
-- `protocols: Partial<JEBProtocols>`
+- `x: unknown`
+- `t: T`
+- `paramName: string` (optional)
+**Returns:** `TypeValue<T[number]>`
+
+### `getProtocolHandler`
+```ts
+getProtocolHandler<V>(protocols: Partial<JEBProtocols<V>>, fast: boolean, name: PropertyKey, args: any[]): BaseProtocolObj<V, any, any[], {}, any> | DescribedProtocolObj<V, any, any[], {}, any, any> | undefined
+```
+**Parameters:**
+- `protocols: Partial<JEBProtocols<V>>`
 - `fast: boolean`
 - `name: PropertyKey`
 - `args: any[]`
-**Returns:** `BaseProtocolObj<any, any[], {}, any> | DescribedProtocolObj<any, any[], {}, any, any> | undefined`
+**Returns:** `BaseProtocolObj<V, any, any[], {}, any> | DescribedProtocolObj<V, any, any[], {}, any, any> | undefined`
 
 ## signature
 

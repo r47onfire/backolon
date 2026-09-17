@@ -7,6 +7,7 @@ import { Module } from "./module";
 interface BackolonVMState {
     moduleLoad: [string, parent: Module | null][];
     parser: Parser | null;
+    resetParser: boolean;
 }
 
 export class BackolonVM extends JebVM<BackolonVM> {
@@ -19,11 +20,12 @@ export class BackolonVM extends JebVM<BackolonVM> {
         return {
             moduleLoad: Object.entries(this.modules ?? {}).map(({ 0: name, 1: mod }) => [name, mod.parent] as const),
             parser: this.parser,
+            resetParser: true,
         }
     }
     override restoreState(state: BackolonVMState) {
         state.moduleLoad.forEach(({ 0: name, 1: parent }) => this.modules[name]!.parent = parent);
-        this.parser = state.parser;
+        if (state.resetParser) this.parser = state.parser;
     }
     /** Module cache */
     modules: Record<string, Module> = {};
@@ -44,8 +46,18 @@ export class BackolonVM extends JebVM<BackolonVM> {
     fileIndex(url: URL) {
         return this.files.getOrInsert(url.href, this.files.size);
     }
+    registerSource(url: URL, src: string): SourceTracker {
+        return this.sources[url.href] = new SourceTracker(url, src, {});
+    }
     registerSpan(span: Span): Location {
         const url = span.file;
-        return [(this.maps[url.href] ??= []).push(span) - 1, this.fileIndex(url)];
+        return location([(this.maps[url.href] ??= []).push(span) - 1, this.fileIndex(url)]);
     }
+}
+
+export const LOCATION_TAG = Symbol("__location__");
+
+const location = (x: Location): Location => {
+    (x as any)[LOCATION_TAG] = LOCATION_TAG;
+    return x;
 }

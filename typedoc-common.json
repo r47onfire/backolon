@@ -2,11 +2,6 @@
     "$schema": "https://typedoc.org/schema.json",
     "entryPointStrategy": "expand",
     "tsconfig": "./tsconfig.json",
-    "exclude": [
-        "./test/**/*",
-        "./node_modules/**/*"
-    ],
-    "excludePrivate": true,
     "excludeExternals": true,
     "hideGenerator": true,
     "includeVersion": true,
@@ -16,16 +11,10 @@
     "sourceLinkTemplate": "about:invalid",
     "favicon": "./website/images/icon.png",
     "useTsLinkResolution": true,
-    "preservedTypeAnnotationTags": [
-        "@param",
-        "@returns",
-        "@type",
-    ],
     "ignoredHighlightLanguages": [
         "backolon"
     ],
-    "intentionallyNotExported": [
-    ],
+    "intentionallyNotExported": [],
     "externalSymbolLinkMappings": {
         "bun": {
             "BunPlugin": "https://bun.com/docs/bundler/plugins"
@@ -41,5 +30,13 @@
             "Env": "/api/jeb/classes/Env.html",
             "EnvVarLValue": "/api/jeb/classes/EnvVarLValue.html"
         },
-    }
+    },
+    "sort": [
+        "kind",
+        "enum-member-source-order"
+    ],
+    "plugin": [
+        "@skillit/typedoc"
+    ],
+    "llmsTxt": true
 }

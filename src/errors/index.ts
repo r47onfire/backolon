@@ -1,19 +1,4 @@
-import { JEBError } from "@r47onfire/jeb";
 import { max } from "lib0/math";
-
-/**
- * An error from Backolon code that contains the location in the source that caused the error.
- */
-export class BackolonError extends JEBError {
-    get tag() { return "bk:error" }
-}
-
-/**
- * Error raised when the module is not found (404, network down, ENOENT, etc).
- */
-export class NoModuleError extends BackolonError {
-    get tag() { return "bk:no_module" }
-}
 
 // what is this
 const formatTrace = (file: URL, start: number, end: number, message: string, getSource: (url: URL) => string): string => {

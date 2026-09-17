@@ -30,12 +30,12 @@ The Javascript function has access to the VM so it can push opcodes to
 implement more than just computation.
 *implements `HasDocstring`, `ApplyMetadata`*
 ```ts
-constructor<S>(name: Identifier, signature: S, impl: (args: Record<S["params"][number]["name"], any> & (S["rest"] extends { name: N } ? { [x in PropertyKey]: any[] } : {}) & (S["kwRest"] extends { name: N } ? { [x in PropertyKey]: Record<any, any> } : {}), vm: JebVM, location: Location | undefined) => any, doc: string): JSFun<S>
+constructor<T, S>(name: Identifier, signature: S, impl: (args: Record<S["params"][number]["name"], unknown> & (S["rest"] extends { name: N } ? { [x in PropertyKey]: unknown[] } : {}) & (S["kwRest"] extends { name: N } ? { [x in PropertyKey]: Record<PropertyKey, unknown> } : {}), vm: T, location: Location | undefined) => any, doc: string): JSFun<T, S>
 ```
 **Properties:**
 - `name: Identifier` — The name of the function as it should appear in a traceback.
 - `signature: S`
-- `impl: (args: Record<S["params"][number]["name"], any> & (S["rest"] extends { name: N } ? { [x in PropertyKey]: any[] } : {}) & (S["kwRest"] extends { name: N } ? { [x in PropertyKey]: Record<any, any> } : {}), vm: JebVM, location: Location | undefined) => any` — The javascript function implementation.
+- `impl: (args: Record<S["params"][number]["name"], unknown> & (S["rest"] extends { name: N } ? { [x in PropertyKey]: unknown[] } : {}) & (S["kwRest"] extends { name: N } ? { [x in PropertyKey]: Record<PropertyKey, unknown> } : {}), vm: T, location: Location | undefined) => any` — The javascript function implementation.
 
 If the function returns the special value NOTHING, no
 value will be pushed as the result of the function call. Otherwise, the
@@ -122,71 +122,12 @@ or undefined if it wasn't defined anywhere.
 Generic base class for an error thrown by a JEB program.
 *extends `Error`*
 ```ts
-constructor(message: string, context: Record<string, any> & ErrorOptions, traceback?: StackTreeNode[]): JEBError
+constructor(code: ErrnoCode, message: string, context: Record<string, any> & ErrorOptions, traceback?: StackTreeNode[]): JEBError
 ```
 **Properties:**
+- `code: ErrnoCode`
 - `context: Record<string, any> & ErrorOptions`
 - `traceback: StackTreeNode[]` (optional)
-**Methods:**
-- `toString(): string` — Returns a string representation of an object.
-
-### `JEBReferenceError`
-Variable not found.
-*extends `JEBError`*
-```ts
-constructor(message: string, context: Record<string, any> & ErrorOptions, traceback?: StackTreeNode[]): JEBReferenceError
-```
-*Inherits 2 properties from `JEBError` — see [`JEBError`](../jeberror.md)*
-**Methods:**
-- `toString(): string` — Returns a string representation of an object.
-
-### `JEBValueError`
-Value was correct type but out of range.
-*extends `JEBError`*
-```ts
-constructor(message: string, context: Record<string, any> & ErrorOptions, traceback?: StackTreeNode[]): JEBValueError
-```
-*Inherits 2 properties from `JEBError` — see [`JEBError`](../jeberror.md)*
-**Methods:**
-- `toString(): string` — Returns a string representation of an object.
-
-### `JEBTypeError`
-Value was wrong type.
-*extends `JEBError`*
-```ts
-constructor(message: string, context: Record<string, any> & ErrorOptions, traceback?: StackTreeNode[]): JEBTypeError
-```
-*Inherits 2 properties from `JEBError` — see [`JEBError`](../jeberror.md)*
-**Methods:**
-- `toString(): string` — Returns a string representation of an object.
-
-### `JEBSyntaxError`
-Malformed usage or syntax.
-*extends `JEBError`*
-```ts
-constructor(message: string, context: Record<string, any> & ErrorOptions, traceback?: StackTreeNode[]): JEBSyntaxError
-```
-*Inherits 2 properties from `JEBError` — see [`JEBError`](../jeberror.md)*
-**Methods:**
-- `toString(): string` — Returns a string representation of an object.
-
-### `JEBStateError`
-Program tried to operate on something previously invalidated.
-*extends `JEBError`*
-```ts
-constructor(message: string, context: Record<string, any> & ErrorOptions, traceback?: StackTreeNode[]): JEBStateError
-```
-*Inherits 2 properties from `JEBError` — see [`JEBError`](../jeberror.md)*
-**Methods:**
-- `toString(): string` — Returns a string representation of an object.
-
-### `JEBRecursionError`
-Too many recursive calls.
-*extends `JEBError`*
-```ts
-constructor(message: string, context: Record<string, any> & ErrorOptions, traceback?: StackTreeNode[]): JEBRecursionError
-```
-*Inherits 2 properties from `JEBError` — see [`JEBError`](../jeberror.md)*
 **Methods:**
 - `toString(): string` — Returns a string representation of an object.
 
@@ -236,7 +177,6 @@ constructor(type: AccessType, env: Env, name: Identifier): VariableReference
 - `get(): any` — Returns the current value, or returns `NOTHING` and throws an error (in the VM, not Javascript) if it's not readable.
 - `set(vm: JebVM, value: any, create: boolean, readonly: boolean): void` — Set the value of the slot to the provided value,
 or throws an error if it's readonly. The stack should not be modified either way.
-- `referenceError(): never`
 
 ## vm
 
@@ -254,12 +194,12 @@ constructor<T>(): JebVM<T>
 - `awaiting: Promise<void> | null` — the Promise that the VM is currently waiting on
 - `tracebackStack: LinkedList<StackCount>` — callstack entries
 - `builtinsEnv: Env` — Environment that all builtins live in
-- `protocols: Partial<JEBProtocols>`
+- `protocols: Partial<JEBProtocols<T>>`
 **Methods:**
 - `getState(): any`
 - `restoreState(state: any): void`
-- `addProtocol<N>(name: N, impl: JEBProtocols[N][number]): void`
-- `getProtocol<N, T>(fast: boolean, assert: T, name: N, args: Tuple<any, ArgcForName<N>>): JEBProtocols[N][number] | (T extends true ? never : undefined)`
+- `addProtocol<N>(name: N, impl: JEBProtocols<T>[N][number]): void`
+- `getProtocol<N, A>(fast: boolean, assert: A, name: N, args: Tuple<any, ArgcForName<T, N>>): JEBProtocols<T>[N][number] | (A extends true ? never : undefined)`
 - `pushData(value: any): void`
 - `popNData(n: number): any[]`
 - `popData(): any`

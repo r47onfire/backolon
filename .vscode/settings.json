@@ -5,6 +5,8 @@
         "callcc",
         "defop",
         "defun",
+        "EPANIC",
+        "ESYNTAX",
         "exuo",
         "imaginarny",
         "isinstance",

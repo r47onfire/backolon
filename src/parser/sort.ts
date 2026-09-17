@@ -1,5 +1,5 @@
 import { insertionSort } from "@r47onfire/game-math";
-import { Relation } from "@r47onfire/jeb";
+import { ErrnoCode, JEBError, Relation } from "@r47onfire/jeb";
 
 export class Constraint<T> {
     constructor(
@@ -8,7 +8,7 @@ export class Constraint<T> {
         public right: T,
     ) {
         if (relation === Relation.FALSE || relation === Relation.TRUE) {
-            throw new Error(`Cannot use ${relation === Relation.TRUE ? "TRUE" : "FALSE"} as a comparison relation`);
+            throw new JEBError(ErrnoCode.ERANGE, `Cannot use ${relation === Relation.TRUE ? "TRUE" : "FALSE"} as a comparison relation`);
         }
     }
 }
@@ -36,7 +36,7 @@ const assignPrecedences = <T>(items: T[], constraints: readonly Constraint<T>[])
     const { 0: graph, 1: reps } = partitionEqualIslands(constraints, equivMap, items);
 
     if (hasCycle(graph)) {
-        throw new Error("cannot determine total ordering for constraints due to cycle in graph");
+        throw new JEBError(ErrnoCode.EDEADLK, "cannot determine total ordering for constraints due to cycle in graph");
     }
 
     // toposort the representatives
@@ -88,7 +88,7 @@ const partitionEqualIslands = <T>(
 
         if (leftRep === rightRep) {
             if (!(constraint.relation & Relation.EQUAL)) {
-                throw new Error("contradictory constraints found");
+                throw new JEBError(ErrnoCode.EEXIST, "contradictory constraints found");
             }
             continue;
         }

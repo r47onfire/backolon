@@ -20,12 +20,9 @@ export class Parselet {
      */
     readonly parse: any;
     constructor(prefix: RegExp | string, parse: any) {
-        this.prefix =
-            isString(prefix)
-                ? new RegExp(RegExp.escape(prefix), "y") :
-                prefix.sticky
-                    ? prefix :
-                    new RegExp(prefix, prefix.flags + "y");
+        this.prefix = forceStickyRegex(prefix);
         this.parse = parse;
     }
 }
+
+export const forceStickyRegex = (s: string | RegExp) => isString(s) ? new RegExp(RegExp.escape(s), "y") : s.sticky ? s : new RegExp(s, s.flags + "y");

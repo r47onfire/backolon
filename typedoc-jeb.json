@@ -1,7 +1,7 @@
 {
     "$schema": "https://typedoc.org/schema.json",
     "extends": [
-        "./typedoc-api.json"
+        "./typedoc-common.json"
     ],
     "entryPoints": [
         "./jeb/src/index.ts"
