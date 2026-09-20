@@ -23,12 +23,12 @@ constructor(source: SourceTracker, index: number, parselets: Parselet[], constra
 - `constraints: readonly Constraint<Parselet>[]`
 - `precedenceOf: Map<Parselet, number>`
 **Methods:**
-- `addParselet(parselet: Parselet): Parser`
-- `addConstraint(constraint: Constraint<Parselet>): Parser`
+- `addParselets(parselets: Parselet[]): Parser`
+- `addConstraints(constraints: Constraint<Parselet>[]): Parser`
 - `isEOF(): boolean`
-- `commitToken(vm: BackolonVM, match: RegExpExecArray): Token`
+- `commitToken(vm: BackolonVM, text: string): Token`
 - `test(regex: string | RegExp): RegExpExecArray | null`
-- `peek(vm: BackolonVM, startIndex: number, maxPrecedence: number, orEqual: boolean): [parselet: Parselet, token: Token, nextIndex: number] | undefined`
+- `peek(vm: BackolonVM, startIndex: number, minPrecedence: number, orEqual: boolean): [parselet: Parselet, token: Token, nextIndex: number] | undefined`
 - `precedence(): number`
 - `advance(by: number): Parser`
 
@@ -68,6 +68,7 @@ constructor(): Finder
 ```
 **Methods:**
 - `match(url: URL): Finder | undefined`
+- `stat(url: URL): Promise<boolean>`
 - `getBytes(path: URL): Promise<Uint8Array<ArrayBufferLike>>`
 - `getText(path: URL): Promise<string>`
 - `getJSON(path: URL): Promise<JSONModule | JSONSourceMap>`
@@ -82,7 +83,7 @@ constructor(resolver: Resolver, finders: Finder[], loaders: Loader[]): Importer
 - `finders: Finder[]`
 - `loaders: Loader[]`
 **Methods:**
-- `loadModule(vm: BackolonVM, parent: Module | null, path: URL, asMain: boolean): Promise<symbol>` — Pushes the required opcodes to the stack to load the module at the
+- `loadModule(vm: BackolonVM, parent: Module | null, path: URL, asMain: boolean): Promise<typeof NOTHING | Module>` — Pushes the required opcodes to the stack to load the module at the
 given URL and leave the Module on the stack.
 - `getBytes(path: URL): Promise<Uint8Array<ArrayBufferLike>>`
 - `getText(path: URL): Promise<string>`
@@ -179,14 +180,14 @@ constructor(importer: Importer): BackolonVM
 **Properties:**
 - `parser: Parser | null` — Current parser context - null if not parsing
 - `importer: Importer`
-- `modules: Record<string, Module>` — Module cache
-- `sources: Record<string, SourceTracker>` — Mapping of URL to source tracker
-- `maps: Record<string, Span[]>` — Mapping of module name to a list of location IDs (for the JEB `at` identifier function) to the actual Span
-- `files: Map<string, number>` — For keeping track of all files indexes in maps
+- `modcache: ModuleCacheEntry[]`
 **Methods:**
 - `getState(): BackolonVMState`
 - `restoreState(state: BackolonVMState): void`
 - `start(url: URL): void` — Starts running the main module
-- `fileIndex(url: URL): number`
-- `registerSource(url: URL, src: string): SourceTracker`
+- `getModule(url: URL): Module | undefined`
+- `createModule(url: URL, parent: Module | null): Module`
+- `fileIndex(url: URL): number | undefined`
+- `setSource(url: URL, src: string): SourceTracker | undefined`
 - `registerSpan(span: Span): Location`
+- `tag(location: Location, tag: string): void`

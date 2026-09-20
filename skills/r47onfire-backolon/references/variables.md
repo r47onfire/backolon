@@ -12,6 +12,41 @@ const NO_MATCH: typeof NO_MATCH
 const OP_runModule: (vm: BackolonVM, __namedParameters: [SourceTracker]) => void
 ```
 
+### `B_Parser_test`
+```ts
+const B_Parser_test: JSFun<JebVM<any>, CallableSignatureFromShorthand<["what"]>>
+```
+
+### `B_Parser_expect`
+```ts
+const B_Parser_expect: JSFun<JebVM<any>, CallableSignatureFromShorthand<["what"]>>
+```
+
+### `B_Parser_save`
+```ts
+const B_Parser_save: JSFun<JebVM<any>, CallableSignatureFromShorthand<[]>>
+```
+
+### `B_Parser_restore`
+```ts
+const B_Parser_restore: JSFun<JebVM<any>, CallableSignatureFromShorthand<["state"]>>
+```
+
+### `B_Parser_isMatch`
+```ts
+const B_Parser_isMatch: JSFun<JebVM<any>, CallableSignatureFromShorthand<["ast"]>>
+```
+
+### `B_Parser_addSpan`
+```ts
+const B_Parser_addSpan: JSFun<JebVM<any>, CallableSignatureFromShorthand<["start", "end"]>>
+```
+
+### `B_Parser_tag`
+```ts
+const B_Parser_tag: JSFun<JebVM<any>, CallableSignatureFromShorthand<["span", "tag"]>>
+```
+
 ## runtime
 
 ### `OP_do_import`

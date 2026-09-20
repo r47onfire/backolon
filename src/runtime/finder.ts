@@ -4,6 +4,7 @@ import { JSModule, JSONModule, JSONSourceMap } from "./jsmod";
 const defaultDecoder = new TextDecoder();
 export abstract class Finder {
     abstract match(url: URL): Finder | undefined;
+    abstract stat(url: URL): Promise<boolean>;
     async getBytes(path: URL): Promise<Uint8Array> {
         throw new Error("getBytes() not implemented");
     }

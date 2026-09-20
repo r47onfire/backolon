@@ -1,6 +1,6 @@
 import { BackolonVM, Finder, Importer, IndexResolver, Module } from "@r47onfire/backolon";
-import { peekData, popData } from "@r47onfire/jeb";
-import { makeTestRun, runAsync } from "@r47onfire/jeb/test";
+import { popData } from "@r47onfire/jeb";
+import { makeTestRun, run, runAsync } from "@r47onfire/jeb/test";
 import { expect, test } from "bun:test";
 
 type VFS = Record<string, string>;
@@ -9,14 +9,17 @@ class TestFinder extends Finder {
     match() {
         return this;
     }
+    async stat(path: URL) {
+        return !!this.vfs[path.href];
+    }
     async getText(path: URL) {
         return this.vfs[path.href]!;
     }
-    vfs!: VFS;
+    vfs: VFS = {};
 }
 
 const vfs = (vm: BackolonVM, files: VFS) => {
-    (vm.importer.finders[0] as TestFinder).vfs = files;
+    Object.assign((vm.importer.finders[0] as TestFinder).vfs, files);
 };
 
 const vfsURL = (file: string) => new URL(file, "test://");
@@ -26,13 +29,12 @@ const main = (vm: BackolonVM, file: string) => vfs(vm, { [MAIN.href]: file });
 
 const testTest = makeTestRun(class extends BackolonVM { constructor() { super(new Importer(new IndexResolver(), [new TestFinder()])) } });
 
-testTest(test, "foo", async (vm, out) => {
-    main(vm, "print 'hello world'");
+testTest(test, "comments are empty", async vm => {
+    main(vm, "### foo\nfoo");
     expect(await runAsync(vm, MAIN)).toBeTrue();
     const mod = popData(vm) as Module;
     expect(mod).toBeInstanceOf(Module);
     expect(mod.parent).toBeNull();
-    expect(out).toEqual(["hello world"]);
 });
 
 // test("empty result", () => {

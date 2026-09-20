@@ -10,13 +10,7 @@ homoiconic scripting language
 
 ## Quick Reference
 
-**parser:** `create_SysParser`, `forceStickyRegex`, `Token`, `Parser` (Parser state; functionally immutable but contains some internal memoization
-tables that are computed when needed), `Parselet`, `Span` (Source location information for a token), `NO_MATCH`, `OP_runModule`
-**runtime:** `Finder`, `Importer`, `SourceTracker`, `Loader` (Object whose job it is to download or open the file
-and then load its contents into a module object), `JavascriptModuleLoader` (Loader that handles loading the Javascript modules via `import()`), `BackolonSourceModuleLoader` (Loader that handles loading Backolon source code), `Module`, `Resolver`, `IndexResolver`, `BackolonVM`, `JSModule` (Interface for what a Javascript module needs to comply with
-to be able to be imported), `JSONModule` (Interface for a JSON module object), `JSONSourceMap` (Not a sourcemap-V3 since the mappings don't
-have any concept of "compiled line/pos"), `OP_do_import`, `MODULE_NAME` (Special symbol identifier used to identify module names that can't be shadowed), `MODULE_SELF` (Special symbol identifier used to link a module's environ...), `LOCATION_TAG`
-**plugin:** `default` ([ESBuild](https://esbuild)
+34 exports (2 functions, 14 classes, 4 types, 14 constants) — see references/ for full API.
 
 ## References
 

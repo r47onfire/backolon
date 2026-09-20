@@ -4,12 +4,12 @@
 
 ### `OP_audit`
 ```ts
-const OP_audit: (vm: JebVM, args: [any, ...unknown[]]) => void
+const OP_audit: (vm: JebVM, args: [name: T, arg: JEBAuditEvents[T]]) => void
 ```
 
 ### `B_audit`
 ```ts
-const B_audit: JSFun<JebVM<any>, CallableSignatureFromShorthand<["event", "params", true]>>
+const B_audit: JSFun<JebVM<any>, CallableSignatureFromShorthand<["event", "param"]>>
 ```
 
 ### `OP_tbPop`
@@ -77,9 +77,14 @@ const OP_get: (vm: JebVM, __namedParameters: [boolean]) => void
 const OP_set: (vm: JebVM, __namedParameters: [create?: boolean, readonly_?: boolean]) => void
 ```
 
-### `B_dot`
+### `B_local`
 ```ts
-const B_dot: JSFun<JebVM<any>, CallableSignatureFromShorthand<["obj", "name"]>>
+const B_local: JSFun<JebVM<any>, CallableSignatureFromShorthand<["name"]>>
+```
+
+### `B_index`
+```ts
+const B_index: JSFun<JebVM<any>, CallableSignatureFromShorthand<["obj", "name"]>>
 ```
 
 ### `B_set`

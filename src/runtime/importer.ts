@@ -22,41 +22,39 @@ export class Importer {
      * given URL and leave the {@link Module} on the stack.
      */
     async loadModule(vm: BackolonVM, parent: Module | null, path: URL, asMain: boolean) {
-        const m = vm.modules[path.href];
-        if (m) {
-            if (asMain) {
-                throw new JEBError(ErrnoCode.EALREADY, "tried to run already-imported module as main");
-            }
-            if (m.parent) {
-                // TODO: use error notes with cycle participants
-                var m2: Module | null | boolean = parent, culprits: string[] = [];
-                while (isinstance(m2, Module) && m2 !== m) {
-                    culprits.push(m2.id.href);
-                    m2 = m2.parent;
-                }
-                throw new JEBError(ErrnoCode.EALREADY, `circular import of module ${path.href} (<- ${culprits.join(" <- ")})`);
-            }
-            pushData(vm, m);
-            return NOTHING;
-        }
         for (var resolved of this.resolver.resolve(path)) {
-            // TODO: continue if file not found
-            for (var loader of this.loaders) {
-                const g = loader.match(resolved);
-                if (g) {
-                    const env = vm.createEnv(vm.builtinsEnv);
-                    env.addConst("__main__", asMain);
-                    env.addConst(MODULE_NAME, resolved);
-                    const module = vm.modules[resolved.href] = new Module(env, resolved, parent);
-                    vm.pushCommand(OP_cleanup_module, resolved);
-                    await g.load(vm, resolved, module, this);
-                    return NOTHING;
+            var m = vm.getModule(resolved);
+            if (m) {
+                if (asMain) {
+                    throw new JEBError(ErrnoCode.EEXIST, "tried to run already-imported module as main");
+                }
+                if (m.parent) {
+                    // TODO: use error notes with cycle participants
+                    var m2: Module | null | boolean = parent, culprits: string[] = [];
+                    while (isinstance(m2, Module) && m2 !== m) {
+                        culprits.push(m2.id.href);
+                        m2 = m2.parent;
+                    }
+                    throw new JEBError(ErrnoCode.EALREADY, `circular import of module ${path.href} (<- ${culprits.join(" <- ")})`);
+                }
+                return m;
+            }
+            if (await this.#get(resolved, "stat")) {
+                for (var loader of this.loaders) {
+                    const g = loader.match(resolved);
+                    if (g) {
+                        m = vm.createModule(resolved, parent);
+                        m.global.addConst("__main__", asMain);
+                        vm.pushCommand(OP_cleanup_module, resolved);
+                        await g.load(vm, resolved, m, this);
+                        return NOTHING;
+                    }
                 }
             }
         }
         throw new JEBError(ErrnoCode.ENOPROTOOPT, `don't know how to load module from ${path.href}`);
     }
-    #get<T extends "getBytes" | "getText" | "getJSON" | "getImport">(path: URL, method: T): ReturnType<Finder[T]> {
+    #get<T extends "getBytes" | "getText" | "getJSON" | "getImport" | "stat">(path: URL, method: T): ReturnType<Finder[T]> {
         for (var finder of this.finders) {
             const f = finder.match(path);
             if (f) return f[method](path) as any;

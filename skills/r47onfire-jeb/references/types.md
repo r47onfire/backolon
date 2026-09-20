@@ -4,16 +4,11 @@
 
 ### `JEBAuditEvents`
 **Properties:**
-- `jeb:add_audit_hook: []`
+- `jeb:add_audit_hook: void`
 - `jeb:ffi/call_function: [f: Function, args: any[]]`
-- `jeb:ffi/object/get: [o: any, key: PropertyKey]`
-- `jeb:ffi/object/set: [o: any, key: PropertyKey, value: any]`
-- `jeb:loop_check: [repeatCount: number]`
-
-### `JEBAuditEvent`
-```ts
-[T, ...JEBAuditEvents[T]]
-```
+- `jeb:ffi/object/get: [key: PropertyKey, o: any]`
+- `jeb:ffi/object/set: [key: PropertyKey, o: any, value: any]`
+- `jeb:loop_check: number`
 
 ## continuation
 
@@ -24,6 +19,10 @@ Data holding a dynamic wind enter/exit handler pair
 - `exit: any`
 
 ## errors
+
+### `JEBErrorContext`
+**Properties:**
+- `return: Continuation<any>` (optional)
 
 ### `Location`
 ```ts

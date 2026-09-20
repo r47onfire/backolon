@@ -1,16 +1,5 @@
 # Functions
 
-## auditHookTypes
-
-### `makeSingleEventWatcher`
-```ts
-makeSingleEventWatcher<T>(event: T, cb: (args: JEBAuditEvents[T]) => void): (name: keyof JEBAuditEvents, args: unknown[]) => false | void
-```
-**Parameters:**
-- `event: T`
-- `cb: (args: JEBAuditEvents[T]) => void`
-**Returns:** `(name: keyof JEBAuditEvents, args: unknown[]) => false | void`
-
 ## builtins
 
 ### `loadBuiltins`

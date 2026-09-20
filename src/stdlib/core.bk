@@ -1,8 +1,8 @@
-const callcc = fn(f)
+export const callcc = fn(f)
     "call-with-current-continuation"
     f return
 end
-const while = fn(^cond, ^body)
+export const while = fn(^cond, ^body)
     "while loop"
     callcc fn(break)
         let continue = nil
@@ -13,7 +13,7 @@ const while = fn(^cond, ^body)
         end
     end
 end
-const generator = fn(^body)
+export const generator = fn(^body)
     let cont = nil
     let resume = fn()
         body [`yield:]
@@ -28,12 +28,10 @@ const generator = fn(^body)
         resume()
     end
 end
-const foreach = fn(@varname, list, ^body)
+export const foreach = fn(@varname, list, ^body)
     let i = 0
     while i < #list do
         callcc fn(k) body [varname: list->i, `break:, `continue: k]
         i++
     end
 end
-# don't "return" anything
-;;

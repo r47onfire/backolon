@@ -3,6 +3,7 @@ import { Importer } from "./importer";
 import { Module } from "./module";
 import { BackolonVM } from "./vm";
 import { OP_runModule } from "../parser";
+import { OP_setupModuleGlobals } from "../stdlib/core";
 
 /**
  * Object whose job it is to download or open the file
@@ -72,7 +73,8 @@ export class BackolonSourceModuleLoader extends Loader {
         const text = await importer.getText(url);
         pushData(vm, new Continuation(vm, []));
         pushCommand(vm, OP_apply, [module], undefined, true, true);
-        pushCommand(vm, OP_runModule, vm.registerSource(url, text));
+        pushCommand(vm, OP_runModule, vm.setSource(url, text)!);
+        pushCommand(vm, OP_setupModuleGlobals);
         vm.currentEnv = module.global;
     }
 }

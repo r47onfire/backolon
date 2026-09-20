@@ -2,10 +2,12 @@
 
 ## parser
 
-### `create_SysParser`
+### `create_parser_module`
 ```ts
-create_SysParser(): Module
+create_parser_module(vm: BackolonVM): Module
 ```
+**Parameters:**
+- `vm: BackolonVM`
 **Returns:** `Module`
 
 ### `forceStickyRegex`

@@ -75,7 +75,7 @@ constructor<T>(vm: T, extraOps: Command<T>[]): Continuation<T>
 - `data: LinkedList<any>` — Closed-over data stack in progress
 - `winders: DynamicWind<T>` — Closed-over dynamic wind stack in progress
 - `traceback: LinkedList<StackCount>` — Closed-over traceback stack in progress
-- `state: any` — Other saved state
+- `state: ReturnType<T["getState"]>` — Other saved state
 **Methods:**
 - `invoke(vm: T, data: any): void` — Call the continuation and restore the state of the VM
 
@@ -90,7 +90,7 @@ constructor<T>(vm: T): DynamicWind<T>
 - `parent: DynamicWind<T> | null`
 - `commandsHere: LinkedList<Command<T>>` — closed-over command stack
 - `dataHere: LinkedList<any>` — closed-over data stack
-- `stateHere: any` — Other saved state
+- `stateHere: ReturnType<T["getState"]>` — Other saved state
 **Methods:**
 - `setHandler(handler: Windable): void` — sets the handler after it has been processed
 - `processJumpHere(vm: T): void` — processes the jump here, and adds instructions to call the enter and exit handlers
@@ -122,11 +122,13 @@ or undefined if it wasn't defined anywhere.
 Generic base class for an error thrown by a JEB program.
 *extends `Error`*
 ```ts
-constructor(code: ErrnoCode, message: string, context: Record<string, any> & ErrorOptions, traceback?: StackTreeNode[]): JEBError
+constructor(code: ErrnoCode, message?: string, options: ErrorOptions & JEBErrorOptions, context: JEBErrorContext, traceback?: StackTreeNode[]): JEBError
 ```
 **Properties:**
+- `children: JEBError[]`
 - `code: ErrnoCode`
-- `context: Record<string, any> & ErrorOptions`
+- `options: ErrorOptions & JEBErrorOptions`
+- `context: JEBErrorContext`
 - `traceback: StackTreeNode[]` (optional)
 **Methods:**
 - `toString(): string` — Returns a string representation of an object.
@@ -182,6 +184,7 @@ or throws an error if it's readonly. The stack should not be modified either way
 
 ### `JebVM`
 Base VM for running JEB code
+*extends `EventDispatcher<JEBAuditEvents>`*
 ```ts
 constructor<T>(): JebVM<T>
 ```
@@ -219,8 +222,6 @@ to signal to the running program that it's recursing too much
 - `createEnv(parents: Env[]): Env`
 - `cc(extraOps: Command<T>[]): Continuation<T>` — Returns the current continuation at this state.
 - `fatalError(error: JEBError): never`
-- `addAuditHook(cb: (event: T, args: JEBAuditEvents[T]) => void): () => void` — Adds an audit hook that will be called every time something that should be audited happens.
-- `audit<T>(args: [event: T, ...JEBAuditEvents[T][]]): void` — Raises an auditing event
 
 ## wrapper
 

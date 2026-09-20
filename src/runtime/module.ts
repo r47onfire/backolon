@@ -17,7 +17,8 @@ export class Module {
     parent: Module | null;
     constructor(public global: Env, public id: URL, parent: Module | null) {
         this.parent = parent;
-        this.global.addConst(MODULE_SELF, this);
+        global.addConst(MODULE_SELF, this);
+        global.addConst(MODULE_NAME, id);
     }
 }
 

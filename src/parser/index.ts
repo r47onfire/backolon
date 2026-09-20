@@ -1,11 +1,11 @@
-import { AccessType, Continuation, Env, ErrnoCode, JEBError, Location, makeJSFun, makeOpcode, NOTHING, OP_apply, OP_eval, OP_set_env, OP_shuffle, peekData, popData, pushCommand, pushData, VariableReference, withType } from "@r47onfire/jeb";
+import { AccessType, Continuation, ErrnoCode, JEBError, Location, makeJSFun, makeOpcode, NOTHING, OP_apply, OP_eval, OP_set_env, OP_shuffle, peekData, popData, pushCommand, pushData, VariableReference, withType } from "@r47onfire/jeb";
 import { stringify } from "lib0/json";
 import { SourceTracker } from "../runtime/importer";
+import { type Module, MODULE_SELF } from "../runtime/module";
 import { BackolonVM } from "../runtime/vm";
 import { forceStickyRegex, Parselet } from "./parselet";
 import { Constraint, sortByConstraints } from "./sort";
 import { Span } from "./span";
-import { Module } from "../runtime/module";
 
 export class Token {
     constructor(
@@ -27,43 +27,42 @@ export class Parser {
         readonly parselets: Parselet[],
         readonly constraints: readonly Constraint<Parselet>[],
     ) { }
-    addParselet(parselet: Parselet): Parser {
-        return new Parser(this.source, this.index, this.parselets.concat(parselet), this.constraints);
+    addParselets(...parselets: Parselet[]): Parser {
+        return new Parser(this.source, this.index, this.parselets.concat(parselets), this.constraints);
     }
-    addConstraint(constraint: Constraint<Parselet>): Parser {
-        return new Parser(this.source, this.index, this.parselets, this.constraints.concat(constraint));
+    addConstraints(...constraints: Constraint<Parselet>[]): Parser {
+        return new Parser(this.source, this.index, this.parselets, this.constraints.concat(constraints));
     }
     isEOF() {
         return this.index >= this.source.code.length;
     }
     /** In sorted order longest tokens first */
-    #munchTable!: [Parselet, Token][];
+    #munchTable!: [Parselet, string][];
     #munched = false;
     #sorted = false;
     precedenceOf!: Map<Parselet, number>;
-    #prepare(vm: BackolonVM) {
-        const { parselets } = this;
+    #prepare() {
+        const parselets = this.parselets;
         if (!this.#sorted) {
             this.precedenceOf = sortByConstraints(parselets, this.constraints);
             this.#sorted = true;
         }
         if (!this.#munched) {
-            const t = this.#munchTable = [] as [Parselet, Token][];
+            const t = this.#munchTable = [] as [Parselet, string][];
             for (var i = 0; i < parselets.length; i++) {
                 const p = parselets[i]!;
                 const match = this.test(p.prefix);
                 if (match) {
-                    // TODO: how to clean out unused tokens???
-                    t.push([p, this.commitToken(vm, match)]);
+                    // TODO: how to avoid making unused tokens??
+                    t.push([p, match[0]]);
                 }
             }
-            t.sort((a, b) => b[1].text.length - a[1].text.length);
+            t.sort((a, b) => b[1].length - a[1].length);
             this.#munched = true;
         }
     }
-    commitToken(vm: BackolonVM, match: RegExpExecArray) {
+    commitToken(vm: BackolonVM, text: string) {
         const { source, index } = this;
-        const text = match[0];
         return new Token(text, vm.registerSpan(new Span(source.src, index, index + text.length)))
     }
     test(regex: RegExp | string) {
@@ -71,15 +70,16 @@ export class Parser {
         regex.lastIndex = this.index;
         return regex.exec(this.source.code);
     }
-    peek(vm: BackolonVM, startIndex: number, maxPrecedence: number, orEqual: boolean): [parselet: Parselet, token: Token, nextIndex: number] | undefined {
-        this.#prepare(vm);
+    peek(vm: BackolonVM, startIndex: number, minPrecedence: number, orEqual: boolean): [parselet: Parselet, token: Token, nextIndex: number] | undefined {
+        this.#prepare();
         const tab = this.#munchTable;
         for (var i = startIndex; i < tab.length; i++) {
             const entry = tab[i]!;
-            if (lte(this.precedenceOf.get(entry[0])!, maxPrecedence, orEqual)) return [...entry, i + 1];
+            if (lte(minPrecedence, this.precedenceOf.get(entry[0])!, orEqual)) return [entry[0], this.commitToken(vm, entry[1]), i + 1];
         }
     }
     precedence() {
+        this.#prepare();
         return this.precedenceOf.get(this.#munchTable[0]![0])!;
     }
     advance(by: number) {
@@ -97,7 +97,10 @@ const lte = (a: number, b: number, orEqual: boolean) => a < b || (orEqual && a =
 export const NO_MATCH = Symbol("__no_match__");
 export const OP_runModule = makeOpcode(null, (vm: BackolonVM, { 0: st }: [SourceTracker]) => {
     if (vm.parser !== null) throw new JEBError(ErrnoCode.EALREADY, "cannot begin parsing while already parsing");
-    vm.parser = new Parser(st, 0, [], []);
+    const the_module: Module = vm.currentEnv.get(MODULE_SELF).or(() => {
+        throw new JEBError(ErrnoCode.EPANIC, "not in a module??");
+    });
+    vm.parser = new Parser(st, 0, the_module.parselets, the_module.constraints);
     pushCommand(vm, OP_moduleParseLoopTop);
 }, null);
 
@@ -117,18 +120,25 @@ const OP_moduleParseLoopTop = makeOpcode(null, (vm: BackolonVM) => {
 }, null);
 
 const OP_parseone_result = makeOpcode(null, (vm: BackolonVM) => {
-    console.log("parse one verify", peekData(vm));
-    if (peekData(vm) === NO_MATCH) throw new JEBError(ErrnoCode.ESYNTAX, "unexpected character " + stringify(vm.parser!.test(/./)![0]));
+    assertIsParsing(vm);
+    if (peekData(vm) === NO_MATCH) {
+        if (vm.parser!.isEOF()) {
+            popData(vm);
+            pushData(vm, null);
+            return;
+        }
+        throw new JEBError(ErrnoCode.ESYNTAX, "unexpected character " + stringify(vm.parser!.test(/[\s\S]/)![0]));
+    }
 }, null);
 
 const OP_parseone = makeOpcode("parseOne", (vm: BackolonVM, { 0: precedence, 1: orEqual }: [number, boolean]) => {
-    // set up left (first is implicit - left==NO_MATCH)
-    const p = vm.parser!;
-    pushData(vm, NO_MATCH);
-    pushCommand(vm, OP_parserfindloop, p, 0, precedence, orEqual);
+    assertIsParsing(vm);
+    pushData(vm, NO_MATCH); // initial data
+    pushCommand(vm, OP_parserfindloop, 0, precedence, orEqual);
 }, null);
 
-const OP_parserfindloop = makeOpcode(null, (vm: BackolonVM, { 0: parser, 1: index, 2: precedence, 3: orEqual }: [Parser, number, number, boolean]) => {
+const OP_parserfindloop = makeOpcode(null, (vm: BackolonVM, { 0: index, 1: precedence, 2: orEqual }: [number, number, boolean]) => {
+    const parser = vm.parser!;
     const chomp = parser.peek(vm, index, precedence, orEqual);
     if (chomp === undefined) {
         // don't continue main loop
@@ -136,21 +146,21 @@ const OP_parserfindloop = makeOpcode(null, (vm: BackolonVM, { 0: parser, 1: inde
     }
     const { 0: parselet, 1: token, 2: nextIndex } = chomp;
     // create "discard" continuation
-    const discard = new Continuation(vm, [[OP_parserfindloop, parser, 0, precedence, orEqual]]);
+    const discard = new Continuation(vm, [[OP_shuffle, 1, []], [OP_parserfindloop, 0, precedence, orEqual]]);
     discard.state.resetParser = false;
     // create "skip" continuation = continue
-    const skip = new Continuation(vm, [[OP_parserfindloop, parser, nextIndex, precedence, orEqual]]);    // continue main loop if precedence is high enough
+    const skip = new Continuation(vm, [[OP_shuffle, 1, []], [OP_parserfindloop, nextIndex, precedence, orEqual]]); // continue main loop if precedence is high enough
     if (lte(precedence, parser.precedence(), orEqual)) {
-        pushCommand(vm, OP_parseone, precedence, orEqual);
+        pushCommand(vm, OP_parserfindloop, 0, precedence, orEqual);
     }
     // try to call parse
     const left = popData(vm);
     vm.parser = parser.advance(token.text.length);
     pushData(vm, parselet.parse);
-    pushCommand(vm, OP_apply, [makeParseletContext(left, parser.precedenceOf.get(parselet)!, token, nextIndex, skip, discard)], undefined, false, true);
+    pushCommand(vm, OP_apply, [makeParseletContext(left, parser.precedenceOf.get(parselet)!, token, skip, discard)], undefined, false, true);
 }, null);
 
-const makeParseletContext = (leftD: any, precedence: number, token: Token, nextIndex: number, skip: Continuation<BackolonVM>, discard: Continuation<BackolonVM>) => {
+const makeParseletContext = (leftD: any, precedence: number, token: Token, skip: Continuation<BackolonVM>, discard: Continuation<BackolonVM>) => {
     const first = leftD === NO_MATCH, left = first ? undefined : leftD;
     return {
         left,
@@ -165,11 +175,13 @@ const makeParseletContext = (leftD: any, precedence: number, token: Token, nextI
     }
 }
 
+export type ParseletContext = ReturnType<typeof makeParseletContext>;
+
 const assertIsParsing = (vm: BackolonVM) => {
     if (!vm.parser) throw new JEBError(ErrnoCode.ESRCH, "not currently parsing");
 }
 
-const B_Parser_test = makeJSFun("sys.parser.test", ["what"], ({ what }, vm: BackolonVM) => {
+export const B_Parser_test = makeJSFun("parser.test", ["what"], ({ what }, vm: BackolonVM) => {
     assertIsParsing(vm);
     return !!vm.parser!.test(withType(what, ["string", RegExp], "what"));
 },
@@ -179,12 +191,12 @@ const B_Parser_test = makeJSFun("sys.parser.test", ["what"], ({ what }, vm: Back
 ..throws ESRCH - if no parser is active
 . Returns true if the pattern matches at the current parse position.`);
 
-const B_Parser_expect = makeJSFun("sys.parser.expect", ["what"], ({ what }, vm: BackolonVM) => {
+export const B_Parser_expect = makeJSFun("parser.expect", ["what"], ({ what }, vm: BackolonVM) => {
     assertIsParsing(vm);
     const p = vm.parser!
     const match = p.test(withType(what, ["string", RegExp], "what"));
     if (match) {
-        const token = p.commitToken(vm, match);
+        const token = p.commitToken(vm, match[0]);
         vm.parser = p.advance(token.text.length);
         return token;
     }
@@ -199,7 +211,7 @@ const B_Parser_expect = makeJSFun("sys.parser.expect", ["what"], ({ what }, vm: 
 
 const p2s = new WeakMap<Parser, symbol>();
 const s2p = new WeakMap<symbol, Parser>();
-const B_Parser_save = makeJSFun("sys.parser.save", [], (_, vm: BackolonVM) => {
+export const B_Parser_save = makeJSFun("parser.save", [], (_, vm: BackolonVM) => {
     assertIsParsing(vm);
     return p2s.getOrInsertComputed(vm.parser!, p => {
         const sym = Symbol(p.source.src.href + " :: " + p.index);
@@ -211,7 +223,7 @@ const B_Parser_save = makeJSFun("sys.parser.save", [], (_, vm: BackolonVM) => {
 ..returns {symbol}
 ..throws ESRCH - if no parser is active
 . Returns a symbol that represents the state of the parser at this moment, for backtracking or span computing.`);
-const B_Parser_restore = makeJSFun("sys.parser.restore", ["state"], ({ state }, vm: BackolonVM) => {
+export const B_Parser_restore = makeJSFun("parser.restore", ["state"], ({ state }, vm: BackolonVM) => {
     assertIsParsing(vm);
     const pstate = s2p.get(withType(state, ["symbol"], "state"));
     if (!pstate) throw new JEBError(ErrnoCode.ENOENT, "unknown parser state");
@@ -223,14 +235,14 @@ const B_Parser_restore = makeJSFun("sys.parser.restore", ["state"], ({ state }, 
 ..throws ENOENT - if the state is not known
 . Restores the parser state to the one named by the state symbol.`);
 
-const B_Parser_isMatch = makeJSFun("sys.parser.isMatch", ["ast"], ({ ast }) => ast != NO_MATCH,
+export const B_Parser_isMatch = makeJSFun("parser.isMatch", ["ast"], ({ ast }) => ast != NO_MATCH,
     `.func (parser.isMatch ast)
 ..param {any} ast
 ..returns {boolean}
 . True if the AST given (from a recursive call to \`ctx.parse\`) is a valid AST or not.
 If false, it means the parser could not parse anything.`);
 
-const B_Parser_addSpan = makeJSFun("sys.parser.addSpan", ["start", "end"], ({ start, end }, vm: BackolonVM) => {
+export const B_Parser_addSpan = makeJSFun("parser.addSpan", ["start", "end"], ({ start, end }, vm: BackolonVM) => {
     assertIsParsing(vm);
     const start1 = s2p.get(withType(start, ["symbol"], "start"));
     const end1 = s2p.get(withType(end, ["symbol"], "end"));
@@ -248,11 +260,18 @@ const B_Parser_addSpan = makeJSFun("sys.parser.addSpan", ["start", "end"], ({ st
 ..throws ERANGE - if the \`start\` and \`end\` are in different files
 ..throws EOVERFLOW - if \`start\` is after \`end\`
 . Registers and returns a \`Location\` span that goes between the positions registered in \`start\` and \`end\`.
-The \`start\` and \`end\` symbols are returned by [[parser.save]]`);
+The \`start\` and \`end\` symbols are returned by [[parser.save]].`);
 
-export const create_SysParser = () => {
-    const env = new Env;
-    const m = new Module(env, new URL("builtin:sys.parser"), null);
+export const B_Parser_tag = makeJSFun("parser.tag", ["span", "tag"], ({ span, tag }, vm: BackolonVM) => {
+    return vm.tag(withType(span, [Array], "span") as Location, withType(tag, ["string"], "tag"));
+},
+    `.func (parser.tag span tag)
+..param {Location} span
+..param {string} tag
+. Adds the tag to the list of tags for all the characters in that span.`)
+
+export const create_parser_module = (vm: BackolonVM) => {
+    const m = vm.createModule(new URL("backolon:parser"), null), env = m.global;
     const export_ = (name: string, value: any) => {
         env.addConst(name, value);
         m.exports[name] = new VariableReference(AccessType.PROPERTY, env, name);
@@ -263,5 +282,6 @@ export const create_SysParser = () => {
     export_("restore", B_Parser_restore);
     export_("isMatch", B_Parser_isMatch);
     export_("addSpan", B_Parser_addSpan);
+    export_("tag", B_Parser_tag);
     return m;
 }

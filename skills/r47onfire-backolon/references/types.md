@@ -1,5 +1,12 @@
 # Types & Enums
 
+## parser
+
+### `ParseletContext`
+```ts
+ReturnType<typeof makeParseletContext>
+```
+
 ## runtime
 
 ### `JSModule`
