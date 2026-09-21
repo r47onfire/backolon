@@ -64,10 +64,6 @@ export class BackolonVM extends JebVM<BackolonVM> {
         });
         return mod;
     }
-    fileIndex(url: URL) {
-        const index = this.#modcacheGet(url)[0];
-        return index < 0 ? undefined : index;
-    }
     setSource(url: URL, src: string): SourceTracker | undefined {
         const i = this.#modcacheGet(url)[1];
         if (!i) {
@@ -76,13 +72,19 @@ export class BackolonVM extends JebVM<BackolonVM> {
         }
         return i.src = new SourceTracker(url, src, {});
     }
+    getSource(url: URL): string | undefined {
+        return this.#modcacheGet(url)[1]?.src?.code;
+    }
     registerSpan(span: Span): Location {
         const url = span.file;
-        const mc = this.#modcacheGet(url)[1];
-        if (!mc) {
-            throw new JEBError(ErrnoCode.ENOENT);
-        }
-        return location([mc.map.push(span) - 1, this.fileIndex(url)]);
+        const { 0: index, 1: mc } = this.#modcacheGet(url);
+        if (!mc) throw new JEBError(ErrnoCode.ENOENT);
+        return location([mc.map.push(span) - 1, index]);
+    }
+    getSpan(location: Location): Span {
+        const span = this.modcache[location[1]!]?.map[location[0]!];
+        if (!span) throw new JEBError(ErrnoCode.ENOENT);
+        return span;
     }
     tag(location: Location, tag: string) {
         const { 0: spanIndex, 1: fileIndex } = location;

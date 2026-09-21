@@ -197,7 +197,7 @@ export const B_Parser_expect = makeJSFun("parser.expect", ["what"], ({ what }, v
     const match = p.test(withType(what, ["string", RegExp], "what"));
     if (match) {
         const token = p.commitToken(vm, match[0]);
-        vm.parser = p.advance(token.text.length);
+        vm.parser = p.advance(match[0].length);
         return token;
     }
     throw new JEBError(ErrnoCode.ESYNTAX, `expected ${what} but got ${stringify(p.source.code[p.index])}`);
@@ -268,7 +268,18 @@ export const B_Parser_tag = makeJSFun("parser.tag", ["span", "tag"], ({ span, ta
     `.func (parser.tag span tag)
 ..param {Location} span
 ..param {string} tag
-. Adds the tag to the list of tags for all the characters in that span.`)
+. Adds the tag to the list of tags for all the characters in that span.`);
+
+export const B_Parser_sameline = makeJSFun("parser.sameLine", ["span"], ({ span }, vm: BackolonVM) => {
+    assertIsParsing(vm);
+    const { start, end, file } = vm.getSpan(withType(span, [Array], "span") as Location);
+    const src = vm.getSource(file);
+    if (!src) return undefined;
+    return !/\n/.test(src.slice(start, end));
+},
+    `.func (parser.sameLine span)
+..param {Location} span
+. Returns true if the given span starts and ends on the same line.`);
 
 export const create_parser_module = (vm: BackolonVM) => {
     const m = vm.createModule(new URL("backolon:parser"), null), env = m.global;
@@ -283,5 +294,6 @@ export const create_parser_module = (vm: BackolonVM) => {
     export_("isMatch", B_Parser_isMatch);
     export_("addSpan", B_Parser_addSpan);
     export_("tag", B_Parser_tag);
+    export_("sameLine", B_Parser_sameline);
     return m;
 }

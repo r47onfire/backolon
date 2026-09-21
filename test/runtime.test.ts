@@ -30,7 +30,7 @@ const main = (vm: BackolonVM, file: string) => vfs(vm, { [MAIN.href]: file });
 const testTest = makeTestRun(class extends BackolonVM { constructor() { super(new Importer(new IndexResolver(), [new TestFinder()])) } });
 
 testTest(test, "comments are empty", async vm => {
-    main(vm, "### foo\nfoo");
+    main(vm, "## foo\nprint 1");
     expect(await runAsync(vm, MAIN)).toBeTrue();
     const mod = popData(vm) as Module;
     expect(mod).toBeInstanceOf(Module);
