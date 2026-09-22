@@ -20,6 +20,7 @@ export class Module {
         global.addConst(MODULE_SELF, this);
         global.addConst(MODULE_NAME, id);
     }
+    result: any;
 }
 
 /**

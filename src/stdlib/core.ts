@@ -1,4 +1,4 @@
-import { Location, B_atLocation, B_div, B_local, B_minus, B_mul, B_plus, B_pow, ErrnoCode, JEBError, JSFun, makeJSFun, makeOpcode, NOTHING, OP_apply, popData, pushCommand, pushData, Relation } from "@r47onfire/jeb";
+import { B_atLocation, B_div, B_local, B_minus, B_mul, B_plus, B_pow, ErrnoCode, JEBError, JSFun, Location, makeJSFun, makeOpcode, NOTHING, OP_apply, popData, pushCommand, pushData, Relation } from "@r47onfire/jeb";
 import { NO_MATCH, ParseletContext } from "../parser";
 import { Parselet } from "../parser/parselet";
 import { Constraint } from "../parser/sort";
@@ -22,12 +22,14 @@ export const OP_setupModuleGlobals = makeOpcode(null, (vm: BackolonVM) => {
         P_space,
         P_leftParen,
         P_newline,
+        P_semicolon,
     ];
     the_module.constraints = [
         new Constraint(P_comment, Relation.EQUAL, P_block_comment),
 
         new Constraint(P_identifier, Relation.GREATER, P_comment),
         new Constraint(P_space, Relation.GREATER, P_newline),
+        new Constraint(P_newline, Relation.EQUAL, P_semicolon),
 
         new Constraint(P_identifier, Relation.EQUAL, P_number),
         new Constraint(P_leftParen, Relation.EQUAL, P_identifier),
@@ -75,24 +77,25 @@ export const P_number = new Parselet(/(\d+(\.\d*)?|\.\d+)(e\d+)?/i, makeJSFun("n
         skip.invoke(vm, 0);
         return NOTHING;
     }
+    vm.tag(location, "number");
     return [B_atLocation, location, Number(text)];
 }, ""));
 
 // MARK: function calling mess
 
-export const getLocal = (expr: any[]): [Location | undefined, any] | undefined => {
-    if (expr[0] === B_atLocation) {
+export const getLocal = (expr: any): [Location | undefined, any] | undefined => {
+    if (expr?.[0] === B_atLocation) {
         const { 1: real } = getLocal(expr[2]) ?? [];
         return [expr[1], real];
     }
-    if (expr[0] === B_local) {
+    if (expr?.[0] === B_local) {
         return [undefined, expr[1]];
     }
     return undefined;
 }
 
-export const stripLocalInCall = (call: any[]) => {
-    const { 0: location, 1: local } = getLocal(call[0]) ?? [];
+export const stripLocalInCall = (call: any) => {
+    const { 0: location, 1: local } = getLocal(call?.[0]) ?? [];
     if (local) {
         if (location) return [B_atLocation, location, [local, ...call.slice(1)]];
     }
@@ -102,6 +105,19 @@ export const stripLocalInCall = (call: any[]) => {
 const OP_maybeFinishCall = makeOpcode(null, (vm: BackolonVM, { 0: callee, 1: args, 2: parse, 3: explicit }: [any, any[], any, boolean]) => {
     const argument = popData(vm);
     if (argument === NO_MATCH) {
+        if (vm.parser!.test(",")) {
+            // blank = undefined
+            vm.parser = vm.parser!.advance(1);
+            if (explicit && vm.parser!.test(")")) {
+                vm.parser = vm.parser!.advance(1);
+                pushData(vm, stripLocalInCall([callee, ...args, undefined]));
+                return;
+            }
+            pushCommand(vm, OP_maybeFinishCall, callee, args.concat([undefined]), parse, explicit);
+            pushData(vm, parse);
+            pushCommand(vm, OP_apply, [true, true, false], undefined, false, true);
+            return;
+        }
         if (explicit) throw new JEBError(ErrnoCode.ESYNTAX, "expected expression");
         // if there's no arguments it means it's trailing space on the line, ignore it
         pushData(vm, args.length === 0 ? callee : stripLocalInCall([callee, ...args]));
@@ -117,7 +133,7 @@ const OP_maybeFinishCall = makeOpcode(null, (vm: BackolonVM, { 0: callee, 1: arg
         }
         pushCommand(vm, OP_maybeFinishCall, callee, nextArgs, parse, explicit);
         pushData(vm, parse);
-        pushCommand(vm, OP_apply, [true, true], undefined, false, true);
+        pushCommand(vm, OP_apply, [true, true, false], undefined, false, true);
         return;
     }
     if (explicit) {
@@ -137,7 +153,7 @@ const OP_finishGroup = makeOpcode(null, (vm: BackolonVM) => {
 const parseCallArguments = (vm: BackolonVM, context: ParseletContext, explicit: boolean): typeof NOTHING => {
     pushCommand(vm, OP_maybeFinishCall, context.left, [], context.parse, explicit);
     pushData(vm, context.parse);
-    pushCommand(vm, OP_apply, [true, true, explicit], undefined, false, true);
+    pushCommand(vm, OP_apply, [true, true, false], undefined, false, true);
     return NOTHING;
 };
 
@@ -147,6 +163,11 @@ export const P_newline = new Parselet(/\n\s*/, makeJSFun("newline", ["p"], ({ p 
     return NOTHING;
 }, ""));
 
+export const P_semicolon = new Parselet(";", makeJSFun("semicolon", ["p"], ({ p }, vm: BackolonVM) => {
+    const { first, discard, skip } = p as ParseletContext;
+    (first ? discard : skip).invoke(vm, 0);
+    return NOTHING;
+}, ""));
 
 export const P_space = new Parselet(/((?!\n)\s)+/, makeJSFun("space", ["p"], ({ p }, vm: BackolonVM) => {
     const context = p as ParseletContext;

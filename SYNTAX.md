@@ -104,13 +104,13 @@ A statement is an expression or an empty statement slot in a statement sequence.
 
 A newline MAY terminate a statement, but it MUST NOT otherwise become a semantic expression. A newline terminates a statement when the current statement has completed and no active parselet requires more input. A newline MUST NOT trigger an implicit call.
 
-Semicolons separate statement slots. An empty statement slot evaluates to `null` in a statement sequence.
+Semicolons separate statement slots. An empty statement slot evaluates to `undefined` in a statement sequence.
 
 The intended examples are:
 
 ```text
-a;;b  ==  a; null; b
-;;     ==  null; null;
+a;;b  ==  a; undefined; b
+;;     ==  undefined; undefined;
 ```
 
 The first and last semicolons in `;;` are separators around one empty slot; they do not cause the parser to discard the separators themselves. An implementation MUST apply the same empty-slot rule consistently to leading and trailing separators. A final separator that merely terminates a preceding non-empty statement MAY be omitted from the resulting sequence.
@@ -244,26 +244,26 @@ Whitespace application is right-nested in its argument position. A comma termina
 
 Whitespace MUST remain insignificant around operators, delimiters, and separators except where this section explicitly gives it meaning.
 
-## 9. Missing Expressions and `null`
+## 9. Missing Expressions and `undefined`
 
-An empty expression slot has the value `null` only where the owning parselet explicitly permits an empty slot.
+An empty expression slot has the value `undefined` only where the owning parselet explicitly permits an empty slot.
 
-In a comma-separated call argument list, a missing argument is `null`:
+In a comma-separated call argument list, a missing argument is `undefined`:
 
 ```text
-f(,)       == f(null)
+f(,)       == f(undefined)
 f(1,)      == f(1)
-f(1,,)     == f(1, null)
-f(1,,2)    == f(1, null, 2)
+f(1,,)     == f(1, undefined)
+f(1,,2)    == f(1, undefined, 2)
 ```
 
-In particular, `f(,)` is valid. When the call parser is expecting an argument and encounters `,`, it MUST insert `null`, consume the comma, and continue parsing the argument list. A trailing comma before `)` MUST be ignored rather than creating an additional argument.
+In particular, `f(,)` is valid. When the call parser is expecting an argument and encounters `,`, it MUST insert `undefined`, consume the comma, and continue parsing the argument list. A trailing comma before `)` MUST be ignored rather than creating an additional argument.
 
-In a statement sequence, an empty slot between separators is `null`, as specified in Section 6.
+In a statement sequence, an empty slot between separators is `undefined`, as specified in Section 6.
 
 An operator or other construct that requires an expression MUST reject an empty slot unless that construct explicitly defines another meaning.
 
-An implementation MAY retain a distinct source-preserving node for a missing argument or statement slot. Runtime evaluation MUST treat it as `null`.
+An implementation MAY retain a distinct source-preserving node for a missing argument or statement slot. Runtime evaluation MUST treat it as `undefined`.
 
 ## 10. Pipeline Topics and Member Access
 

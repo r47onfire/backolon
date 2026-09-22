@@ -1,13 +1,12 @@
-import { AccessType, Continuation, ErrnoCode, JEBError, Location, makeJSFun, makeOpcode, NOTHING, OP_apply, OP_eval, OP_set_env, OP_shuffle, peekData, popData, pushCommand, pushData, VariableReference, withType } from "@r47onfire/jeb";
+import { AccessType, Continuation, ErrnoCode, JEBError, Location, makeJSFun, makeOpcode, NOTHING, OP_apply, OP_eval, OP_set_env, OP_shuffle, OP_unwrap, peekData, popData, pushCommand, pushData, VariableReference, withType } from "@r47onfire/jeb";
 import { stringify } from "lib0/json";
 import { SourceTracker } from "../runtime/importer";
 import { type Module, MODULE_SELF } from "../runtime/module";
 import { BackolonVM } from "../runtime/vm";
+import { stripInlinedFunctions } from "./debug";
 import { forceStickyRegex, Parselet } from "./parselet";
 import { Constraint, sortByConstraints } from "./sort";
 import { Span } from "./span";
-import { OP_unwrap } from "../../jeb/src/unwrap";
-import { stripInlinedFunctions } from "./debug";
 
 export class Token {
     constructor(
@@ -107,31 +106,33 @@ export const OP_runModule = makeOpcode(null, (vm: BackolonVM, { 0: st }: [Source
 }, null);
 
 const OP_moduleParseLoopTop = makeOpcode(null, (vm: BackolonVM) => {
-    const p = vm.parser!;
-    if (p.isEOF()) {
-        vm.parser = null;
-        return;
-    }
-    // Parse one expression, eval it, discard top, and loop
-    pushCommand(vm, OP_moduleParseLoopTop);
-    pushCommand(vm, OP_shuffle, 1, []);
-    pushCommand(vm, OP_eval, undefined);
-    pushCommand(vm, OP_unwrap, []);
-    pushCommand(vm, OP_set_env, vm.currentEnv);
     pushCommand(vm, OP_parseone_result);
     pushCommand(vm, OP_parseone, -Infinity, false, false);
+}, null);
+
+const OP_store_result = makeOpcode(null, (vm: BackolonVM) => {
+    const the_module: Module = vm.currentEnv.get(MODULE_SELF).or(() => {
+        throw new JEBError(ErrnoCode.EPANIC, "not in a module??");
+    });
+    the_module.result = popData(vm);
 }, null);
 
 const OP_parseone_result = makeOpcode(null, (vm: BackolonVM) => {
     if (peekData(vm) === NO_MATCH) {
         if (vm.parser!.isEOF()) {
             popData(vm);
-            pushData(vm, null);
+            vm.parser = null;
             return;
         }
         throw new JEBError(ErrnoCode.ESYNTAX, "unexpected character " + stringify(vm.parser!.test(/[\s\S]/)![0]));
     }
     console.log("parse result", stripInlinedFunctions(peekData(vm)));
+    // Parse one expression, eval it, discard top, and loop
+    pushCommand(vm, OP_moduleParseLoopTop);
+    pushCommand(vm, OP_store_result);
+    pushCommand(vm, OP_unwrap, []);
+    pushCommand(vm, OP_eval, undefined);
+    pushCommand(vm, OP_set_env, vm.currentEnv);
 }, null);
 
 const OP_assertResult = makeOpcode(null, (vm: BackolonVM) => {
