@@ -65,13 +65,13 @@ testTest(test, "semicolon terminates implicit calls", async (vm, out) => {
     await expectEval(vm, out, "print 1; print 2", undefined, ["1", "2"]);
 });
 testTest(test, "separators insert missing call arguments", async (vm, out) => {
-    await expectEval(vm, out, "print(,); print(1,,2)", undefined, ["undefined", "1 undefined 2"]);
+    await expectEval(vm, out, "print(,); print(1,,2);", undefined, ["undefined", "1 undefined 2"]);
 });
 testTest(test, "consecutive semicolons are allowed", async (vm, out) => {
-    await expectEval(vm, out, "print 1;;print 2", undefined, ["1", "2"]);
+    await expectEval(vm, out, "print 1;;;;;;;;;print 2", undefined, ["1", "2"]);
 });
 describe("calling functions", () => {
-    testTest(test, "'print' prints and returns nil", async (vm, out) => {
+    testTest(test, "'print' prints and returns undefined", async (vm, out) => {
         await expectEval(vm, out, "print 1; print (print 2)", undefined, ["1", "2", "undefined"]);
     });
     testTest(test, "sequencing works with newline also instead of semicolons", async (vm, out) => {

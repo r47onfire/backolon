@@ -1,4 +1,4 @@
-import { B_atLocation, B_div, B_local, B_minus, B_mul, B_plus, B_pow, ErrnoCode, JEBError, JSFun, Location, makeJSFun, makeOpcode, NOTHING, OP_apply, popData, pushCommand, pushData, Relation } from "@r47onfire/jeb";
+import { B_atLocation, B_div, B_local, B_minus, B_mul, B_plus, B_pow, B_set, ErrnoCode, JEBError, JSFun, Location, makeJSFun, makeOpcode, NOTHING, OP_apply, popData, pushCommand, pushData, Relation } from "@r47onfire/jeb";
 import { NO_MATCH, ParseletContext } from "../parser";
 import { Parselet } from "../parser/parselet";
 import { Constraint } from "../parser/sort";
@@ -19,6 +19,7 @@ export const OP_setupModuleGlobals = makeOpcode(null, (vm: BackolonVM) => {
         P_mul,
         P_div,
         P_pow,
+        P_assign,
         P_space,
         P_leftParen,
         P_newline,
@@ -36,6 +37,7 @@ export const OP_setupModuleGlobals = makeOpcode(null, (vm: BackolonVM) => {
 
         new Constraint(P_space, Relation.GREATER, P_pow),
 
+        new Constraint(P_add, Relation.GREATER, P_assign),
         new Constraint(P_add, Relation.EQUAL, P_sub),
         new Constraint(P_mul, Relation.GREATER, P_add),
         new Constraint(P_mul, Relation.EQUAL, P_div),
@@ -104,12 +106,13 @@ export const stripLocalInCall = (call: any) => {
 
 const OP_maybeFinishCall = makeOpcode(null, (vm: BackolonVM, { 0: callee, 1: args, 2: parse, 3: explicit }: [any, any[], any, boolean]) => {
     const argument = popData(vm);
+    var p = vm.parser!;
     if (argument === NO_MATCH) {
-        if (vm.parser!.test(",")) {
+        if (p.test(",")) {
             // blank = undefined
-            vm.parser = vm.parser!.advance(1);
-            if (explicit && vm.parser!.test(")")) {
-                vm.parser = vm.parser!.advance(1);
+            p = vm.parser = p.advance(1);
+            if (explicit && p.test(")")) {
+                vm.parser = p.advance(1);
                 pushData(vm, stripLocalInCall([callee, ...args, undefined]));
                 return;
             }
@@ -124,10 +127,10 @@ const OP_maybeFinishCall = makeOpcode(null, (vm: BackolonVM, { 0: callee, 1: arg
         return;
     }
     const nextArgs = args.concat([argument]);
-    if (vm.parser!.test(",")) {
-        vm.parser = vm.parser!.advance(1);
-        if (explicit && vm.parser!.test(")")) {
-            vm.parser = vm.parser!.advance(1);
+    if (p.test(",")) {
+        p = vm.parser = p.advance(1);
+        if (explicit && p.test(")")) {
+            vm.parser = p.advance(1);
             pushData(vm, stripLocalInCall([callee, ...nextArgs]));
             return;
         }
@@ -137,8 +140,8 @@ const OP_maybeFinishCall = makeOpcode(null, (vm: BackolonVM, { 0: callee, 1: arg
         return;
     }
     if (explicit) {
-        if (!vm.parser!.test(")")) throw new JEBError(ErrnoCode.ESYNTAX, "expected )");
-        vm.parser = vm.parser!.advance(1);
+        if (!p.test(")")) throw new JEBError(ErrnoCode.ESYNTAX, "expected )");
+        vm.parser = p.advance(1);
     }
     pushData(vm, stripLocalInCall([callee, ...nextArgs]));
 }, null);
@@ -171,28 +174,28 @@ export const P_semicolon = new Parselet(";", makeJSFun("semicolon", ["p"], ({ p 
 
 export const P_space = new Parselet(/((?!\n)\s)+/, makeJSFun("space", ["p"], ({ p }, vm: BackolonVM) => {
     const context = p as ParseletContext;
-    const { first, discard } = context;
+    const { first, discard, left } = context;
     if (first) {
         discard.invoke(vm, 0);
         return NOTHING;
     }
     // yield to explicit call
-    if (vm.parser!.test("(")) return context.left;
+    if (vm.parser!.test("(")) return left;
     return parseCallArguments(vm, context, false);
 }, ""));
 
 export const P_leftParen = new Parselet("(", makeJSFun("call", ["p"], ({ p }, vm: BackolonVM) => {
     const context = p as ParseletContext;
-    const { first } = context;
+    const { first, parse, left } = context;
     if (first) {
         pushCommand(vm, OP_finishGroup);
-        pushData(vm, context.parse);
+        pushData(vm, parse);
         pushCommand(vm, OP_apply, [true, true], undefined, false, true);
         return NOTHING;
     }
     if (vm.parser!.test(")")) {
         vm.parser = vm.parser!.advance(1);
-        return stripLocalInCall([context.left]);
+        return stripLocalInCall([left]);
     }
     return parseCallArguments(vm, context, true);
 }, ""));
@@ -203,15 +206,15 @@ const OP_finishInfix = makeOpcode(null, (vm: BackolonVM, { 0: left, 1: operator,
 }, null);
 const makeBinaryInfixOperator = (operator: JSFun<BackolonVM, any>, name: string, rightAssociative = false) => new Parselet(name, makeJSFun(name, ["p"], ({ p }, vm: BackolonVM) => {
     const context = p as ParseletContext;
-    const { first, left, token: { location } } = context;
+    const { first, left, token: { location }, skip, parse } = context;
     if (first) {
-        context.skip.invoke(vm, 0);
+        skip.invoke(vm, 0);
         return NOTHING;
     }
     vm.tag(location, "operator");
     pushCommand(vm, OP_finishInfix, left, operator, location);
     pushCommand(vm, OP_apply, [rightAssociative], undefined, false, true);
-    pushData(vm, context.parse);
+    pushData(vm, parse);
     return NOTHING;
 }, ""));
 
@@ -220,3 +223,11 @@ export const P_sub = makeBinaryInfixOperator(B_minus, "-");
 export const P_mul = makeBinaryInfixOperator(B_mul, "*");
 export const P_div = makeBinaryInfixOperator(B_div, "/");
 export const P_pow = makeBinaryInfixOperator(B_pow, "**", true);
+
+const OP_augAssign = makeOpcode(null, (vm: BackolonVM, { 0: text }: [string]) => {
+    const data = popData(vm);
+    console.log(data, text);
+    pushData(vm, data);
+}, null);
+export const P_assign = makeBinaryInfixOperator(B_set, "=", true);
+
