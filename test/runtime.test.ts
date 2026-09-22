@@ -29,14 +29,26 @@ const main = (vm: BackolonVM, file: string) => vfs(vm, { [MAIN.href]: file });
 
 const testTest = makeTestRun(class extends BackolonVM { constructor() { super(new Importer(new IndexResolver(), [new TestFinder()])) } });
 
-testTest(test, "comments are empty", async vm => {
-    main(vm, "## foo\nprint 1");
+testTest(test, "call", async (vm, out) => {
+    main(vm, "print print 1 + 2 * 3, 4");
     expect(await runAsync(vm, MAIN)).toBeTrue();
     const mod = popData(vm) as Module;
     expect(mod).toBeInstanceOf(Module);
     expect(mod.parent).toBeNull();
+    expect(out).toEqual(["7 4", "undefined"]);
 });
 
+testTest(test, "multiple call arguments", async (vm, out) => {
+    main(vm, "print(1, 2)\nprint (1, 2)\nprint 1, 2\nprint()\nprint");
+    expect(await runAsync(vm, MAIN)).toBeTrue();
+    expect(out).toEqual(["1 2", "1 2", "1 2", ""]);
+});
+
+testTest(test, "associativity", async (vm, out) => {
+    main(vm, "print(1 + 2 + 3)\nprint(2 ** 3 ** 2)");
+    expect(await runAsync(vm, MAIN)).toBeTrue();
+    expect(out).toEqual(["6", "512"]);
+});
 // test("empty result", () => {
 //     expectEval("", {
 //         t: ThingType.nil,

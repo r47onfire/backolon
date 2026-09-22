@@ -6,6 +6,8 @@ import { BackolonVM } from "../runtime/vm";
 import { forceStickyRegex, Parselet } from "./parselet";
 import { Constraint, sortByConstraints } from "./sort";
 import { Span } from "./span";
+import { OP_unwrap } from "../../jeb/src/unwrap";
+import { stripInlinedFunctions } from "./debug";
 
 export class Token {
     constructor(
@@ -114,13 +116,13 @@ const OP_moduleParseLoopTop = makeOpcode(null, (vm: BackolonVM) => {
     pushCommand(vm, OP_moduleParseLoopTop);
     pushCommand(vm, OP_shuffle, 1, []);
     pushCommand(vm, OP_eval, undefined);
+    pushCommand(vm, OP_unwrap, []);
     pushCommand(vm, OP_set_env, vm.currentEnv);
     pushCommand(vm, OP_parseone_result);
-    pushCommand(vm, OP_parseone, -Infinity, false);
+    pushCommand(vm, OP_parseone, -Infinity, false, false);
 }, null);
 
 const OP_parseone_result = makeOpcode(null, (vm: BackolonVM) => {
-    assertIsParsing(vm);
     if (peekData(vm) === NO_MATCH) {
         if (vm.parser!.isEOF()) {
             popData(vm);
@@ -129,11 +131,19 @@ const OP_parseone_result = makeOpcode(null, (vm: BackolonVM) => {
         }
         throw new JEBError(ErrnoCode.ESYNTAX, "unexpected character " + stringify(vm.parser!.test(/[\s\S]/)![0]));
     }
+    console.log("parse result", stripInlinedFunctions(peekData(vm)));
 }, null);
 
-const OP_parseone = makeOpcode("parseOne", (vm: BackolonVM, { 0: precedence, 1: orEqual }: [number, boolean]) => {
+const OP_assertResult = makeOpcode(null, (vm: BackolonVM) => {
+    if (peekData(vm) === NO_MATCH) {
+        throw new JEBError(ErrnoCode.ESYNTAX, "expected expression at index " + vm.parser!.index);
+    }
+}, null);
+
+const OP_parseone = makeOpcode("parseOne", (vm: BackolonVM, { 0: precedence, 1: orEqual, 2: assertResult }: [number, boolean, boolean]) => {
     assertIsParsing(vm);
     pushData(vm, NO_MATCH); // initial data
+    if (assertResult) pushCommand(vm, OP_assertResult);
     pushCommand(vm, OP_parserfindloop, 0, precedence, orEqual);
 }, null);
 
@@ -168,8 +178,8 @@ const makeParseletContext = (leftD: any, precedence: number, token: Token, skip:
         token,
         skip,
         discard,
-        parse: makeJSFun("parse", [["orEqual", false], ["reset", false]], (({ reset, orEqual }: { reset: boolean, orEqual: boolean }, vm: BackolonVM) => {
-            pushCommand(vm, OP_parseone, reset ? -Infinity : precedence, orEqual);
+        parse: makeJSFun("parse", [["orEqual", false], ["reset", false], ["assertResult", true]], (({ reset, orEqual, assertResult }: { reset: boolean, orEqual: boolean, assertResult: boolean }, vm: BackolonVM) => {
+            pushCommand(vm, OP_parseone, reset ? -Infinity : precedence, orEqual, assertResult);
             return NOTHING;
         }) as any, ""),
     }
