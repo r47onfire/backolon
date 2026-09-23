@@ -98,7 +98,7 @@ describe("variables", () => {
         expectEvalError(vm, "let 1 = 2", "invalid let binding");
     });
     testTest(test, "declarations override globals", vm => {
-        expectEvalError(vm, "let print = 1; print 'hi'", "can't call number");
+        expectEvalError(vm, "let print = 1; print 1", "can't call number");
     });
     // testTest(test, "reassignment", async (vm, out) => {
     //     expect(expectEval("let a = 1; print a; a = 2; print a = 3; a", {

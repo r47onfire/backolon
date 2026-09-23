@@ -14,17 +14,9 @@ export class Constraint<T> {
 }
 
 /**
- * Sorts the objects in descending precedence order according to the constraints given.
- * @returns a mapping of item -> index in list for speed
+ * @returns a mapping of item -> precedence
  */
-export const sortByConstraints = <T>(items: T[], constraints: readonly Constraint<T>[]) => {
-    const precedences = assignPrecedences(items, constraints);
-    insertionSort(items, (a, b) => precedences.get(b)! - precedences.get(a)!);
-    return new Map(items.map((x, i) => [x, i]));
-}
-
-
-const assignPrecedences = <T>(items: T[], constraints: readonly Constraint<T>[]): Map<T, number> => {
+export const assignPrecedences = <T>(items: T[], constraints: readonly Constraint<T>[]): Map<T, number> => {
     if (items.length === 0) {
         return new Map();
     }

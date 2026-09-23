@@ -5,7 +5,7 @@ import { type Module, MODULE_SELF } from "../runtime/module";
 import { BackolonVM } from "../runtime/vm";
 import { stripInlinedFunctions } from "./debug";
 import { forceStickyRegex, Parselet } from "./parselet";
-import { Constraint, sortByConstraints } from "./sort";
+import { assignPrecedences, Constraint } from "./sort";
 import { Span } from "./span";
 
 export class Token {
@@ -45,8 +45,12 @@ export class Parser {
     #prepare() {
         const parselets = this.parselets;
         if (!this.#sorted) {
-            this.precedenceOf = sortByConstraints(parselets, this.constraints);
+            this.precedenceOf = assignPrecedences(parselets, this.constraints);
             this.#sorted = true;
+            // console.log("sorted parselets");
+            // for (var [p, pr] of this.precedenceOf) {
+            //     console.log("  ", p.prefix.source.replaceAll(/\\x[0-9a-f]{2}/ig, x => String.fromCharCode(parseInt(x.slice(2), 16))), pr);
+            // }
         }
         if (!this.#munched) {
             const t = this.#munchTable = [] as [Parselet, string][];
@@ -54,12 +58,12 @@ export class Parser {
                 const p = parselets[i]!;
                 const match = this.test(p.prefix);
                 if (match) {
-                    // TODO: how to avoid making unused tokens??
                     t.push([p, match[0]]);
                 }
             }
             t.sort((a, b) => b[1].length - a[1].length);
             this.#munched = true;
+            // console.log("munched", this.#munchTable.map(t => [t[1], this.precedenceOf.get(t[0])]));
         }
     }
     commitToken(vm: BackolonVM, text: string) {
@@ -76,6 +80,7 @@ export class Parser {
         const tab = this.#munchTable;
         for (var i = startIndex; i < tab.length; i++) {
             const entry = tab[i]!;
+            // TODO: how to avoid making unused tokens??
             if (lte(minPrecedence, this.precedenceOf.get(entry[0])!, orEqual)) return [entry[0], this.commitToken(vm, entry[1]), i + 1];
         }
     }

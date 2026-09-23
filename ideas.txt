@@ -1,0 +1,68 @@
+syntax ideas?
+
+--------------- let bindings
+
+let x = 1, y = 2
+
+==> (letIn x 1 y 2)
+
+let x = 1, y = 2 in
+    foo bar
+end
+
+==> (let ((x 1) (y 2)) (foo bar))
+
+let(loop) x = 1 in
+    foo loop
+end
+
+==> (let loop ((x 1)) (foo loop))
+
+------------------ lambdas
+
+fn(x) x + 1
+
+==> (fn (x) (+ x 1))
+
+fn(x)
+    x + 1
+end
+
+==> (fn (x) (+ x 1))
+
+fn(x) foo fn(y)
+    bar()
+    baz()
+end
+
+==> (fn (x) (foo (fn (y) (bar) (baz))))
+
+--------------------- lists and stuff
+
+[1, x, 3]
+
+==> (list 1 x 3)
+
+[]
+
+==> (list)
+
+[:]
+
+==> (object)
+
+[`foo: 1, `bar: 2]
+
+==> (object "foo" 1 "bar" 2)
+
+[foo: 1, bar: 2]
+
+==> (object foo 1 bar 2)
+
+[`foo:]
+
+==> (object "foo" foo)
+
+`(x + y)
+
+==> (quote (x + y))

@@ -1,5 +1,6 @@
 import { B_atLocation, B_div, B_local, B_minus, B_mul, B_plus, B_pow, B_set, ErrnoCode, JEBError, JSFun, Location, makeJSFun, makeOpcode, NOTHING, OP_apply, popData, pushCommand, pushData, Relation } from "@r47onfire/jeb";
 import { NO_MATCH, ParseletContext } from "../parser";
+import { stripInlinedFunctions } from "../parser/debug";
 import { Parselet } from "../parser/parselet";
 import { Constraint } from "../parser/sort";
 import { Module, MODULE_SELF } from "../runtime/module";
@@ -14,39 +15,43 @@ export const OP_setupModuleGlobals = makeOpcode(null, (vm: BackolonVM) => {
         P_block_comment,
         P_identifier,
         P_number,
+        P_leading_space,
+        P_infix_space,
+        P_leftParen,
         P_add,
         P_sub,
         P_mul,
         P_div,
         P_pow,
         P_assign,
-        P_space,
-        P_leftParen,
         P_newline,
         P_semicolon,
     ];
     the_module.constraints = [
+        new Constraint(P_leading_space, Relation.GREATER, P_comment),
+
         new Constraint(P_comment, Relation.EQUAL, P_block_comment),
 
         new Constraint(P_identifier, Relation.GREATER, P_comment),
-        new Constraint(P_space, Relation.GREATER, P_newline),
-        new Constraint(P_newline, Relation.EQUAL, P_semicolon),
 
         new Constraint(P_identifier, Relation.EQUAL, P_number),
         new Constraint(P_leftParen, Relation.EQUAL, P_identifier),
 
-        new Constraint(P_space, Relation.GREATER, P_pow),
 
-        new Constraint(P_add, Relation.GREATER, P_assign),
         new Constraint(P_add, Relation.EQUAL, P_sub),
-        new Constraint(P_mul, Relation.GREATER, P_add),
         new Constraint(P_mul, Relation.EQUAL, P_div),
         new Constraint(P_pow, Relation.GREATER, P_mul),
+        new Constraint(P_mul, Relation.GREATER, P_add),
+        new Constraint(P_add, Relation.GREATER, P_assign),
+
+        new Constraint(P_assign, Relation.GREATER, P_infix_space),
+        new Constraint(P_infix_space, Relation.GREATER, P_semicolon),
+        new Constraint(P_newline, Relation.EQUAL, P_semicolon),
     ];
 }, null);
 
 // MARK: comments
-export const P_comment = new Parselet(/##/, makeJSFun("lineComment", ["p"], ({ p }, vm: BackolonVM) => {
+export const P_comment = new Parselet("##", makeJSFun("lineComment", ["p"], ({ p }, vm: BackolonVM) => {
     const { discard, token: { location } } = p as ParseletContext;
     vm.tag(location, "comment");
     const p2 = vm.parser!;
@@ -59,7 +64,7 @@ export const P_comment = new Parselet(/##/, makeJSFun("lineComment", ["p"], ({ p
     return NOTHING;
 }, ""));
 
-export const P_block_comment = new Parselet(/##\[\[/, makeJSFun("blockComment", ["p"], ({ p }, vm: BackolonVM) => {
+export const P_block_comment = new Parselet("##[[", makeJSFun("blockComment", ["p"], ({ p }, vm: BackolonVM) => {
     throw Error("block comment TODO");
 }, ""));
 
@@ -80,6 +85,7 @@ export const P_number = new Parselet(/(\d+(\.\d*)?|\.\d+)(e\d+)?/i, makeJSFun("n
         return NOTHING;
     }
     vm.tag(location, "number");
+    console.log("number", text);
     return [B_atLocation, location, Number(text)];
 }, ""));
 
@@ -104,7 +110,7 @@ export const stripLocalInCall = (call: any) => {
     return call;
 }
 
-const OP_maybeFinishCall = makeOpcode(null, (vm: BackolonVM, { 0: callee, 1: args, 2: parse, 3: explicit }: [any, any[], any, boolean]) => {
+const OP_maybeFinishCall = makeOpcode(null, (vm: BackolonVM, { 0: callee, 1: args, 2: parse, 3: explicit }: [any, any[], ParseletContext["parse"], boolean]) => {
     const argument = popData(vm);
     var p = vm.parser!;
     if (argument === NO_MATCH) {
@@ -118,7 +124,7 @@ const OP_maybeFinishCall = makeOpcode(null, (vm: BackolonVM, { 0: callee, 1: arg
             }
             pushCommand(vm, OP_maybeFinishCall, callee, args.concat([undefined]), parse, explicit);
             pushData(vm, parse);
-            pushCommand(vm, OP_apply, [true, true, false], undefined, false, true);
+            pushCommand(vm, OP_apply, [true, explicit, false], undefined, false, true);
             return;
         }
         if (explicit) throw new JEBError(ErrnoCode.ESYNTAX, "expected expression");
@@ -136,7 +142,7 @@ const OP_maybeFinishCall = makeOpcode(null, (vm: BackolonVM, { 0: callee, 1: arg
         }
         pushCommand(vm, OP_maybeFinishCall, callee, nextArgs, parse, explicit);
         pushData(vm, parse);
-        pushCommand(vm, OP_apply, [true, true, false], undefined, false, true);
+        pushCommand(vm, OP_apply, [true, explicit, false], undefined, false, true);
         return;
     }
     if (explicit) {
@@ -153,10 +159,10 @@ const OP_finishGroup = makeOpcode(null, (vm: BackolonVM) => {
     pushData(vm, expression);
 }, null);
 
-const parseCallArguments = (vm: BackolonVM, context: ParseletContext, explicit: boolean): typeof NOTHING => {
-    pushCommand(vm, OP_maybeFinishCall, context.left, [], context.parse, explicit);
-    pushData(vm, context.parse);
-    pushCommand(vm, OP_apply, [true, true, false], undefined, false, true);
+const parseCallArguments = (vm: BackolonVM, { left, parse }: ParseletContext, explicit: boolean): typeof NOTHING => {
+    pushCommand(vm, OP_maybeFinishCall, left, [], parse, explicit);
+    pushData(vm, parse);
+    pushCommand(vm, OP_apply, [true, explicit, false], undefined, false, true);
     return NOTHING;
 };
 
@@ -172,16 +178,24 @@ export const P_semicolon = new Parselet(";", makeJSFun("semicolon", ["p"], ({ p 
     return NOTHING;
 }, ""));
 
-export const P_space = new Parselet(/((?!\n)\s)+/, makeJSFun("space", ["p"], ({ p }, vm: BackolonVM) => {
+export const P_infix_space = new Parselet(/((?!\n)\s)+/, makeJSFun("infixSpace", ["p"], ({ p }, vm: BackolonVM) => {
     const context = p as ParseletContext;
-    const { first, discard, left } = context;
+    const { first, skip, left } = context;
     if (first) {
-        discard.invoke(vm, 0);
+        skip.invoke(vm, 0);
         return NOTHING;
     }
+    console.log("infix space");
     // yield to explicit call
     if (vm.parser!.test("(")) return left;
     return parseCallArguments(vm, context, false);
+}, ""));
+
+export const P_leading_space = new Parselet(/((?!\n)\s)+/, makeJSFun("leadingSpace", ["p"], ({ p }, vm: BackolonVM) => {
+    const { first, discard, skip } = p as ParseletContext;
+    (first ? discard : skip).invoke(vm, 0);
+    console.log("leading space");
+    return NOTHING;
 }, ""));
 
 export const P_leftParen = new Parselet("(", makeJSFun("call", ["p"], ({ p }, vm: BackolonVM) => {
@@ -202,8 +216,11 @@ export const P_leftParen = new Parselet("(", makeJSFun("call", ["p"], ({ p }, vm
 
 // MARK: binary operators
 const OP_finishInfix = makeOpcode(null, (vm: BackolonVM, { 0: left, 1: operator, 2: location }: [any, JSFun<any>, Location]) => {
-    pushData(vm, [B_atLocation, location, [operator, left, popData(vm)]]);
+    const d = popData(vm);
+    console.log(operator.name.toString() + " parse done, right=" + stripInlinedFunctions(d).toString());
+    pushData(vm, d === NO_MATCH ? left : [B_atLocation, location, [operator, left, d]]);
 }, null);
+
 const makeBinaryInfixOperator = (operator: JSFun<BackolonVM, any>, name: string, rightAssociative = false) => new Parselet(name, makeJSFun(name, ["p"], ({ p }, vm: BackolonVM) => {
     const context = p as ParseletContext;
     const { first, left, token: { location }, skip, parse } = context;
@@ -212,6 +229,7 @@ const makeBinaryInfixOperator = (operator: JSFun<BackolonVM, any>, name: string,
         return NOTHING;
     }
     vm.tag(location, "operator");
+    console.log(`${operator.name.toString()} parse: left=${stripInlinedFunctions(left).toString()}\n  ${vm.parser!.source.code}\n  ${" ".repeat(vm.parser!.index)}^\n`);
     pushCommand(vm, OP_finishInfix, left, operator, location);
     pushCommand(vm, OP_apply, [rightAssociative], undefined, false, true);
     pushData(vm, parse);
@@ -223,11 +241,10 @@ export const P_sub = makeBinaryInfixOperator(B_minus, "-");
 export const P_mul = makeBinaryInfixOperator(B_mul, "*");
 export const P_div = makeBinaryInfixOperator(B_div, "/");
 export const P_pow = makeBinaryInfixOperator(B_pow, "**", true);
+export const P_assign = makeBinaryInfixOperator(B_set, "=", true);
 
 const OP_augAssign = makeOpcode(null, (vm: BackolonVM, { 0: text }: [string]) => {
     const data = popData(vm);
     console.log(data, text);
     pushData(vm, data);
 }, null);
-export const P_assign = makeBinaryInfixOperator(B_set, "=", true);
-
