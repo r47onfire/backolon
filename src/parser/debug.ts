@@ -1,9 +1,8 @@
-import { isinstance } from "@r47onfire/game-math";
 import { B_atLocation, JSFun } from "@r47onfire/jeb";
-import { isArray } from "lib0/array"
+import { isArray } from "lib0/array";
 
 export const stripInlinedFunctions = <T>(ast: T): T => {
-    if (isinstance(ast, JSFun)) {
+    if (ast instanceof JSFun) {
         return "__" + ast.name.toString() as T;
     }
     if (isArray(ast)) {

@@ -1,9 +1,8 @@
-import { isinstance } from "@r47onfire/game-math";
-import { ErrnoCode, JEBError, makeOpcode, NOTHING, peekData, popData, promisifyVM, pushData, theTypeName, typeOf } from "@r47onfire/jeb";
+import { ErrnoCode, JEBError, makeOpcode, NOTHING, peekData, popData, promisifyVM, theTypeName, typeOf } from "@r47onfire/jeb";
 import { Finder } from "./finder";
 import { JSModule, JSONModule, JSONSourceMap } from "./jsmod";
 import { BackolonSourceModuleLoader, JavascriptModuleLoader, Loader } from "./loader";
-import { Module, MODULE_NAME } from "./module";
+import { Module } from "./module";
 import { Resolver } from "./resolver";
 import { BackolonVM } from "./vm";
 
@@ -31,7 +30,7 @@ export class Importer {
                 if (m.parent) {
                     // TODO: use error notes with cycle participants
                     var m2: Module | null | boolean = parent, culprits: string[] = [];
-                    while (isinstance(m2, Module) && m2 !== m) {
+                    while (m2 instanceof Module && m2 !== m) {
                         culprits.push(m2.id.href);
                         m2 = m2.parent;
                     }
@@ -85,7 +84,7 @@ export class SourceTracker {
 
 export const OP_do_import = makeOpcode("import", (vm: BackolonVM, { 0: parent, 1: asMain }: [parent: Module | null, main?: boolean]) => {
     const url = popData(vm);
-    if (!isinstance(url, URL)) {
+    if (!(url instanceof URL)) {
         throw new JEBError(ErrnoCode.EINVAL, "Module import source must be an absolute URL");
     }
     promisifyVM(vm, vm.importer.loadModule(vm, parent, url, asMain ?? false));
@@ -93,7 +92,7 @@ export const OP_do_import = makeOpcode("import", (vm: BackolonVM, { 0: parent, 1
 
 const OP_cleanup_module = makeOpcode(null, (vm: BackolonVM, { 0: url }: [URL]) => {
     const module = peekData(vm);
-    if (!isinstance(module, Module)) {
+    if (!(module instanceof Module)) {
         throw new JEBError(ErrnoCode.EPANIC, `Loader didn't properly load ${url.href}!! Got a ${theTypeName(typeOf(module))}`)
     }
     module.parent = null;
