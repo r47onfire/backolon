@@ -1,11 +1,12 @@
 import { AccessType, Continuation, ErrnoCode, JEBError, Location, makeJSFun, makeOpcode, NOTHING, OP_apply, OP_eval, OP_set_env, OP_shuffle, OP_unwrap, peekData, popData, pushCommand, pushData, VariableReference, withType } from "@r47onfire/jeb";
 import { stringify } from "lib0/json";
+import { max } from "lib0/math";
 import { SourceTracker } from "../runtime/importer";
 import { type Module, MODULE_SELF } from "../runtime/module";
 import { BackolonVM } from "../runtime/vm";
 import { stripInlinedFunctions } from "./debug";
 import { forceStickyRegex, Parselet } from "./parselet";
-import { assignPrecedences, Constraint } from "./sort";
+import { Constraint, sortByConstraints } from "./sort";
 import { Span } from "./span";
 
 export class Token {
@@ -20,6 +21,14 @@ export class Token {
 /**
  * Parser state; functionally immutable but contains some internal memoization
  * tables that are computed when needed.
+ *
+ * The parser has two parselet lists:
+ * - The normal list (`parselets`): the normal, precedence-sorted parselets.
+ * - The T-list (`tParselets`): temporary, unsorted parselets that always
+ *   take precedence over everything in the normal list. Constructs like `let`
+ *   use the T-list to install terminator parselets (`in`, `end`) that are
+ *   only active while the construct is being parsed. `(` clears the T-list
+ *   so terminators don't leak into nested expressions.
  */
 export class Parser {
     constructor(
@@ -27,41 +36,78 @@ export class Parser {
         readonly index: number,
         readonly parselets: Parselet[],
         readonly constraints: readonly Constraint<Parselet>[],
+        readonly tParselets: readonly Parselet[] = [],
     ) { }
     addParselets(...parselets: Parselet[]): Parser {
-        return new Parser(this.source, this.index, this.parselets.concat(parselets), this.constraints);
+        return new Parser(this.source, this.index, this.parselets.concat(parselets), this.constraints, this.tParselets);
     }
     addConstraints(...constraints: Constraint<Parselet>[]): Parser {
-        return new Parser(this.source, this.index, this.parselets, this.constraints.concat(constraints));
+        return new Parser(this.source, this.index, this.parselets, this.constraints.concat(constraints), this.tParselets);
+    }
+    /** Add parselets to the front of the T-list (higher precedence than all normal list). */
+    addTParselets(...parselets: Parselet[]): Parser {
+        return new Parser(this.source, this.index, this.parselets, this.constraints, parselets.concat(this.tParselets));
+    }
+    /** Clear the T-list. */
+    clearTParselets(): Parser {
+        return new Parser(this.source, this.index, this.parselets, this.constraints, []);
+    }
+    /** Restore the T-list to a saved state (used by P_leftParen/OP_finishGroup). */
+    withTParselets(bParselets: readonly Parselet[]): Parser {
+        return new Parser(this.source, this.index, this.parselets, this.constraints, bParselets);
     }
     isEOF() {
         return this.index >= this.source.code.length;
     }
     /** In sorted order longest tokens first */
-    #munchTable!: [Parselet, string][];
+    #munchTable!: [Parselet, number, string][];
     #munched = false;
     #sorted = false;
-    precedenceOf!: Map<Parselet, number>;
+    #precedenceOf!: Map<Parselet, number>;
     #prepare() {
         const parselets = this.parselets;
+        var pOf = this.#precedenceOf;
         if (!this.#sorted) {
-            this.precedenceOf = assignPrecedences(parselets, this.constraints);
-            this.#sorted = true;
-            // console.log("sorted parselets");
-            // for (var [p, pr] of this.precedenceOf) {
-            //     console.log("  ", p.prefix.source.replaceAll(/\\x[0-9a-f]{2}/ig, x => String.fromCharCode(parseInt(x.slice(2), 16))), pr);
-            // }
-        }
-        if (!this.#munched) {
-            const t = this.#munchTable = [] as [Parselet, string][];
-            for (var i = 0; i < parselets.length; i++) {
-                const p = parselets[i]!;
-                const match = this.test(p.prefix);
-                if (match) {
-                    t.push([p, match[0]]);
+            pOf = this.#precedenceOf = sortByConstraints(parselets, this.constraints);
+            // T-list parselets outrank all normal list parselets.
+            if (this.tParselets.length > 0) {
+                const maxAPrecedence = pOf.values().reduce(max);
+                for (var p of this.tParselets) {
+                    // It would be odd if a parselet was in both the normal list and T-list at the same time,
+                    // but if it's in the T-list then avoid overwriting is precedence
+                    if (!pOf.has(p)) {
+                        pOf.set(p, maxAPrecedence + 1);
+                    }
                 }
             }
-            t.sort((a, b) => b[1].length - a[1].length);
+            this.#sorted = true;
+            console.log("sorted parselets");
+            for (var p of parselets) {
+                console.log("  ", p.prefix.source.replaceAll(/\\x[0-9a-f]{2}/ig, x => String.fromCharCode(parseInt(x.slice(2), 16))), p.parse.name, pOf.get(p));
+            }
+        }
+        if (!this.#munched) {
+            const t = this.#munchTable = [] as [Parselet, number, string][];
+            // T-list entries go first since they always have higher precedence
+            var bp = this.tParselets, l = bp.length;
+            for (var i = 0; i < l; i++) {
+                const p = bp[i]!;
+                const match = this.test(p.prefix);
+                if (match) {
+                    t.push([p, pOf.get(p)!, match[0]]);
+                }
+            }
+            console.log("testing at index", this.index, this.source.code.slice(this.index, this.index + 5));
+            for (i = parselets.length - 1; i >= 0; i--) {
+                const p = parselets[i]!;
+                const match = this.test(p.prefix);
+                console.log("munch test", p.prefix.source.replaceAll(/\\x[0-9a-f]{2}/ig, x => String.fromCharCode(parseInt(x.slice(2), 16))), p.parse.name);
+                if (match) {
+                    console.log("matched on", match[0], match[0].length);
+                    t.push([p, pOf.get(p)!, match[0]]);
+                }
+            }
+            t.sort((a, b) => b[2].length - a[2].length);
             this.#munched = true;
             // console.log("munched", this.#munchTable.map(t => [t[1], this.precedenceOf.get(t[0])]));
         }
@@ -75,24 +121,27 @@ export class Parser {
         regex.lastIndex = this.index;
         return regex.exec(this.source.code);
     }
-    peek(vm: BackolonVM, startIndex: number, minPrecedence: number, orEqual: boolean): [parselet: Parselet, token: Token, nextIndex: number] | undefined {
+    peek(vm: BackolonVM, startIndex: number, minPrecedence: number, orEqual: boolean): [parselet: Parselet, precedence: number, token: Token, nextIndex: number] | undefined {
         this.#prepare();
         const tab = this.#munchTable;
         for (var i = startIndex; i < tab.length; i++) {
-            const entry = tab[i]!;
+            const { 0: p, 1: pr, 2: t } = tab[i]!;
             // TODO: how to avoid making unused tokens??
-            if (lte(minPrecedence, this.precedenceOf.get(entry[0])!, orEqual)) return [entry[0], this.commitToken(vm, entry[1]), i + 1];
+            if (lte(minPrecedence, pr, orEqual)) {
+                console.log("at index", this.index, "yielding parselet", p.parse.name, "with precedence", pr);
+                return [p, pr, this.commitToken(vm, t), i + 1];
+            }
         }
     }
     precedence() {
         this.#prepare();
-        return this.precedenceOf.get(this.#munchTable[0]![0])!;
+        return this.#precedenceOf.get(this.#munchTable[0]![0])!;
     }
     advance(by: number) {
-        const p = new Parser(this.source, this.index + by, this.parselets, this.constraints);
+        const p = new Parser(this.source, this.index + by, this.parselets, this.constraints, this.tParselets);
         if (this.#sorted) {
             p.#sorted = true;
-            p.precedenceOf = this.precedenceOf;
+            p.#precedenceOf = this.#precedenceOf;
         }
         return p;
     }
@@ -112,7 +161,7 @@ export const OP_runModule = makeOpcode(null, (vm: BackolonVM, { 0: st }: [Source
 
 const OP_moduleParseLoopTop = makeOpcode(null, (vm: BackolonVM) => {
     pushCommand(vm, OP_parseone_result);
-    pushCommand(vm, OP_parseone, -Infinity, false, false);
+    pushCommand(vm, OP_parseone, -Infinity, false, false, 0);
 }, null);
 
 const OP_store_result = makeOpcode(null, (vm: BackolonVM) => {
@@ -146,37 +195,36 @@ const OP_assertResult = makeOpcode(null, (vm: BackolonVM) => {
     }
 }, null);
 
-const OP_parseone = makeOpcode("parseOne", (vm: BackolonVM, { 0: precedence, 1: orEqual, 2: assertResult }: [number, boolean, boolean]) => {
+const OP_parseone = makeOpcode("parseOne", (vm: BackolonVM, { 0: precedence, 1: orEqual, 2: assertResult, 3: parseDepth }: [number, boolean, boolean, number]) => {
     assertIsParsing(vm);
     pushData(vm, NO_MATCH); // initial data
     if (assertResult) pushCommand(vm, OP_assertResult);
-    pushCommand(vm, OP_parserfindloop, 0, precedence, orEqual);
+    pushCommand(vm, OP_parserfindloop, 0, precedence, orEqual, parseDepth ?? 0);
 }, null);
 
-const OP_parserfindloop = makeOpcode(null, (vm: BackolonVM, { 0: index, 1: precedence, 2: orEqual }: [number, number, boolean]) => {
+const OP_parserfindloop = makeOpcode(null, (vm: BackolonVM, { 0: index, 1: precedence, 2: orEqual, 3: parseDepth }: [number, number, boolean, number]) => {
     const parser = vm.parser!;
+    const depth = parseDepth ?? 0;
     const chomp = parser.peek(vm, index, precedence, orEqual);
     if (chomp === undefined) {
         // don't continue main loop
         return;
     }
-    const { 0: parselet, 1: token, 2: nextIndex } = chomp;
-    // create "discard" continuation
-    const discard = new Continuation(vm, [[OP_shuffle, 1, []], [OP_parserfindloop, 0, precedence, orEqual]]);
-    discard.state.resetParser = false;
+    const { 0: parselet, 1: precedence2, 2: token, 3: nextIndex } = chomp;
     // create "skip" continuation = continue
-    const skip = new Continuation(vm, [[OP_shuffle, 1, []], [OP_parserfindloop, nextIndex, precedence, orEqual]]); // continue main loop if precedence is high enough
-    if (lte(precedence, parser.precedence(), orEqual)) {
-        pushCommand(vm, OP_parserfindloop, 0, precedence, orEqual);
-    }
+    const skip = new Continuation(vm, [[OP_shuffle, 1, []], [OP_parserfindloop, nextIndex, precedence, orEqual, depth]]); // continue main loop if precedence is high enough
+    vm.parser = parser.advance(token.text.length);
+    // create "discard" continuation - after parser is updated to have been advanced
+    const discard = new Continuation(vm, [[OP_shuffle, 1, []], [OP_parserfindloop, 0, precedence, orEqual, depth]]);
+    // do next loop (chomp will be undefined if there's no match)
+    pushCommand(vm, OP_parserfindloop, 0, precedence, orEqual, depth);
     // try to call parse
     const left = popData(vm);
-    vm.parser = parser.advance(token.text.length);
     pushData(vm, parselet.parse);
-    pushCommand(vm, OP_apply, [makeParseletContext(left, parser.precedenceOf.get(parselet)!, token, skip, discard)], undefined, false, true);
+    pushCommand(vm, OP_apply, [makeParseletContext(left, precedence2, token, skip, discard, depth)], undefined, false, true);
 }, null);
 
-const makeParseletContext = (leftD: any, precedence: number, token: Token, skip: Continuation<BackolonVM>, discard: Continuation<BackolonVM>) => {
+const makeParseletContext = (leftD: any, precedence: number, token: Token, skip: Continuation<BackolonVM>, discard: Continuation<BackolonVM>, parseDepth: number) => {
     const first = leftD === NO_MATCH, left = first ? undefined : leftD;
     return {
         left,
@@ -184,8 +232,9 @@ const makeParseletContext = (leftD: any, precedence: number, token: Token, skip:
         token,
         skip,
         discard,
+        parseDepth,
         parse: makeJSFun("parse", [["orEqual", false], ["reset", false], ["assertResult", true]], (({ reset, orEqual, assertResult }: { reset: boolean, orEqual: boolean, assertResult: boolean }, vm: BackolonVM) => {
-            pushCommand(vm, OP_parseone, reset ? -Infinity : precedence, orEqual, assertResult);
+            pushCommand(vm, OP_parseone, reset ? -Infinity : precedence, orEqual, assertResult, parseDepth + 1);
             return NOTHING;
         }) as any, ""),
     }

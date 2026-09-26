@@ -19,9 +19,17 @@ export class Parselet {
      * which goes to the next token.
      */
     readonly parse: any;
-    constructor(prefix: RegExp | string, parse: any) {
+    /**
+     * True for parselets that can only appear in infix position, such as
+     * binary operators. The implicit-call machinery uses this to tell
+     * `1 + 2` (operator) apart from `f x` (call) without each operator
+     * needing its own leading-whitespace handling.
+     */
+    readonly infixOnly: boolean;
+    constructor(prefix: RegExp | string, parse: any, infixOnly = false) {
         this.prefix = forceStickyRegex(prefix);
         this.parse = parse;
+        this.infixOnly = infixOnly;
     }
 }
 

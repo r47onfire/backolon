@@ -14,8 +14,15 @@ export class Constraint<T> {
 }
 
 /**
- * @returns a mapping of item -> precedence
+ * Sorts the objects in descending precedence order according to the constraints given.
+ * @returns a mapping of item -> index in list for speed
  */
+export const sortByConstraints = <T>(items: T[], constraints: readonly Constraint<T>[]) => {
+    const precedences = assignPrecedences(items, constraints);
+    insertionSort(items, (a, b) => precedences.get(a)! - precedences.get(b)!);
+    return precedences;
+}
+
 export const assignPrecedences = <T>(items: T[], constraints: readonly Constraint<T>[]): Map<T, number> => {
     if (items.length === 0) {
         return new Map();
@@ -35,9 +42,13 @@ export const assignPrecedences = <T>(items: T[], constraints: readonly Constrain
     const sortedOrder = topologicalSort(graph, reps);
 
     // assign numeric levels
+    // The topological order goes from tightest to loosest (constraints point
+    // from tighter to looser, so tighter comes first). The Pratt
+    // parser treats larger numbers as tighter binding, so the tightest (index 0)
+    // gets the largest level.
     const repToLevel = new Map<T, number>();
     sortedOrder.forEach((rep, index) => {
-        repToLevel.set(rep, index);
+        repToLevel.set(rep, sortedOrder.length - index);
     });
 
     // Map all parselets to their representative's level
