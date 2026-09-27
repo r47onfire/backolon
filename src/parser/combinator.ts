@@ -30,7 +30,7 @@ export type GrammarCombinator = Readonly<
 >;
 
 export const literal = (p: string, t?: string): GrammarCombinator => ({ op: "token", type: t, pattern: p, isRegex: false });
-export const regex = (p: RegExp, t: string): GrammarCombinator => ({ op: "token", type: t, pattern: p.source, flags: p.flags, isRegex: true });
+export const regex = (p: RegExp, t?: string): GrammarCombinator => ({ op: "token", type: t, pattern: p.source, flags: p.flags, isRegex: true });
 export const rule = (r: string): GrammarCombinator => ({ op: "rule", rule: r });
 export const transform = (t: string, n: GrammarCombinator): GrammarCombinator => ({ op: "transform", transformer: t, node: n });
 export const sequence = (...n: GrammarCombinator[]): GrammarCombinator => ({ op: "sequence", nodes: n });

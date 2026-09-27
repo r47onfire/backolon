@@ -50,11 +50,14 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             }
             case "rule": {
                 const rule = grammar[g.rule];
-                if (!rule) throw new Error("unknown named rule " + g.rule);
+                if (!rule) throw new Error("unknown named rule " + g.rule + " at " + path);
                 cutStack.push([0]);
                 const cst = applyRule(g.rule, rule, i);
                 cutStack.pop();
-                return cst instanceof MatchFail ? (isFinite(cst.cut) ? new MatchFail(cst.i, 0, cst.expected) : cst) : { type: g.rule, start: cst.start, end: cst.end, children: [cst] };
+                if (cst instanceof MatchFail) return isFinite(cst.cut) ? new MatchFail(cst.i, 0, cst.expected) : cst;
+                // Don't nest when the rule only delegated to another named rule
+                if (cst.text === undefined && typeof cst.type === "string" && cst.type !== "") return cst;
+                return { type: g.rule, start: cst.start, end: cst.end, children: [cst] };
             }
             case "transform": {
                 const cst = applyRule(path + "/", g.node, i);
@@ -71,7 +74,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 for (var j = 0; j < len; j++) {
                     const thisMatch = applyRule(path + "/" + j, items[j]!, i);
                     if (thisMatch instanceof MatchFail) return thisMatch;
-                    children.push(thisMatch);
+                    if (thisMatch.end > thisMatch.start) children.push(thisMatch);
                     i = thisMatch.end;
                 }
                 return { start, end: i, children };
@@ -155,7 +158,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             default:
                 op satisfies never;
         }
-        throw new Error("unknown grammar rule type " + (op ?? g));
+        throw new Error("unknown grammar rule type " + (op ?? g) + " at " + path);
     }
     const setupLeftRecursion = (path: string, l: LR) => {
         l.head ??= { path, involved: new Set, eval: new Set };
