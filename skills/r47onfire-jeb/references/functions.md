@@ -18,7 +18,7 @@ loadBuiltins(vm: JebVM): void
 ### `makeJSFun`
 Creates a builtin function.
 ```ts
-makeJSFun<V, T>(name: Identifier, signature: T, fn: (args: Record<ShorthandToLonghand<T>[number]["name"], unknown> & (ExtractRest<T, true> extends { name: N } ? { [x in PropertyKey]: unknown[] } : {}) & (ExtractRest<T, false> extends { name: N } ? { [x in PropertyKey]: Record<PropertyKey, unknown> } : {}), vm: V, location: Location | undefined) => any, doc: string): JSFun<JebVM<any>, CallableSignatureFromShorthand<T>>
+makeJSFun<V, T>(name: Identifier, signature: T, fn: (args: Record<ShorthandToLonghand<T>[number]["name"], unknown> & (ExtractRest<T, true> extends { name: N } ? { [x in PropertyKey]: unknown[] } : {}) & (ExtractRest<T, false> extends { name: N } ? { [x in PropertyKey]: Record<PropertyKey, unknown> } : {}), vm: V, location: Location | undefined) => any, doc: string): JSFun<V, CallableSignatureFromShorthand<T>>
 ```
 **Parameters:**
 - `name: Identifier`
@@ -27,7 +27,7 @@ makeJSFun<V, T>(name: Identifier, signature: T, fn: (args: Record<ShorthandToLon
 close over the one that is passed to the `vm` parameter of `defineBuiltin` (since this builtin may be reused for a sub-VM for
 e.g. an FFI callback).
 - `doc: string`
-**Returns:** `JSFun<JebVM<any>, CallableSignatureFromShorthand<T>>` — the builtin function, for referring to later
+**Returns:** `JSFun<V, CallableSignatureFromShorthand<T>>` — the builtin function, for referring to later
 
 ### `define`
 Defines the object in the VM's builtins scope as a constant.

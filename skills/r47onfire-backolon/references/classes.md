@@ -2,53 +2,14 @@
 
 ## parser
 
-### `Token`
+### `MatchFail`
 ```ts
-constructor(text: string, location: Location): Token
+constructor(i: number, cut: number, expected: GrammarCombinator): MatchFail
 ```
 **Properties:**
-- `text: string`
-- `location: Location`
-
-### `Parser`
-Parser state; functionally immutable but contains some internal memoization
-tables that are computed when needed.
-```ts
-constructor(source: SourceTracker, index: number, parselets: Parselet[], constraints: readonly Constraint<Parselet>[]): Parser
-```
-**Properties:**
-- `source: SourceTracker`
-- `index: number`
-- `parselets: Parselet[]`
-- `constraints: readonly Constraint<Parselet>[]`
-- `precedenceOf: Map<Parselet, number>`
-**Methods:**
-- `addParselets(parselets: Parselet[]): Parser`
-- `addConstraints(constraints: Constraint<Parselet>[]): Parser`
-- `isEOF(): boolean`
-- `commitToken(vm: BackolonVM, text: string): Token`
-- `test(regex: string | RegExp): RegExpExecArray | null`
-- `peek(vm: BackolonVM, startIndex: number, minPrecedence: number, orEqual: boolean): [parselet: Parselet, token: Token, nextIndex: number] | undefined`
-- `precedence(): number`
-- `advance(by: number): Parser`
-
-### `Parselet`
-```ts
-constructor(prefix: string | RegExp, parse: any): Parselet
-```
-**Properties:**
-- `prefix: RegExp` — It always has the sticky (y) flag.
-- `parse: any` — This is a JEB callable (builtin, lambda, etc) of one argument that implements the parse
-handler of the parselet.
-
-For a prefix position, context.left is undefined, and context.first is true.
-
-For an infix position, context.left is the left-side expression, and context.first is false.
-
-In either case the parse function must return a chunk of JEB code that implements the
-parse result, call `context.skip()` to mark what it has parsed as insignificant (`skip`
-is a continuation which doesn't return), or call `context.discard()`
-which goes to the next token.
+- `i: number`
+- `cut: number`
+- `expected: GrammarCombinator`
 
 ### `Span`
 Source location information for a token.
@@ -83,7 +44,7 @@ constructor(resolver: Resolver, finders: Finder[], loaders: Loader[]): Importer
 - `finders: Finder[]`
 - `loaders: Loader[]`
 **Methods:**
-- `loadModule(vm: BackolonVM, parent: Module | null, path: URL, asMain: boolean): Promise<typeof NOTHING | Module>` — Pushes the required opcodes to the stack to load the module at the
+- `loadModule(vm: BackolonVM, parent: Module | null, path: URL, asMain: boolean): Promise<Module | typeof NOTHING>` — Pushes the required opcodes to the stack to load the module at the
 given URL and leave the Module on the stack.
 - `getBytes(path: URL): Promise<Uint8Array<ArrayBufferLike>>`
 - `getText(path: URL): Promise<string>`
@@ -143,8 +104,6 @@ into the given Module. Should push opcodes to do so.
 constructor(global: Env, id: URL, parent: Module | null): Module
 ```
 **Properties:**
-- `parselets: Parselet[]` — The saved parselets list at the end of the module body.
-- `constraints: Constraint<Parselet>[]`
 - `exports: Record<string, VariableReference>` — The named exports for the module
 - `parent: Module | null` — This is used to detect and throw a "circular import!" error when
 attempting to do something (access properties, etc) of a module
@@ -152,6 +111,7 @@ when it's not finished loading, as well as to avoid loading it when
 it's already loaded
 - `global: Env`
 - `id: URL`
+- `result: any`
 
 ### `Resolver`
 ```ts
@@ -178,7 +138,7 @@ based on what files exist).
 constructor(importer: Importer): BackolonVM
 ```
 **Properties:**
-- `parser: Parser | null` — Current parser context - null if not parsing
+- `parser: any` — Current parser context - null if not parsing
 - `importer: Importer`
 - `modcache: ModuleCacheEntry[]`
 **Methods:**
@@ -187,7 +147,8 @@ constructor(importer: Importer): BackolonVM
 - `start(url: URL): void` — Starts running the main module
 - `getModule(url: URL): Module | undefined`
 - `createModule(url: URL, parent: Module | null): Module`
-- `fileIndex(url: URL): number | undefined`
 - `setSource(url: URL, src: string): SourceTracker | undefined`
+- `getSource(url: URL): string | undefined`
 - `registerSpan(span: Span): Location`
+- `getSpan(location: Location): Span`
 - `tag(location: Location, tag: string): void`

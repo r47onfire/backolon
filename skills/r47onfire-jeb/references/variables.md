@@ -332,6 +332,18 @@ const ErrnoParent: Record<ErrnoCode, ErrnoCode[] | undefined>
 const typecheck: (x: unknown, t: T, paramName?: string) => asserts x is TypeValue<T[number]>
 ```
 
+## unwrap
+
+### `OP_wrap`
+```ts
+const OP_wrap: (vm: any, args: [cls: any]) => void
+```
+
+### `OP_unwrap`
+```ts
+const OP_unwrap: (vm: any, __namedParameters: [string[]]) => void
+```
+
 ## math
 
 ### `float`
