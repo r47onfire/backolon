@@ -227,7 +227,7 @@ test("pipes", () => {
     // one pipe node collecting both stages
     expect(pipes).toHaveLength(1);
     expect(leafTexts(pipes[0]!).filter((t) => t === "|>")).toHaveLength(2);
-    parsesFully(`["hello", "world", "!"] |?> it != "!" |*> upper it |+> that + it`);
+    parsesFully(`["hello", "world", "!"] |?> it != "!" |*> upper it |+> _ + it`);
 });
 
 test("ternary", () => {
@@ -327,7 +327,7 @@ test("soft keywords stay usable as names, never as call args", () => {
 
 test("README examples", () => {
     parsesFully(`print "Hello, World!"`);
-    parsesFully(`["hello", "world", "!"] |?> it != "!" |*> upper it |+> that + it`);
+    parsesFully(`["hello", "world", "!"] |?> it != "!" |*> upper it |+> _ + it`);
     parsesFully(`let fizzbuzz = fn(n) n % 15 == 0? "fizzbuzz": n % 5 == 0? "buzz": n % 3 == 0? "fizz": "{n}"`);
     parsesFully(`foreach i in range(1, 100) do\n    print fizzbuzz i\nend`);
     parsesFully(`let yinHelper = fn(char) fn(c) ((fn(cc) (print char; cc)) (callcc fn(c) c))\nlet yin = (yinHelper "*"), yang = (yinHelper "@") in yin yang end`);

@@ -15,7 +15,7 @@ It is designed to be:
 print "Hello, World!"
 
 ## List filtering, mapping, reducing
-["hello", "world", "!"] |?> it != "!" |*> upper it |+> that + it ## ->"helloworld"
+["hello", "world", "!"] |?> it != "!" |*> upper it |+>[""] _ + it ## -> "helloworld"
 
 ## Fizzbuzz
 let fizzbuzz = fn(n) n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : n % 3 == 0 ? "fizz" : "{n}"
