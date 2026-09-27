@@ -1,7 +1,7 @@
-import { BackolonVM, Finder, Importer, IndexResolver, Module } from "@r47onfire/backolon";
 import { popData } from "@r47onfire/jeb";
 import { makeTestRun, runAsync } from "@r47onfire/jeb/test";
 import { describe, expect, test } from "bun:test";
+import { BackolonVM, Finder, Importer, IndexResolver, Module } from "../src";
 
 type VFS = Record<string, string>;
 

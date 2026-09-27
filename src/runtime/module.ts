@@ -1,11 +1,7 @@
 import { Env, VariableReference } from "@r47onfire/jeb";
-import { Parselet } from "../parser/parselet";
-import { Constraint } from "../parser/sort";
 
 export class Module {
-    /** The saved parselets list at the end of the module body. */
-    parselets: Parselet[] = [];
-    constraints: Constraint<Parselet>[] = [];
+    // TODO: add parser modifications
     /** The named exports for the module */
     exports: Record<string, VariableReference> = {};
     /**

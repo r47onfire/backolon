@@ -2,8 +2,6 @@ import { Continuation, OP_apply, pushCommand, pushData } from "@r47onfire/jeb";
 import { Importer } from "./importer";
 import { Module } from "./module";
 import { BackolonVM } from "./vm";
-import { OP_runModule } from "../parser";
-import { OP_setupModuleGlobals } from "../stdlib/core";
 
 /**
  * Object whose job it is to download or open the file

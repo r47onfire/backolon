@@ -1,5 +1,4 @@
 import { AccessType, ErrnoCode, JEBError, JebVM, Location, pushCommand, pushData, VariableReference } from "@r47onfire/jeb";
-import { create_parser_module, Parser } from "../parser";
 import { Span } from "../parser/span";
 import { Importer, OP_do_import, SourceTracker } from "./importer";
 import { Module } from "./module";
