@@ -1,7 +1,8 @@
 import { last } from "lib0/array";
 import { isString } from "lib0/function";
 import { max } from "lib0/math";
-import { describe, GrammarCombinator, rule } from "./combinator";
+import { GrammarCombinator, rule } from "./combinator";
+import { describe } from "./debug";
 import { CSTNode } from "./cst";
 
 export type MemoLoc = `${number}#${string}`;
@@ -107,6 +108,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 for (var j = 0; j < len; j++) {
                     const thisMatch = applyRule(path + "/" + j, items[j]!, i);
                     if (thisMatch instanceof MatchFail) {
+                        const childCut = thisMatch.cut;
                         const d = max(thisMatch.cut, cutDepth());
                         if (d === 0) {
                             // track the furthest failure for better error messages
@@ -114,7 +116,9 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                             continue;
                         }
                         consumeCut();
-                        return new MatchFail(thisMatch.i, d - 1, thisMatch.expected);
+                        // propagate the child's cut depth unchanged; only decrement if the cut was from this level
+                        const newCut = childCut > 0 ? childCut : d - 1;
+                        return new MatchFail(thisMatch.i, newCut, thisMatch.expected);
                     }
                     options.push(thisMatch);
                 }

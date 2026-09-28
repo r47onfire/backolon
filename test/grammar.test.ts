@@ -127,43 +127,34 @@ test("comments and separators", () => {
     expect(real(cst, "implicit_call")).toHaveLength(2);
 });
 
-test.only("arithmetic precedence and associativity", () => {
-    // 1 + 2 * 3 : the add's right operand is a mul
-    var cst = parsesFully(`1 + 2 * 3`);
-    var adds = real(cst, "sum");
-    // expect(adds).toHaveLength(1);
-    // expect(payload(adds[0]!)[2]!.type).toBe("term");
+test("arithmetic precedence and associativity", () => {
+    // 1 + 2 * 3 : the sum's right operand is a term (2 * 3)
+    var ast = toAST(parsesFully(`1 + 2 * 3`));
+    expect(ast).toEqual(["exprs", ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["term", ["number", ["decimal", "2"]], ["mul", "*"], ["number", ["decimal", "3"]]]]]);
 
-    // (1 + 2) * 3 : the mul's left operand is a parens
-    cst = parsesFully(`(1 + 2) * 3`);
-    const muls = real(cst, "mul");
-    // expect(muls).toHaveLength(1);
-    // expect(core(payload(muls[0]!)[0]!).type).toBe("par_exp");
+    // (1 + 2) * 3 : the term's left operand is a par_exp
+    ast = toAST(parsesFully(`(1 + 2) * 3`));
+    expect(ast).toEqual(["exprs", ["term", ["par_exp", "(", ["exprs", ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["number", ["decimal", "2"]]]], ")"], ["mul", "*"], ["number", ["decimal", "3"]]]]);
 
-    // left assoc: 1 + 2 + 3 nests the add on the left
-    cst = parsesFully(`1 + 2 + 3`);
-    adds = real(cst, "add");
-    // expect(adds).toHaveLength(2);
-    const outerAdd = adds.find((a) => payload(a)[0]!.type === "add")!;
-    // expect(outerAdd).toBeDefined();
+    // left assoc: 1 + 2 + 3 nests the sum on the left
+    ast = toAST(parsesFully(`1 + 2 + 3`));
+    expect(ast).toEqual(["exprs", ["sum", ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["number", ["decimal", "2"]]], ["add", "+"], ["number", ["decimal", "3"]]]]);
 
-    // right assoc pow: 2 ** 3 ** 2 nests pow on the right
-    cst = parsesFully(`2 ** 3 ** 2`);
-    const pows = real(cst, "pow");
-    // expect(pows).toHaveLength(2);
-    const rightOperand = payload(pows.find((p) => payload(p)[2]!.type === "unary")!)[2]!;
-    // expect(kids(rightOperand)[0]!.type).toBe("pow");
+    // right assoc pow: 2 ** 3 ** 2 nests factor on the right
+    ast = toAST(parsesFully(`2 ** 3 ** 2`));
+    expect(ast).toEqual(["exprs", ["factor", ["number", ["decimal", "2"]], ["pow", "**"], ["factor", ["number", ["decimal", "3"]], ["pow", "**"], ["number", ["decimal", "2"]]]]]);
 
-    // -2 ** 2 is -(2 ** 2): unary outside the pow
-    cst = parsesFully(`-2 ** 2`);
-    const unaries = real(cst, "unary");
-    // expect(unaries).toHaveLength(1);
-    // expect(payload(payload(unaries[0]!)[1]!)[0]!.type).toBe("pow");
+    // -2 ** 2 is -(2 ** 2): prefix outside the factor
+    ast = toAST(parsesFully(`-2 ** 2`));
+    expect(ast).toEqual(["exprs", ["prefix", ["negate", "-"], ["factor", ["number", ["decimal", "2"]], ["pow", "**"], ["number", ["decimal", "2"]]]]]);
 
-    // a * -b : mul takes a unary operand
-    parsesFully(`a * -b`);
-    // -0.8-8
-    parsesFully(`-0.8-8`);
+    // a * -b : term takes a prefix operand
+    ast = toAST(parsesFully(`a * -b`));
+    expect(ast).toEqual(["exprs", ["term", ["name", "a"], ["mul", "*"], ["prefix", ["negate", "-"], ["name", "b"]]]]);
+
+    // -0.8-8 : (-0.8) - 8
+    ast = toAST(parsesFully(`-0.8-8`));
+    expect(ast).toEqual(["exprs", ["sum", ["prefix", ["negate", "-"], ["number", ["decimal", "0.8"]]], ["sub", "-"], ["number", ["decimal", "8"]]]]);
 });
 
 test("assignment is right associative", () => {
@@ -208,7 +199,7 @@ test("calls: explicit, implicit, comma args, empties", () => {
     expect(calls).toHaveLength(0);
 });
 
-test("unary operators", () => {
+test.only("unary operators", () => {
     parsesFully(`-x`);
     parsesFully(`!ok`);
     parsesFully(`#x`);

@@ -170,9 +170,12 @@ export const backolonGrammar: Grammar = {
     explicit_call: seq_sep(rule("blank"), rule("primary"), tag("operator", literal("(")), cut(), rule("explicit_args"), tag("operator", literal(")"))),
     explicit_args: repeat_seq(true, alternatives(rule("expr"), nothing()), seq_sep(rule("blank"), tag("operator", literal(",")))), // allow blank arguments
 
-    prefix: seq_sep(rule("blank"), rule("prefix_op"), rule("primary")),
+    prefix: seq_sep(rule("blank"), rule("prefix_op"), cut(), rule("factor")),
     prefix_op: alternatives(
         rule("length"),
+        rule("spread"),
+        rule("negate"),
+        rule("abs"),
         rule("not"),
         rule("quote"),
         rule("unquote"),
@@ -182,6 +185,9 @@ export const backolonGrammar: Grammar = {
     ),
 
     length: tag("operator", literal("#")),
+    spread: tag("operator", literal("...")),
+    negate: tag("operator", literal("-")),
+    abs: tag("operator", literal("+")),
     not: tag("operator", literal("!")),
     quote: tag("operator", literal("`")),
     unquote: tag("operator", literal("$")),
@@ -208,7 +214,7 @@ export const backolonGrammar: Grammar = {
     )),
     hex: regex(/0x[a-f0-9]+/i),
     bin: regex(/0b[01]+/i),
-    decimal: regex(/((?!0)\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?/i),
+    decimal: regex(/((?!0\d)\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?/i),
 
     string: alternatives(rule("r_string"), rule("i_string")),
 
