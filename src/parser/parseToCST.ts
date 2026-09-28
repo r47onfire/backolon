@@ -1,7 +1,8 @@
 import { last } from "lib0/array";
+import { isString } from "lib0/function";
 import { max } from "lib0/math";
+import { GrammarCombinator, ignored, repeat, rule, sequence } from "./combinator";
 import { CSTNode } from "./cst";
-import { GrammarCombinator } from "./combinator";
 
 export type MemoLoc = `${number}#${string}`;
 const toMemoLoc = (path: string, index: number): MemoLoc => `${index}#${path}`;
@@ -48,6 +49,10 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                     return text.startsWith(p, i) ? { text: p, type: g.type, start: i, end: i + p.length } : new MatchFail(i, 0, g);
                 }
             }
+            case "ignored": {
+                const cst = applyRule(path + "/", g.node, i);
+                return cst instanceof MatchFail ? cst : { ignored: true, start: cst.start, end: cst.end, children: [cst] };
+            }
             case "rule": {
                 const rule = grammar[g.rule];
                 if (!rule) throw new Error("unknown named rule " + g.rule + " at " + path);
@@ -56,28 +61,41 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 cutStack.pop();
                 if (cst instanceof MatchFail) return isFinite(cst.cut) ? new MatchFail(cst.i, 0, cst.expected) : cst;
                 // Don't nest when the rule only delegated to another named rule
-                if (cst.text === undefined && typeof cst.type === "string" && cst.type !== "") return cst;
+                if (cst.text === undefined && isString(cst)) return cst;
                 return { type: g.rule, start: cst.start, end: cst.end, children: [cst] };
-            }
-            case "transform": {
-                const cst = applyRule(path + "/", g.node, i);
-                return cst instanceof MatchFail ? cst : { transform: g.transformer, start: cst.start, end: cst.end, children: [cst] };
             }
             case "tag": {
                 const cst = applyRule(path + "/", g.node, i);
                 return cst instanceof MatchFail ? cst : { tag: g.tag, start: cst.start, end: cst.end, children: [cst] };
             }
-            case "sequence": {
+            case "sequence":
+            case "seq_sep": {
                 const children: CSTNode[] = [];
                 const start = i;
                 const items = g.nodes, len = items.length;
+                const sep = () => {
+                    if (op !== "seq_sep") return;
+                    const sepThing = applyRule(path + "/s", g.sep, i);
+                    if (sepThing instanceof MatchFail) {
+                        children.push({ ignored: true, start: i, end: i });
+                    } else {
+                        children.push({ ignored: true, start: sepThing.start, end: sepThing.end, children: [sepThing] });
+                        i = sepThing.end;
+                    }
+                }
                 for (var j = 0; j < len; j++) {
+                    sep();
                     const thisMatch = applyRule(path + "/" + j, items[j]!, i);
                     if (thisMatch instanceof MatchFail) return thisMatch;
-                    if (thisMatch.end > thisMatch.start) children.push(thisMatch);
+                    children.push(thisMatch);
                     i = thisMatch.end;
                 }
+                sep();
                 return { start, end: i, children };
+            }
+            case "joined": {
+                // s.e+ ==> e (s e)*
+                return applyRule(path + "/s", sequence(g.node, repeat(false, sequence(ignored(g.sep), g.node))), i);
             }
             case "alternatives": {
                 const items = g.nodes, len = items.length;
@@ -95,48 +113,32 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 return options.length < 1 ? new MatchFail(i, 0, g) : options.reduce((a, b) => b.end > a.end ? b : a);
             }
             case "optional": {
-                const plus: GrammarCombinator = { op: "assert_nonempty", node: g.node };
-                const minus: GrammarCombinator = { op: "epsilon" };
-                return applyRule(path + "/", {
-                    op: "alternatives",
-                    nodes: g.greedy ? [plus, minus] : [minus, plus]
-                }, i);
+                const cst = applyRule(path + "/", g.node, i);
+                return cst instanceof MatchFail ? { start: i, end: i } : cst;
             }
-            case "repeat": {
-                // TODO: sequence, repeat, and repeat_seq are all very similar
-                const start = i;
-                const children: CSTNode[] = [];
-                for (var count = 0; ; count++) {
-                    const thisMatch = applyRule(path + "/*", g.node, i);
-                    if (thisMatch instanceof MatchFail) {
-                        if (thisMatch.cut > 0) return thisMatch;
-                        if (g.required && count < 1) return thisMatch;
-                        // normal failure
-                        break;
-                    }
-                    if (thisMatch.end === i) break; // no progress = stop
-                    children.push(thisMatch);
-                    i = thisMatch.end;
-                }
-                return { start, end: i, children };
-            }
+            case "repeat":
             case "repeat_seq": {
                 const start = i;
                 const children: CSTNode[] = [];
-                const nodes = g.nodes, len = nodes.length;
-                for (var count = 0; ; count++) {
-                    const thisMatch = applyRule(path + "/*", nodes[count % len]!, i);
-                    if (thisMatch instanceof MatchFail) {
-                        if (thisMatch.cut > 0) return thisMatch;
-                        if (g.required && count < 1) return thisMatch;
-                        // normal failure
-                        break;
+                const nodes = op === "repeat_seq" ? g.nodes : [g.node], len = nodes.length;
+                if (len > 0) {
+                    for (var count = 0; ; count++) {
+                        const thisMatch = applyRule(path + "/*", nodes[count % len]!, i);
+                        if (thisMatch instanceof MatchFail) {
+                            if (thisMatch.cut > 0) return thisMatch;
+                            if (g.required && count < 1) return thisMatch;
+                            // normal failure
+                            break;
+                        }
+                        if (thisMatch.end === i) break; // no progress = stop
+                        children.push(thisMatch);
+                        i = thisMatch.end;
                     }
-                    if (thisMatch.end === i) break; // no progress = stop
-                    children.push(thisMatch);
-                    i = thisMatch.end;
                 }
                 return { start, end: i, children };
+            }
+            case "if": {
+                return applyRule(path + "/c", g.cond, i) instanceof MatchFail ? applyRule(path + "/f", g.false, i) : applyRule(path + "/t", g.true, i);
             }
             case "cut": {
                 const f = last(cutStack);
@@ -144,14 +146,15 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 return { start: i, end: i };
             }
             case "lookahead": {
-                const adv = applyRule(path + "/?", g.node, i);
-                return adv instanceof MatchFail === g.negative ? { start: i, end: i } : new MatchFail(i, 0, g);
+                const cst = applyRule(path + "/?", g.node, i);
+                return cst instanceof MatchFail === g.negative ? { start: i, end: i } : new MatchFail(i, 0, g);
             }
+            case "assert_sameline":
             case "assert_nonempty": {
-                const adv = applyRule(path + "/", g.node, i);
-                return adv instanceof MatchFail ? adv : adv.end === i ? new MatchFail(i, 0, g) : adv;
+                const cst = applyRule(path + "/", g.node, i);
+                return cst instanceof MatchFail ? cst : (op === "assert_nonempty" ? cst.end === i : text.slice(cst.start, cst.end).indexOf("\n") >= 0) ? new MatchFail(i, 0, g) : cst;
             }
-            case "epsilon":
+            case "nothing":
                 return { start: i, end: i };
             case "fail_fast":
                 return new MatchFail(i, Infinity, g);
@@ -224,5 +227,5 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             return ans;
         }
     }
-    return applyRule(startRule, grammar[startRule]!, startIndex);
+    return applyRule("", rule(startRule), startIndex);
 }

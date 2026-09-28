@@ -424,7 +424,7 @@ describe("variables", () => {
 //         });
 //     });
 //     testTest(test, "single string block convert to string", async (vm, out) => {
-//         expectEval("x := 1; \"{x}\"", {
+//         expectEval("x := 1; \"\\(x)\"", {
 //             t: ThingType.string,
 //             v: "1",
 //         });

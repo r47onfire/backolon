@@ -1,184 +1,102 @@
-import {
-    alternatives, cut, epsilon, GrammarCombinator, literal, lookaheadNot,
-    optional, regex, repeat, rule, sequence,
-} from "./combinator";
+import { alternatives, assert_nonempty, assert_sameline, cut, ignored, literal, optional, regex, repeat, repeat_seq, rule, seq_sep, sequence, tag } from "./combinator";
 import { Grammar } from "./parseToCST";
 
-// lexical helpers
-
-const identChar = regex(/[A-Za-z0-9_]/);
-
-/** blanks and `##` comments, but never a newline */
-const ws = regex(/[ \t]*(##[^\n]*)?/);
-/** required same-line blank: implicit-call args may not cross a newline */
-const wsPlus = regex(/[ \t]+(##[^\n]*)?/);
-const nl = regex(/\r\n|[\n\r]/);
-/** statement separator: runs of `;` and/or newlines with blanks around */
-const sep = sequence(ws, repeat(true, sequence(alternatives(literal(";"), nl), ws)));
-
-/** soft keyword: the word, not followed by an identifier character */
-const kw = (word: string): GrammarCombinator =>
-    sequence(literal(word), lookaheadNot(identChar));
-
-/** words that can never be implicit-call arguments (block terminators).
- *  `fn`, `let`, `foreach` stay soft: `f fn(x) x` passes a lambda. */
-const softKw = alternatives(
-    kw("in"), kw("end"), kw("do"), kw("then"), kw("else"));
-
-const pipeOp = alternatives(literal("|?>"), literal("|*>"), literal("|+>"), literal("|>"));
-const cmpOp = alternatives(
-    literal("=="), literal("!="), literal("<="), literal(">="), literal("<"), literal(">"));
-const addOp = alternatives(literal("+"), literal("-"));
-const mulOp = alternatives(literal("*"), literal("/"), literal("%"));
-
-// argument lists (shared by implicit calls, explicit calls, and parens)
-
-/** one real argument; never a bare soft keyword */
-const arg = sequence(lookaheadNot(softKw), rule("assign"));
-/** implicit (juxtaposition) argument: like `arg` but stops before `|>` so
- *  `f x |> g y` is `(f x) |> (g y)`, not `f (x |> g y)` */
-const argNoPipe = sequence(lookaheadNot(softKw), rule("argAssign"));
-/** an argument slot, possibly empty (`,,` / trailing comma) */
-const argOrEmpty = alternatives(arg, epsilon());
-/** `f(1, 2)`, `f (1, 2)`, and `f(1, 2), 3`; `()` is zero args, `(,)` is one empty arg */
-const explicitArgs = sequence(literal("("), ws, alternatives(
-    sequence(argOrEmpty, repeat(true, sequence(ws, literal(","), ws, argOrEmpty))),
-    sequence(lookaheadNot(literal(")")), arg),
-    epsilon(),
-), ws, literal(")"));
-/** how a callee takes arguments: explicit parens or same-line juxtaposition */
-const callArgs = alternatives(
-    sequence(ws, explicitArgs, repeat(false, sequence(ws, literal(","), ws, argOrEmpty))),
-    sequence(wsPlus, argNoPipe, repeat(false, sequence(ws, literal(","), ws, argOrEmpty))));
-
-/** `do...end`-style body: optional leading separators/blanks, statements, `end` */
-const blockBody: GrammarCombinator = sequence(
-    optional(true, sep), ws, optional(true, rule("statementsNoEnd")), ws, kw("end"));
-/** `in...end` tail shared by letBlock/letLoop */
-const letTail: GrammarCombinator = sequence(ws, kw("in"), blockBody);
-
-/** string pieces: escape or run of ordinary characters */
-const dchar = regex(/\\.|[^"\\{]+/);
-const schar = regex(/\\.|[^'\\]+/);
-
 export const backolonGrammar: Grammar = {
-    // top level ------------------------------------------------------------
-    /** whole input (used by tests; the future driver will use `toplevel`) */
-    program: sequence(optional(true, sep), optional(true, rule("statements")), optional(true, sep), ws),
-    /** one top-level form for the incremental driver */
-    toplevel: sequence(optional(true, sep), rule("statement"), ws),
-    statements: sequence(
-        rule("statement"),
-        repeat(false, sequence(sep, rule("statement"))),
-        optional(true, sep)),
-    /** statements inside `...end` blocks: a bare `end` terminates, never a statement */
-    statementsNoEnd: sequence(
-        rule("stmtNoEnd"),
-        repeat(false, sequence(sep, rule("stmtNoEnd"))),
-        optional(true, sep)),
-    stmtNoEnd: sequence(lookaheadNot(kw("end")), rule("statement")),
-    statement: alternatives(rule("letBlock"), rule("letLoop"), rule("foreach"), rule("expr")),
+    blank: ignored(repeat(false, alternatives(regex(/\s*/), rule("comment")))),
+    blank_required: ignored(assert_nonempty(rule("blank"))),
+    blank_sameline: ignored(assert_sameline(rule("blank_required"))),
 
-    // expressions, loosest to tightest ------------------------------------
-    expr: rule("assign"),
-    /** right associative: `a = b = 1` */
-    assign: alternatives(
-        sequence(rule("primary"), ws, literal("="), lookaheadNot(literal("=")), ws, rule("assign")),
-        rule("pipe")),
-    /** assignment without a top-level `|>`: for implicit call args */
-    argAssign: alternatives(
-        sequence(rule("primary"), ws, literal("="), lookaheadNot(literal("=")), ws, rule("assign")),
-        rule("ternary")),
-    /** `a |> b it |> c it` collects into one node; looser than implicit calls */
-    pipe: alternatives(
-        sequence(rule("ternary"), repeat(true, sequence(ws, pipeOp, ws, rule("ternary")))),
-        rule("ternary")),
-    /** right associative: `a ? b : c ? d : e` */
-    ternary: alternatives(
-        sequence(rule("or"), ws, literal("?"), ws, rule("expr"), ws, literal(":"), ws, rule("ternary")),
-        rule("or")),
-    or: alternatives(
-        sequence(rule("or"), ws, literal("||"), ws, rule("and")),
-        rule("and")),
-    and: alternatives(
-        sequence(rule("and"), ws, literal("&&"), ws, rule("cmp")),
-        rule("cmp")),
-    cmp: alternatives(
-        sequence(rule("cmp"), ws, cmpOp, ws, rule("add")),
-        rule("add")),
-    add: alternatives(
-        sequence(rule("add"), ws, addOp, ws, rule("mul")),
-        rule("mul")),
-    mul: alternatives(
-        sequence(rule("mul"), ws, mulOp, ws, rule("unary")),
-        rule("unary")),
-    /** `-2 ** 2` is `-(2 ** 2)` (pow binds tighter than unary `-`), but
-     *  `a * -b` works (mul takes unary operands) */
-    unary: alternatives(
-        sequence(literal("#"), lookaheadNot(literal("#")), ws, rule("unary")),
-        sequence(alternatives(literal("-"), sequence(literal("!"), lookaheadNot(literal("=")))), ws, rule("unary")),
-        sequence(literal("..."), ws, rule("unary")),
-        rule("pow")),
-    /** right associative: `2 ** 3 ** 2` */
-    pow: alternatives(
-        sequence(rule("call"), ws, literal("**"), ws, rule("unary")),
-        rule("call")),
-    /** `f x`, `f(x)`, `f (x)`, `f x, y`, `f(x)(y)`; juxtaposition is right-nested: `f g x` = `f(g(x))` */
-    call: alternatives(
-        sequence(rule("primary"), repeat(true, callArgs)),
-        rule("primary")),
-    primary: alternatives(
-        rule("number"), rule("dstring"), rule("sstring"),
-        rule("quote"), rule("lambda"), rule("brackets"),
-        rule("parens"), rule("name")),
+    comment: ignored(tag("comment", alternatives(rule("block_comment"), rule("line_comment")))),
+    block_comment: sequence(literal("##[["), repeat(false, alternatives(rule("block_comment"), regex(/./))), literal("##]]")),
+    line_comment: regex(/##[^\n]*(\n|$)/),
 
-    // atoms ------------------------------------------------------------------
-    number: alternatives(
-        regex(/0[xX][0-9a-fA-F]+/, "hex"),
-        regex(/\d+/, "int"),
-        regex(/(\d+\.\d+|\.\d+)(e[+-]\d+)?/i, "float")),
-    /** `"..."` with `{expr}` interpolation */
-    dstring: sequence(literal("\""),
-        repeat(false, alternatives(rule("interp"), dchar)),
-        literal("\"")),
-    interp: sequence(literal("{"), ws, rule("expr"), ws, cut(), literal("}")),
-    /** `'...'` plain */
-    sstring: sequence(literal("'"), repeat(false, schar), literal("'")),
-    /** `` `(x + y) ``, `` `name ``, ``` ``(x) ``` */
-    quote: sequence(repeat(true, literal("`")), ws, rule("call")),
-    lambda: alternatives(
-        sequence(kw("fn"), ws, rule("fnParams"), alternatives(
-            sequence(optional(true, sep), ws, optional(true, rule("statementsNoEnd")), ws, kw("end")),
-            sequence(wsPlus, rule("expr")))),
-        sequence(literal("["), ws, optional(true, rule("paramList")), ws, literal("]"),
-            ws, literal("=>"), ws, rule("expr"))),
-    fnParams: sequence(literal("("), ws, optional(true, rule("paramList")), ws, literal(")")),
-    paramList: sequence(
-        rule("param"), repeat(false, sequence(ws, literal(","), ws, rule("param")))),
-    param: sequence(rule("name"), optional(true, literal("..."))),
-    /** `(...)`: comma list, `;`-separated statements, or empty */
-    parens: sequence(literal("("), ws, alternatives(
-        sequence(argOrEmpty, repeat(true, sequence(ws, literal(","), ws, argOrEmpty))),
-        rule("statements"),
-        epsilon(),
-    ), ws, literal(")")),
-    /** `[...]`: list, or object when any `k: v` pair is present; `[:]` is the empty object */
-    brackets: sequence(literal("["), ws, alternatives(
-        rule("bracketItems"),
-        epsilon(),
-    ), ws, literal("]")),
-    bracketItems: sequence(
-        rule("bracketItem"), repeat(false, sequence(ws, literal(","), ws, rule("bracketItem")))),
-    bracketItem: alternatives(rule("pair"), rule("expr")),
-    pair: sequence(
-        optional(true, rule("expr")), ws, literal(":"), ws, optional(true, rule("expr"))),
-    name: regex(/[A-Z_][A-Z0-9_]*/i),
+    expr_sep: ignored(repeat(true, alternatives(rule("semi"), rule("nl")))),
+    semi: ignored(tag("punctuation", literal(";"))),
+    nl: ignored(sequence(literal("\n"), optional(rule("comment")))),
 
-    // block constructs -------------------------------------------------------
-    letBlock: sequence(kw("let"), wsPlus, rule("letArgs"), letTail),
-    letLoop: sequence(kw("let"), ws, literal("("), ws, rule("name"), ws, literal(")"),
-        wsPlus, rule("letArgs"), letTail),
-    letArgs: sequence(arg, repeat(false, sequence(ws, literal(","), ws, argOrEmpty))),
-    foreach: sequence(kw("foreach"), wsPlus, rule("name"), wsPlus, kw("in"), wsPlus,
-        rule("expr"), wsPlus, kw("do"), blockBody),
+    exprs: repeat_seq(true, rule("expr_sep"), rule("expr")),
+    toplevel_expr: sequence(optional(rule("expr_sep")), rule("expr"), optional(rule("expr_sep"))),
+    expr: alternatives(rule("block_expr"), rule("simple_expr")),
+
+    // block_expr: let, if, while, foreach, trycatch, with, fn
+    block_expr: alternatives(
+        rule("let"),
+        rule("if"),
+        rule("while"),
+        rule("foreach"),
+        rule("trycatch"),
+        rule("with"),
+        rule("fn"),
+    ),
+
+    // simple_expr precedence: pipe -> implicit call -> assignment -> ternary -> logical -> bitwise -> equality -> comparison -> bitshift -> add/sub -> mul/div/mod -> pow -> indexing/dot -> unary operators / explicit function call -> atoms
+
+    // atoms: number, string, regex, boolean, null, collection literal, quasiquote, parenthesized expression, name
+    atom: alternatives(
+        rule("number"),
+        rule("string"),
+        rule("regex"),
+        rule("boolean"),
+        rule("null"),
+        rule("collection"),
+        rule("quasiquote"),
+        rule("par_exp"),
+        rule("name"),
+    ),
+
+    number: tag("number", alternatives(
+        rule("hex"),
+        rule("bin"),
+        rule("decimal"),
+    )),
+    hex: regex(/0x[a-f0-9]+/i),
+    bin: regex(/0b[01]+/i),
+    decimal: regex(/((?!0)\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?/i),
+
+    string: alternatives(rule("r_string"), rule("i_string")),
+
+    r_string: sequence(tag("string", literal("'")), repeat(false, rule("r_part")), tag("string", literal("'"))),
+    r_part: alternatives(
+        rule("r_escape"),
+        rule("r_body"),
+    ),
+    r_escape: tag("escape", regex(/\\./)),
+    r_body: tag("string", regex(/[^']+/)),
+
+    i_string: sequence(tag("string", literal("\"")), repeat(false, rule("i_part")), tag("string", literal("\""))),
+    i_part: alternatives(
+        rule("i_escape"),
+        rule("i_interpolation"),
+        rule("i_body"),
+    ),
+    i_escape: tag("escape", alternatives(
+        rule("i_known_escape"),
+        rule("i_x_escape"),
+        rule("i_u_escape"),
+        rule("i_U_escape"),
+    )),
+    i_known_escape: regex(/\\[abefnrtvz]/), // cSpell: ignore abefnrtvz
+    i_x_escape: regex(/\\x[0-9a-f]{2}/),
+    i_u_escape: regex(/\\u[0-9a-f]{4}/),
+    i_U_escape: regex(/\\U\{[0-9a-f]+\}/),
+    i_interpolation: sequence(tag("string", literal("\\(")), rule("exprs"), cut(), tag("string", literal(")"))),
+    i_body: tag("string", regex(/[^"]+/)),
+
+    regex: tag("regex", sequence(literal("/"), rule("regex_body"), literal("/"), rule("regex_flags"))),
+    regex_body: regex(/(\[([^\]]|\\\])+\]|\\.|[^\\/\n])*/),
+    regex_flags: regex(/[gimsuvy]*/), // cSpell: ignore gimsuvy
+
+    boolean: tag("boolean", regex(/([Tt]rue|[Ff]alse)\b/)), // cSpell: ignore alse
+    null: tag("null", regex(/(null|NULL|nil)\b/)),
+
+    collection: seq_sep(rule("blank"), literal("["), cut(), rule("exprs"), literal("]")),
+    quasiquote: tag("quoted", seq_sep(rule("blank"), literal("{"), cut(), rule("exprs"), literal("}"))),
+    par_exp: seq_sep(rule("blank"), literal("("), cut(), rule("exprs"), literal(")")),
+    name: tag("name", regex(/[_\pL][_\pL\pN]*/)),
 };
+
+export const all_tags = new Set(Object.values(backolonGrammar).flatMap(function walk(g: any): string[] {
+    if (typeof g !== "object") return [];
+    return (g.op === "tag" ? [g.tag] : []).concat(Object.values(g).flatMap(walk));
+}));
+console.log({ all_tags });

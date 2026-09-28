@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { backolonGrammar, CSTNode, MatchFail, parseToCST } from "../src";
 
 const parse = (text: string): CSTNode => {
-    const cst = parseToCST(text, 0, "program", backolonGrammar);
+    const cst = parseToCST(text, 0, "toplevel_expr", backolonGrammar);
     expect(cst).not.toBeInstanceOf(MatchFail);
     // console.log(JSON.stringify(cst, null, 2));
     return cst as CSTNode;
@@ -234,7 +234,7 @@ test("ternary", () => {
     const cst = parsesFully(`a ? b : c`);
     expect(real(cst, "ternary")).toHaveLength(1);
     // nested, right associative
-    parsesFully(`n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : "{n}"`);
+    parsesFully(`n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : "\\(n)"`);
 });
 
 test("let", () => {
@@ -328,7 +328,7 @@ test("soft keywords stay usable as names, never as call args", () => {
 test("README examples", () => {
     parsesFully(`print "Hello, World!"`);
     parsesFully(`["hello", "world", "!"] |?> it != "!" |*> upper it |+> _ + it`);
-    parsesFully(`let fizzbuzz = fn(n) n % 15 == 0? "fizzbuzz": n % 5 == 0? "buzz": n % 3 == 0? "fizz": "{n}"`);
+    parsesFully(`let fizzbuzz = fn(n) n % 15 == 0? "fizzbuzz": n % 5 == 0? "buzz": n % 3 == 0? "fizz": "\\(n)"`);
     parsesFully(`foreach i in range(1, 100) do\n    print fizzbuzz i\nend`);
     parsesFully(`let yinHelper = fn(char) fn(c) ((fn(cc) (print char; cc)) (callcc fn(c) c))\nlet yin = (yinHelper "*"), yang = (yinHelper "@") in yin yang end`);
 });
