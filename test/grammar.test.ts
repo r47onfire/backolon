@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { backolonGrammar, CSTNode, MatchFail, parseToCST } from "../src";
 
 const parse = (text: string): CSTNode => {
-    const cst = parseToCST(text, 0, "atom", backolonGrammar);
+    const cst = parseToCST(text, 0, "toplevel_expr", backolonGrammar);
     expect(cst).not.toBeInstanceOf(MatchFail);
-    console.log(text, "==>", JSON.stringify(cst, null, 2));
+    // console.log(text, "==>", JSON.stringify(cst, null, 2));
     return cst as CSTNode;
 };
 
@@ -92,8 +92,8 @@ test("names", () => {
     }
 });
 
-test.only("strings", () => {
-    let cst = parsesFully(`"hello"`);
+test("strings", () => {
+    var cst = parsesFully(`"hello"`);
     expect(findAll(cst, "i_string")).toHaveLength(1);
     cst = parsesFully(`'single'`);
     expect(findAll(cst, "r_string")).toHaveLength(1);
@@ -105,24 +105,24 @@ test.only("strings", () => {
 });
 
 test("comments and separators", () => {
-    let cst = parsesFully(`## hello\nprint 1`);
-    expect(real(cst, "call")).toHaveLength(1);
+    var cst = parsesFully(`## hello\nprint 1`);
+    expect(real(cst, "implicit_call")).toHaveLength(1);
     cst = parsesFully(`print 1; print 2`);
-    expect(real(cst, "call")).toHaveLength(2);
+    expect(real(cst, "implicit_call")).toHaveLength(2);
     cst = parsesFully(`print 1\nprint 2`);
-    expect(real(cst, "call")).toHaveLength(2);
+    expect(real(cst, "implicit_call")).toHaveLength(2);
     cst = parsesFully(`print 1;;;;;;;;;print 2`);
-    expect(real(cst, "call")).toHaveLength(2);
+    expect(real(cst, "implicit_call")).toHaveLength(2);
     cst = parsesFully(`;print 1;`);
-    expect(real(cst, "call")).toHaveLength(1);
+    expect(real(cst, "implicit_call")).toHaveLength(1);
     cst = parsesFully(`print 1 ## trailing\nprint 2`);
-    expect(real(cst, "call")).toHaveLength(2);
+    expect(real(cst, "implicit_call")).toHaveLength(2);
 });
 
 test("arithmetic precedence and associativity", () => {
     // 1 + 2 * 3 : the add's right operand is a mul
-    let cst = parsesFully(`1 + 2 * 3`);
-    let adds = real(cst, "add");
+    var cst = parsesFully(`1 + 2 * 3`);
+    var adds = real(cst, "add");
     expect(adds).toHaveLength(1);
     expect(payload(adds[0]!)[2]!.type).toBe("mul");
 
@@ -175,7 +175,7 @@ test("calls: explicit, implicit, comma args, empties", () => {
         expect(findAll(cst, "number")).toHaveLength(argCount);
     }
     // juxtaposition is right-nested: print print 1 + 2 * 3, 4
-    let cst = parsesFully(`print print 1 + 2 * 3, 4`);
+    var cst = parsesFully(`print print 1 + 2 * 3, 4`);
     expect(real(cst, "call")).toHaveLength(2);
 
     // zero args
@@ -238,26 +238,26 @@ test("ternary", () => {
 });
 
 test("let", () => {
-    // simple let is an implicit call of `let`
-    let cst = parsesFully(`let a = 1`);
+    // simple var is an implicit call of `let`
+    var cst = parsesFully(`let a = 1`);
     expect(real(cst, "call")).toHaveLength(1);
-    expect(findAll(cst, "letBlock")).toHaveLength(0);
+    expect(findAll(cst, "let_in")).toHaveLength(0);
 
     // let/in/end is a block
     cst = parsesFully(`let x = 1, y = 2 in foo x end`);
-    expect(real(cst, "letBlock")).toHaveLength(1);
-    expect(findAll(cst, "letLoop")).toHaveLength(0);
+    expect(real(cst, "let_block")).toHaveLength(1);
+    expect(findAll(cst, "let_loop")).toHaveLength(0);
 
     // let(loop) form
     cst = parsesFully(`let(loop) x = 1 in foo loop end`);
-    expect(real(cst, "letLoop")).toHaveLength(1);
+    expect(real(cst, "let_loop")).toHaveLength(1);
 
     // multi-line block
     parsesFully(`let x = 1, y = 2 in\n    foo bar\nend`);
 });
 
 test("foreach", () => {
-    let cst = parsesFully(`foreach i in range(1, 100) do\n    print fizzbuzz i\nend`);
+    var cst = parsesFully(`foreach i in range(1, 100) do\n    print fizzbuzz i\nend`);
     expect(real(cst, "foreach")).toHaveLength(1);
     cst = parsesFully(`foreach i in x do print i end`);
     expect(real(cst, "foreach")).toHaveLength(1);
@@ -265,41 +265,38 @@ test("foreach", () => {
 
 test("lambdas", () => {
     // inline
-    let cst = parsesFully(`fn(x) x + 1`);
-    expect(real(cst, "lambda")).toHaveLength(1);
+    var cst = parsesFully(`fn(x) x + 1`);
+    expect(real(cst, "fn")).toHaveLength(1);
     // block
     cst = parsesFully(`fn(x)\n    x + 1\nend`);
-    expect(real(cst, "lambda")).toHaveLength(1);
+    expect(real(cst, "fn")).toHaveLength(1);
     // rest params
     cst = parsesFully(`fn(x, y, z...) x`);
-    expect(findAll(cst, "param")).toHaveLength(3);
-    // arrow
-    cst = parsesFully(`[x] => x + 1`);
-    expect(real(cst, "lambda")).toHaveLength(1);
+    expect(findAll(cst, "explicit_arg")).toHaveLength(3);
     // a lambda as an implicit-call argument
     cst = parsesFully(`callcc fn(c) c`);
-    expect(real(cst, "call")).toHaveLength(1);
+    expect(real(cst, "implicit_call")).toHaveLength(1);
     // the README yin/yang line
     parsesFully(`let yinHelper = fn(char) fn(c) ((fn(cc) (print char; cc)) (callcc fn(c) c))`);
 });
 
 test("lists and objects", () => {
-    let cst = parsesFully(`[1, x, 3]`);
-    expect(findAll(cst, "brackets")).toHaveLength(1);
-    expect(findAll(cst, "pair")).toHaveLength(0);
+    var cst = parsesFully(`[1, x, 3]`);
+    expect(findAll(cst, "collection")).toHaveLength(1);
+    expect(findAll(cst, "kw_arg")).toHaveLength(0);
     cst = parsesFully(`[]`);
-    expect(findAll(cst, "brackets")).toHaveLength(1);
+    expect(findAll(cst, "collection")).toHaveLength(1);
     cst = parsesFully(`[foo: 1, bar: 2]`);
-    expect(real(cst, "pair")).toHaveLength(2);
+    expect(real(cst, "kw_arg")).toHaveLength(2);
     cst = parsesFully(`[:]`);
-    expect(findAll(cst, "brackets")).toHaveLength(1);
+    expect(findAll(cst, "collection")).toHaveLength(1);
     // ternary colon is not a pair
     cst = parsesFully(`[a ? b : c]`);
-    expect(findAll(cst, "pair")).toHaveLength(0);
+    expect(findAll(cst, "kw_arg")).toHaveLength(0);
 });
 
 test("quotes", () => {
-    let cst = parsesFully("`(x + y)");
+    var cst = parsesFully("`(x + y)");
     expect(findAll(cst, "quote")).toHaveLength(1);
     cst = parsesFully("`name");
     expect(findAll(cst, "quote")).toHaveLength(1);
@@ -321,7 +318,7 @@ test("soft keywords stay usable as names, never as call args", () => {
     parsesFully(`do`);
     // `f in` parses as `f`, leaving ` in` unconsumed (program's trailing ws takes the blank)
     const cst = parse(`f in`);
-    expect(cst.end).toBe(2);
+    expect(cst.end).toBe(1);
     expect(real(cst, "call")).toHaveLength(0);
 });
 

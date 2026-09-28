@@ -1,7 +1,7 @@
 import { last } from "lib0/array";
 import { isString } from "lib0/function";
 import { max } from "lib0/math";
-import { GrammarCombinator, ignored, repeat, rule, sequence } from "./combinator";
+import { GrammarCombinator, rule } from "./combinator";
 import { CSTNode } from "./cst";
 
 export type MemoLoc = `${number}#${string}`;
@@ -58,8 +58,12 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 if (!rule) throw new Error("unknown named rule " + g.rule + " at " + path);
                 cutStack.push([0]);
                 const cst = applyRule(g.rule, rule, i);
+                const frameDepth = cutDepth();
                 cutStack.pop();
-                if (cst instanceof MatchFail) return isFinite(cst.cut) ? new MatchFail(cst.i, 0, cst.expected) : cst;
+                if (cst instanceof MatchFail) {
+                    const d = max(cst.cut, frameDepth);
+                    return d === cst.cut ? cst : new MatchFail(cst.i, d, cst.expected);
+                }
                 // Don't nest when the rule only delegated to another named rule
                 if (cst.text === undefined && isString(cst.type)) return cst;
                 return { type: g.rule, start: cst.start, end: cst.end, children: [cst] };
@@ -93,10 +97,6 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 sep();
                 return { start, end: i, children };
             }
-            case "joined": {
-                // s.e+ ==> e (s e)*
-                return applyRule(path + "/s", sequence(g.node, repeat(false, sequence(ignored(g.sep), g.node))), i);
-            }
             case "alternatives": {
                 const items = g.nodes, len = items.length;
                 const options: CSTNode[] = [];
@@ -123,6 +123,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 const nodes = op === "repeat_seq" ? g.nodes : [g.node], len = nodes.length;
                 if (len > 0) {
                     for (var count = 0; ; count++) {
+                        // TODO: for "joined", a sep should be a cut, and should never end in a cut
                         const thisMatch = applyRule(path + "/*", nodes[count % len]!, i);
                         if (thisMatch instanceof MatchFail) {
                             if (thisMatch.cut > 0) return thisMatch;
@@ -134,6 +135,32 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                         children.push(thisMatch);
                         i = thisMatch.end;
                     }
+                }
+                return { start, end: i, children };
+            }
+            case "joined": {
+                // e (sep e)* but a flat output array
+                const start = i;
+                const children: CSTNode[] = [];
+                for (; ;) {
+                    const elem = applyRule(path + "/e", g.node, i);
+                    if (elem instanceof MatchFail) {
+                        if (elem.cut > 0) return elem;
+                        if (children.length < 3) return elem; // need at least two elements
+                        // trailing sep is cut-fail
+                        return new MatchFail(elem.i, 1, elem.expected);
+                    }
+                    children.push(elem);
+                    i = elem.end;
+                    const s = applyRule(path + "/s", g.sep, i);
+                    if (s instanceof MatchFail) {
+                        if (s.cut > 0) return s;
+                        if (children.length < 3) return s; // need at least two elements
+                        break; // no separator: done
+                    }
+                    if (s.end === i) break; // empty separator ?!?
+                    children.push(s);
+                    i = s.end;
                 }
                 return { start, end: i, children };
             }
