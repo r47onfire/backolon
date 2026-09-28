@@ -55,7 +55,9 @@ export const backolonGrammar: Grammar = {
 
     // right associative
     implicit_call: alternatives(seq_sep(rule("blank_sameline"), rule("kw_arg"), assert_nonempty(rule("implicit_args"))), rule("kw_arg")),
-    implicit_args: joined(seq_sep(rule("blank_sameline"), tag("operator", literal(","))), alternatives(rule("implicit_call"), nothing()), false, false), // allow blank arguments
+    implicit_args: joined(seq_sep(rule("blank_sameline"), tag("operator", literal(","))), alternatives(rule("implicit_call"), rule("empty_arg")), false, false), // allow blank arguments
+
+    empty_arg: nothing(),
 
     // non-associative
     kw_arg: alternatives(seq_sep(rule("blank"), rule("assignment"), rule("kw_arg_op"), cut(), rule("assignment")), rule("assignment")),
@@ -65,8 +67,12 @@ export const backolonGrammar: Grammar = {
     kw: tag("operator", literal(":")),
 
     // right associative
-    assignment: alternatives(seq_sep(rule("blank"), rule("ternary"), rule("assign_op"),cut(),  rule("assignment")), rule("ternary")),
-    assign_op: sequence(optional(rule("aug_assign_prefix")), tag("operator", regex(/=(?!=)/))),
+    assignment: alternatives(seq_sep(rule("blank"), rule("ternary"), rule("assign_op"), cut(), rule("assignment")), rule("ternary")),
+    assign_op: alternatives(
+        rule("old_assign_op"),
+        sequence(optional(rule("aug_assign_prefix")), tag("operator", regex(/=(?!=)/))),
+    ),
+    old_assign_op: tag("operator", literal("<-")),
     aug_assign_prefix: sequence(alternatives( // wrapped in single sequence so it's kept
         rule("logical_op"),
         rule("bitwise_op"),
@@ -101,7 +107,7 @@ export const backolonGrammar: Grammar = {
     not_equal_op: tag("operator", literal("!=")),
     lte_op: tag("operator", literal("<=")),
     gte_op: tag("operator", literal(">=")),
-    less_op: tag("operator", regex(/<(?!<)/)),
+    less_op: tag("operator", regex(/<(?![<-])/)),
     greater_op: tag("operator", regex(/>(?!>)/)),
 
     // left associative
@@ -172,7 +178,7 @@ export const backolonGrammar: Grammar = {
     ),
 
     explicit_call: seq_sep(rule("blank"), rule("primary"), tag("operator", literal("(")), cut(), rule("explicit_args"), tag("operator", literal(")"))),
-    explicit_args: repeat_seq(true, alternatives(rule("expr"), nothing()), seq_sep(rule("blank"), tag("operator", literal(",")))), // allow blank arguments
+    explicit_args: repeat_seq(true, alternatives(rule("expr"), rule("empty_arg")), seq_sep(rule("blank"), tag("operator", literal(",")))), // allow blank arguments
 
     prefix: seq_sep(rule("blank"), rule("prefix_op"), cut(), rule("factor")),
     prefix_op: alternatives(
@@ -181,6 +187,7 @@ export const backolonGrammar: Grammar = {
         rule("negate"),
         rule("abs"),
         rule("not"),
+        rule("bit_not"),
         rule("quote"),
         rule("unquote"),
         rule("unquote_splicing"),
@@ -193,6 +200,7 @@ export const backolonGrammar: Grammar = {
     negate: tag("operator", literal("-")),
     abs: tag("operator", literal("+")),
     not: tag("operator", regex(/!(?!=)/)),
+    bit_not: tag("operator", literal("~")),
     quote: tag("operator", literal("`")),
     unquote: tag("operator", literal("$")),
     unquote_splicing: tag("operator", literal("$.")),

@@ -36,7 +36,7 @@ export const describe = (g: GrammarCombinator, depth = 0): string => {
         case "assert_nonempty": return "(=" + describe(g.node, depth + 1) + ")";
         case "assert_sameline": return "($" + describe(g.node, depth + 1) + ")";
         case "if": return "(?(" + describe(g.cond, depth + 1) + ") " + describe(g.true, depth + 1) + " | " + describe(g.false, depth + 1) + ")";
-        case "nothing": return "\u03B5";
+        case "nothing": return "\u03B5"; // epsilon
         case "cut": return "!";
         case "fail_fast": return g.message;
     }
