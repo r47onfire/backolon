@@ -1,4 +1,4 @@
-import { alternatives, assert_nonempty, assert_sameline, cut, ignored, joined, literal, nothing, optional, regex, repeat, repeat_seq, rule, seq_sep, sequence, tag } from "./combinator";
+import { alternatives, assert_nonempty, assert_sameline, cut, ignored, joined, literal, lookahead, nothing, optional, regex, repeat, repeat_seq, rule, seq_sep, sequence, tag } from "./combinator";
 import { Grammar } from "./parseToCST";
 
 export const backolonGrammar: Grammar = {
@@ -55,9 +55,16 @@ export const backolonGrammar: Grammar = {
 
     // right associative
     implicit_call: alternatives(seq_sep(rule("blank_sameline"), rule("kw_arg"), assert_nonempty(rule("implicit_args"))), rule("kw_arg")),
-    implicit_args: joined(seq_sep(rule("blank_sameline"), tag("operator", literal(","))), alternatives(rule("implicit_call"), rule("empty_arg")), false, false), // allow blank arguments
+    implicit_args: sequence(
+        // can't use joined() here since the first and second are different!
+        rule("implicit_call"),
+        repeat(false, sequence(
+            seq_sep(rule("blank_sameline"), tag("operator", literal(","))),
+            alternatives(rule("implicit_call"), rule("empty_arg"))
+        )),
+    ),
 
-    empty_arg: nothing(),
+    empty_arg: sequence(nothing(), lookahead(tag("operator", literal(",")))), // only between commas
 
     // non-associative
     kw_arg: alternatives(seq_sep(rule("blank"), rule("assignment"), rule("kw_arg_op"), cut(), rule("assignment")), rule("assignment")),
@@ -178,7 +185,14 @@ export const backolonGrammar: Grammar = {
     ),
 
     explicit_call: seq_sep(rule("blank"), rule("primary"), tag("operator", literal("(")), cut(), rule("explicit_args"), tag("operator", literal(")"))),
-    explicit_args: repeat_seq(true, alternatives(rule("expr"), rule("empty_arg")), seq_sep(rule("blank"), tag("operator", literal(",")))), // allow blank arguments
+    explicit_args: alternatives(
+        joined(
+            seq_sep(rule("blank"), tag("operator", literal(","))),
+            alternatives(rule("expr"), rule("empty_arg")),
+            false, false,
+        ),
+        sequence(), // empty args
+    ), // allow blank arguments
 
     prefix: seq_sep(rule("blank"), rule("prefix_op"), cut(), rule("factor")),
     prefix_op: alternatives(
@@ -267,7 +281,7 @@ export const backolonGrammar: Grammar = {
     collection: seq_sep(rule("blank"), literal("["), cut(), rule("collection_body"), literal("]")),
     collection_body: alternatives(
         rule("empty_collection"),
-        joined(tag("operator", literal(",")), rule("collection_item"), false, true), // TODO: allow trailing comma
+        joined(seq_sep(rule("blank"), tag("operator", literal(","))), rule("collection_item"), false, true), // TODO: allow trailing comma
     ),
     empty_collection: alternatives(
         rule("empty_list"),
