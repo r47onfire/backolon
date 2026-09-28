@@ -10,7 +10,7 @@ export type GrammarCombinator = Readonly<
     /** sequencing, but with optional sep surrounding them; sep is ignored */
     | { op: "seq_sep", nodes: GrammarCombinator[], sep: GrammarCombinator }
     /** repeat node separated by sep; sep is ignored */
-    | { op: "joined", node: GrammarCombinator, sep: GrammarCombinator }
+    | { op: "joined", node: GrammarCombinator, sep: GrammarCombinator, require2: boolean, trailing: boolean }
     /** return the longest match out of the alternatives (first if there's multiple of the same length) */
     | { op: "alternatives", nodes: GrammarCombinator[] }
     /** return the parse result or blank */
@@ -43,7 +43,7 @@ export const ignored = (n: GrammarCombinator): GrammarCombinator => ({ op: "igno
 export const rule = (r: string): GrammarCombinator => ({ op: "rule", rule: r });
 export const sequence = (...n: GrammarCombinator[]): GrammarCombinator => ({ op: "sequence", nodes: n });
 export const seq_sep = (s: GrammarCombinator, ...n: GrammarCombinator[]): GrammarCombinator => ({ op: "seq_sep", nodes: n, sep: s });
-export const joined = (j: GrammarCombinator, n: GrammarCombinator): GrammarCombinator => ({ op: "joined", node: n, sep: j });
+export const joined = (j: GrammarCombinator, n: GrammarCombinator, r2: boolean, t: boolean): GrammarCombinator => ({ op: "joined", node: n, sep: j, require2: r2, trailing: t });
 export const alternatives = (...n: GrammarCombinator[]): GrammarCombinator => ({ op: "alternatives", nodes: n });
 export const optional = (n: GrammarCombinator): GrammarCombinator => ({ op: "optional", node: n });
 export const repeat = (r: boolean, n: GrammarCombinator): GrammarCombinator => ({ op: "repeat", required: r, node: n });

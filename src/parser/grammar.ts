@@ -10,12 +10,12 @@ export const backolonGrammar: Grammar = {
     block_comment: sequence(literal("##[["), repeat(false, alternatives(rule("block_comment"), regex(/./))), literal("##]]")),
     line_comment: regex(/##[^\n]*(\n|$)/),
 
-    expr_sep: ignored(repeat(true, alternatives(rule("semi"), rule("nl")))),
+    expr_sep: ignored(repeat(true, alternatives(rule("semi"), rule("nl"), rule("comment")))),
     semi: ignored(tag("punctuation", literal(";"))),
     nl: ignored(sequence(literal("\n"), optional(rule("comment")))),
 
     exprs: seq_sep(rule("expr_sep"), alternatives(rule("expr"), nothing())),
-    toplevel_expr: seq_sep(rule("expr_sep"), rule("expr")),
+    toplevel_expr: repeat(true, seq_sep(rule("expr_sep"), seq_sep(rule("blank"), rule("expr")))),
     expr: alternatives(rule("block_expr"), rule("simple_expr")),
 
     // block_expr: let, if, while, foreach, trycatch, with, fn
@@ -54,7 +54,7 @@ export const backolonGrammar: Grammar = {
 
     // right associative
     implicit_call: alternatives(seq_sep(rule("blank_sameline"), rule("kw_arg"), rule("implicit_args")), rule("kw_arg")),
-    implicit_args: repeat_seq(true, alternatives(rule("implicit_call"), nothing()), seq_sep(rule("blank_sameline"), tag("operator", literal(",")))), // allow blank arguments
+    implicit_args: joined(seq_sep(rule("blank_sameline"), tag("operator", literal(","))), alternatives(rule("implicit_call"), nothing()), false, false), // allow blank arguments
 
     // non-associative
     kw_arg: alternatives(seq_sep(rule("blank"), rule("assignment"), rule("kw_arg_op"), rule("assignment")), rule("assignment")),
@@ -71,7 +71,7 @@ export const backolonGrammar: Grammar = {
     ),
 
     // right associative
-    ternary: alternatives(seq_sep(rule("blank"), rule("logical"), tag("operator", literal("?")), rule("expr"), cut(), tag("operator", literal(":")), rule("ternary")), rule("logical")),
+    ternary: alternatives(seq_sep(rule("blank"), rule("logical"), tag("operator", literal("?")), rule("assignment"), cut(), tag("operator", literal(":")), rule("ternary")), rule("logical")),
 
     // left associative
     logical: alternatives(seq_sep(rule("blank"), rule("logical"), rule("logical_op"), rule("comparison")), rule("comparison")),
@@ -83,7 +83,7 @@ export const backolonGrammar: Grammar = {
     logical_or: alternatives(tag("operator", literal("||")), tag("keyword", regex(/\bor\b/))),
 
     // chain associative
-    comparison: alternatives(joined(rule("comparison_op"), rule("bitwise")), rule("bitwise")),
+    comparison: alternatives(joined(rule("comparison_op"), rule("bitwise"), true, false), rule("bitwise")),
     comparison_op: alternatives(
         rule("equal_op"),
         rule("not_equal_op"),
@@ -171,6 +171,8 @@ export const backolonGrammar: Grammar = {
 
     prefix: seq_sep(rule("blank"), rule("prefix_op"), rule("primary")),
     prefix_op: alternatives(
+        rule("length"),
+        rule("not"),
         rule("quote"),
         rule("unquote"),
         rule("unquote_splicing"),
@@ -178,6 +180,8 @@ export const backolonGrammar: Grammar = {
         rule("lazy"),
     ),
 
+    length: tag("operator", literal("#")),
+    not: tag("operator", literal("!")),
     quote: tag("operator", literal("`")),
     unquote: tag("operator", literal("$")),
     unquote_splicing: tag("operator", literal("$.")),
@@ -243,7 +247,7 @@ export const backolonGrammar: Grammar = {
     collection: seq_sep(rule("blank"), literal("["), cut(), rule("collection_body"), literal("]")),
     collection_body: alternatives(
         rule("empty_collection"),
-        joined(tag("operator", literal(",")), rule("collection_item"))
+        joined(tag("operator", literal(",")), rule("collection_item"), false, true), // TODO: allow trailing comma
     ),
     empty_collection: alternatives(
         rule("empty_list"),

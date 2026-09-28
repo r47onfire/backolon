@@ -139,15 +139,15 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 return { start, end: i, children };
             }
             case "joined": {
-                // e (sep e)* but a flat output array
                 const start = i;
                 const children: CSTNode[] = [];
                 for (; ;) {
                     const elem = applyRule(path + "/e", g.node, i);
                     if (elem instanceof MatchFail) {
                         if (elem.cut > 0) return elem;
-                        if (children.length < 3) return elem; // need at least two elements
+                        if (children.length < (g.require2 ? 3 : 1)) return elem; // need at least one or two elements
                         // trailing sep is cut-fail
+                        if (g.trailing) break;
                         return new MatchFail(elem.i, 1, elem.expected);
                     }
                     children.push(elem);
@@ -155,7 +155,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                     const s = applyRule(path + "/s", g.sep, i);
                     if (s instanceof MatchFail) {
                         if (s.cut > 0) return s;
-                        if (children.length < 3) return s; // need at least two elements
+                        if (children.length < (g.require2 ? 3 : 1)) return s; // need at least one or two elements
                         break; // no separator: done
                     }
                     if (s.end === i) break; // empty separator ?!?

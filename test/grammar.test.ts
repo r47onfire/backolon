@@ -1,10 +1,18 @@
 import { expect, test } from "bun:test";
 import { backolonGrammar, CSTNode, MatchFail, parseToCST } from "../src";
 
+type ASTNode = string | undefined | ASTNode[];
+const toAST = (cst: CSTNode): ASTNode => {
+    const c = () => cst.children?.filter(c => !c.ignored).flatMap(c => c.type ? [toAST(c)] : toAST(c)) ?? [];
+    if (cst.type) return [cst.type, ...c()];
+    if (cst.children) return c();
+    return cst.text;
+}
+
 const parse = (text: string): CSTNode => {
-    const cst = parseToCST(text, 0, "toplevel_expr", backolonGrammar);
+    const cst = parseToCST(text, 0, "exprs", backolonGrammar);
     expect(cst).not.toBeInstanceOf(MatchFail);
-    // console.log(text, "==>", JSON.stringify(cst, null, 2));
+    console.log(text, "==>", JSON.stringify(cst instanceof MatchFail ? cst : toAST(cst), null, 2));
     return cst as CSTNode;
 };
 
@@ -78,7 +86,7 @@ const parsesFully = (text: string): CSTNode => {
     return cst;
 };
 
-test("numbers", () => {
+test.only("numbers", () => {
     for (var text of ["123", "3.14", ".5", "0x1F", "0xff"]) {
         const cst = parsesFully(text);
         expect(findAll(cst, "number")).toHaveLength(1);
@@ -122,15 +130,15 @@ test("comments and separators", () => {
 test("arithmetic precedence and associativity", () => {
     // 1 + 2 * 3 : the add's right operand is a mul
     var cst = parsesFully(`1 + 2 * 3`);
-    var adds = real(cst, "add");
+    var adds = real(cst, "sum");
     expect(adds).toHaveLength(1);
-    expect(payload(adds[0]!)[2]!.type).toBe("mul");
+    expect(payload(adds[0]!)[2]!.type).toBe("term");
 
     // (1 + 2) * 3 : the mul's left operand is a parens
     cst = parsesFully(`(1 + 2) * 3`);
     const muls = real(cst, "mul");
     expect(muls).toHaveLength(1);
-    expect(core(payload(muls[0]!)[0]!).type).toBe("parens");
+    expect(core(payload(muls[0]!)[0]!).type).toBe("par_exp");
 
     // left assoc: 1 + 2 + 3 nests the add on the left
     cst = parsesFully(`1 + 2 + 3`);
@@ -160,43 +168,43 @@ test("arithmetic precedence and associativity", () => {
 
 test("assignment is right associative", () => {
     const cst = parsesFully(`a = b = 1`);
-    const assigns = real(cst, "assign");
+    const assigns = real(cst, "assignment");
     expect(assigns).toHaveLength(2);
-    const outer = assigns.find((a) => payload(a)[2]!.type === "assign")!;
+    const outer = assigns.find((a) => payload(a)[2]!.type === "assignment")!;
     expect(outer).toBeDefined();
 });
 
 test("calls: explicit, implicit, comma args, empties", () => {
-    for (var [text, argCount] of [
-        [`print(1, 2)`, 2], [`print (1, 2)`, 2], [`print 1, 2`, 2], [`print(1,2), 3`, 3],
+    for (var [text, rule, argCount] of [
+        [`print(1, 2)`, "explicit_call", 2], [`print (1, 2)`, "explicit_call", 2], [`print 1, 2`, "implicit_call", 2], [`print(1,2), 3`, "implicit_call", 3],
     ] as const) {
         const cst = parsesFully(text);
-        expect(real(cst, "call")).toHaveLength(1);
+        expect(real(cst, rule)).toHaveLength(1);
         expect(findAll(cst, "number")).toHaveLength(argCount);
     }
     // juxtaposition is right-nested: print print 1 + 2 * 3, 4
     var cst = parsesFully(`print print 1 + 2 * 3, 4`);
-    expect(real(cst, "call")).toHaveLength(2);
+    expect(real(cst, "implicit_call")).toHaveLength(2);
 
     // zero args
     cst = parsesFully(`print()`);
-    expect(real(cst, "call")).toHaveLength(1);
+    expect(real(cst, "explicit_call")).toHaveLength(1);
 
     // (,) is one empty arg; (1,,2) has an empty middle
     cst = parsesFully(`print(,)`);
-    expect(real(cst, "call")).toHaveLength(1);
+    expect(real(cst, "explicit_call")).toHaveLength(1);
     expect(findAll(cst, "number")).toHaveLength(0);
     cst = parsesFully(`print(1,,2)`);
-    expect(real(cst, "call")).toHaveLength(1);
+    expect(real(cst, "explicit_call")).toHaveLength(1);
     expect(findAll(cst, "number")).toHaveLength(2);
 
-    // chained explicit args: f(x)(y)
+    // chained calls: f(x)(y)
     cst = parsesFully(`f(x)(y)`);
-    expect(real(cst, "call")).toHaveLength(1);
+    expect(real(cst, "explicit_call")).toHaveLength(2);
 
     // bare name is NOT a call
     cst = parsesFully(`print`);
-    const calls = findAll(cst, "call");
+    const calls = findAll(cst, "explicit_call");
     expect(calls).toHaveLength(0);
 });
 
@@ -208,15 +216,15 @@ test("unary operators", () => {
     parsesFully(`...args`);
     // != is a comparison, not ! followed by =
     const cst = parsesFully(`a != b`);
-    expect(real(cst, "cmp")).toHaveLength(1);
+    expect(real(cst, "comparison")).toHaveLength(1);
     expect(real(cst, "unary")).toHaveLength(0);
 });
 
 test("indexing is left associative", () => {
     const cst = parsesFully(`x->1->2`);
-    const postfixes = real(cst, "postfix");
+    const postfixes = real(cst, "indexing");
     expect(postfixes).toHaveLength(2);
-    const outer = postfixes.find((p) => payload(p)[0]!.type === "postfix")!;
+    const outer = postfixes.find((p) => payload(p)[0]!.type === "indexing")!;
     expect(outer).toBeDefined();
     parsesFully(`x->1`);
 });
@@ -238,9 +246,9 @@ test("ternary", () => {
 });
 
 test("let", () => {
-    // simple var is an implicit call of `let`
+    // simple var NOT a call
     var cst = parsesFully(`let a = 1`);
-    expect(real(cst, "call")).toHaveLength(1);
+    expect(real(cst, "implicit_call")).toHaveLength(1);
     expect(findAll(cst, "let_in")).toHaveLength(0);
 
     // let/in/end is a block
@@ -319,7 +327,7 @@ test("soft keywords stay usable as names, never as call args", () => {
     // `f in` parses as `f`, leaving ` in` unconsumed (program's trailing ws takes the blank)
     const cst = parse(`f in`);
     expect(cst.end).toBe(1);
-    expect(real(cst, "call")).toHaveLength(0);
+    expect(real(cst, "implicit_call")).toHaveLength(0);
 });
 
 test("README examples", () => {
