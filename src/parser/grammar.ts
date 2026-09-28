@@ -67,9 +67,13 @@ export const backolonGrammar: Grammar = {
     // right associative
     assignment: alternatives(seq_sep(rule("blank"), rule("ternary"), rule("assign_op"),cut(),  rule("assignment")), rule("ternary")),
     assign_op: sequence(optional(rule("aug_assign_prefix")), tag("operator", regex(/=(?!=)/))),
-    aug_assign_prefix: alternatives(
-        // TODO: all valid aug_assign operators
-    ),
+    aug_assign_prefix: sequence(alternatives( // wrapped in single sequence so it's kept
+        rule("logical_op"),
+        rule("bitwise_op"),
+        rule("bitshift_op"),
+        rule("sum_op"),
+        rule("term_op"),
+    )),
 
     // right associative
     ternary: alternatives(seq_sep(rule("blank"), rule("logical"), tag("operator", literal("?")), cut(), rule("assignment"), cut(), tag("operator", literal(":")), rule("ternary")), rule("logical")),
@@ -84,7 +88,7 @@ export const backolonGrammar: Grammar = {
     logical_or: alternatives(tag("operator", literal("||")), tag("keyword", regex(/\bor\b/))),
 
     // chain associative
-    comparison: alternatives(joined(rule("comparison_op"), rule("bitwise"), true, false), rule("bitwise")),
+    comparison: alternatives(joined(seq_sep(rule("blank"), rule("comparison_op")), seq_sep(rule("blank"), rule("bitwise")), true, false), rule("bitwise")),
     comparison_op: alternatives(
         rule("equal_op"),
         rule("not_equal_op"),
@@ -188,7 +192,7 @@ export const backolonGrammar: Grammar = {
     spread: tag("operator", literal("...")),
     negate: tag("operator", literal("-")),
     abs: tag("operator", literal("+")),
-    not: tag("operator", literal("!")),
+    not: tag("operator", regex(/!(?!=)/)),
     quote: tag("operator", literal("`")),
     unquote: tag("operator", literal("$")),
     unquote_splicing: tag("operator", literal("$.")),
@@ -232,16 +236,17 @@ export const backolonGrammar: Grammar = {
         rule("i_interpolation"),
         rule("i_body"),
     ),
-    i_escape: tag("escape", alternatives(
+    i_escape: tag("escape", sequence(regex(/\\(?!\()/), cut(), rule("i_escape_body"))),
+    i_escape_body: alternatives(
         rule("i_known_escape"),
         rule("i_x_escape"),
         rule("i_u_escape"),
         rule("i_U_escape"),
-    )),
-    i_known_escape: regex(/\\[abefnrtvz"']/), // cSpell: ignore abefnrtvz
-    i_x_escape: sequence(literal("\\x"), cut(), regex(/[0-9a-f]{2}/)),
-    i_u_escape: sequence(literal("\\u"), cut(), regex(/[0-9a-f]{4}/)),
-    i_U_escape: sequence(literal("\\U"), cut(), regex(/\{[0-9a-f]+\}/)),
+    ),
+    i_known_escape: regex(/[abefnrtvz"']/), // cSpell: ignore abefnrtvz
+    i_x_escape: sequence(literal("x"), cut(), regex(/[0-9a-f]{2}/)),
+    i_u_escape: sequence(literal("u"), cut(), regex(/[0-9a-f]{4}/)),
+    i_U_escape: sequence(literal("U"), cut(), regex(/\{[0-9a-f]+\}/)),
     i_interpolation: sequence(tag("escape", literal("\\(")), cut(), rule("exprs"), tag("escape", literal(")"))),
     i_body: tag("string", regex(/[^"\\]+/)),
 
