@@ -43,6 +43,7 @@ export const ignored = (n: GrammarCombinator): GrammarCombinator => ({ op: "igno
 export const rule = (r: string): GrammarCombinator => ({ op: "rule", rule: r });
 export const sequence = (...n: GrammarCombinator[]): GrammarCombinator => ({ op: "sequence", nodes: n });
 export const seq_sep = (s: GrammarCombinator, ...n: GrammarCombinator[]): GrammarCombinator => ({ op: "seq_sep", nodes: n, sep: s });
+export const joined = (j: GrammarCombinator, n: GrammarCombinator): GrammarCombinator => ({ op: "joined", node: n, sep: j });
 export const alternatives = (...n: GrammarCombinator[]): GrammarCombinator => ({ op: "alternatives", nodes: n });
 export const optional = (n: GrammarCombinator): GrammarCombinator => ({ op: "optional", node: n });
 export const repeat = (r: boolean, n: GrammarCombinator): GrammarCombinator => ({ op: "repeat", required: r, node: n });

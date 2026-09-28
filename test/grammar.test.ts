@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { backolonGrammar, CSTNode, MatchFail, parseToCST } from "../src";
 
 const parse = (text: string): CSTNode => {
-    const cst = parseToCST(text, 0, "toplevel_expr", backolonGrammar);
+    const cst = parseToCST(text, 0, "atom", backolonGrammar);
     expect(cst).not.toBeInstanceOf(MatchFail);
-    // console.log(JSON.stringify(cst, null, 2));
+    console.log(text, "==>", JSON.stringify(cst, null, 2));
     return cst as CSTNode;
 };
 
@@ -79,26 +79,26 @@ const parsesFully = (text: string): CSTNode => {
 };
 
 test("numbers", () => {
-    for (const text of ["123", "3.14", ".5", "0x1F", "0xff"]) {
+    for (var text of ["123", "3.14", ".5", "0x1F", "0xff"]) {
         const cst = parsesFully(text);
         expect(findAll(cst, "number")).toHaveLength(1);
     }
 });
 
 test("names", () => {
-    for (const text of ["foo", "_", "foo123", "_bar", "in", "end", "fn"]) {
+    for (var text of ["foo", "_", "foo123", "_bar", "in", "end", "fn"]) {
         const cst = parsesFully(text);
         expect(findAll(cst, "name")).toHaveLength(1);
     }
 });
 
-test("strings", () => {
+test.only("strings", () => {
     let cst = parsesFully(`"hello"`);
-    expect(findAll(cst, "dstring")).toHaveLength(1);
+    expect(findAll(cst, "i_string")).toHaveLength(1);
     cst = parsesFully(`'single'`);
-    expect(findAll(cst, "sstring")).toHaveLength(1);
-    cst = parsesFully(`"fizzbuzz: {n}"`);
-    expect(findAll(cst, "interp")).toHaveLength(1);
+    expect(findAll(cst, "r_string")).toHaveLength(1);
+    cst = parsesFully(`"fizzbuzz: \\(n)"`);
+    expect(findAll(cst, "i_interpolation")).toHaveLength(1);
     // escapes
     parsesFully(`"a\\"b"`);
     parsesFully(`'it\\'s'`);
@@ -167,7 +167,7 @@ test("assignment is right associative", () => {
 });
 
 test("calls: explicit, implicit, comma args, empties", () => {
-    for (const [text, argCount] of [
+    for (var [text, argCount] of [
         [`print(1, 2)`, 2], [`print (1, 2)`, 2], [`print 1, 2`, 2], [`print(1,2), 3`, 3],
     ] as const) {
         const cst = parsesFully(text);

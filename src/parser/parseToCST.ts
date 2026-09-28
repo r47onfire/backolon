@@ -61,7 +61,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 cutStack.pop();
                 if (cst instanceof MatchFail) return isFinite(cst.cut) ? new MatchFail(cst.i, 0, cst.expected) : cst;
                 // Don't nest when the rule only delegated to another named rule
-                if (cst.text === undefined && isString(cst)) return cst;
+                if (cst.text === undefined && isString(cst.type)) return cst;
                 return { type: g.rule, start: cst.start, end: cst.end, children: [cst] };
             }
             case "tag": {
@@ -143,11 +143,11 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             case "cut": {
                 const f = last(cutStack);
                 if (f) f[0] = max(f[0], g.depth);
-                return { start: i, end: i };
+                return { ignored: true, start: i, end: i };
             }
             case "lookahead": {
                 const cst = applyRule(path + "/?", g.node, i);
-                return cst instanceof MatchFail === g.negative ? { start: i, end: i } : new MatchFail(i, 0, g);
+                return cst instanceof MatchFail === g.negative ? { ignored: true, start: i, end: i } : new MatchFail(i, 0, g);
             }
             case "assert_sameline":
             case "assert_nonempty": {
