@@ -1,7 +1,7 @@
 import { last } from "lib0/array";
 import { isString } from "lib0/function";
 import { max } from "lib0/math";
-import { GrammarCombinator, rule } from "./combinator";
+import { describe, GrammarCombinator, rule } from "./combinator";
 import { CSTNode } from "./cst";
 
 export type MemoLoc = `${number}#${string}`;
@@ -24,6 +24,9 @@ class LR {
 
 export class MatchFail {
     constructor(readonly i: number, readonly cut: number, readonly expected: GrammarCombinator) { }
+    toString(): string {
+        return `parse error at index ${this.i}: expected ${describe(this.expected)}`;
+    }
 }
 
 export type Memo = Record<MemoLoc, CSTNode | MatchFail | LR>;
@@ -100,17 +103,22 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             case "alternatives": {
                 const items = g.nodes, len = items.length;
                 const options: CSTNode[] = [];
+                var furthestFail: MatchFail | undefined;
                 for (var j = 0; j < len; j++) {
                     const thisMatch = applyRule(path + "/" + j, items[j]!, i);
                     if (thisMatch instanceof MatchFail) {
                         const d = max(thisMatch.cut, cutDepth());
-                        if (d === 0) continue;
+                        if (d === 0) {
+                            // track the furthest failure for better error messages
+                            if (!furthestFail || thisMatch.i > furthestFail.i) furthestFail = thisMatch;
+                            continue;
+                        }
                         consumeCut();
                         return new MatchFail(thisMatch.i, d - 1, thisMatch.expected);
                     }
                     options.push(thisMatch);
                 }
-                return options.length < 1 ? new MatchFail(i, 0, g) : options.reduce((a, b) => b.end > a.end ? b : a);
+                return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, g)) : options.reduce((a, b) => b.end > a.end ? b : a);
             }
             case "optional": {
                 const cst = applyRule(path + "/", g.node, i);

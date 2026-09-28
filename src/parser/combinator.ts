@@ -57,3 +57,27 @@ export const assert_nonempty = (n: GrammarCombinator): GrammarCombinator => ({ o
 export const assert_sameline = (n: GrammarCombinator): GrammarCombinator => ({ op: "assert_sameline", node: n });
 export const nothing = (): GrammarCombinator => ({ op: "nothing" });
 export const fail_fast = (m: string): GrammarCombinator => ({ op: "fail_fast", message: m });
+
+export const describe = (g: GrammarCombinator, depth = 0): string => {
+    if (depth > 3) return "...";
+    switch (g.op) {
+        case "token": return g.isRegex ? g.pattern.toString() : JSON.stringify(g.pattern);
+        case "rule": return g.rule;
+        case "tag": return describe(g.node, depth);
+        case "ignored": return describe(g.node, depth);
+        case "optional": return describe(g.node, depth) + "?";
+        case "sequence": return g.nodes.map(n => describe(n, depth + 1)).join(" ");
+        case "seq_sep": return g.nodes.map(n => describe(n, depth + 1)).join(" ");
+        case "alternatives": return g.nodes.map(n => describe(n, depth + 1)).join(" or ");
+        case "joined": return describe(g.node, depth + 1) + " separated by " + describe(g.sep, depth + 1);
+        case "repeat": return (g.required ? "one" : "zero") + " or more " + describe(g.node, depth + 1);
+        case "repeat_seq": return "repeating " + g.nodes.map(n => describe(n, depth + 1)).join(" ");
+        case "lookahead": return (g.negative ? "not " : "") + describe(g.node, depth + 1);
+        case "assert_nonempty": return "nonempty " + describe(g.node, depth);
+        case "assert_sameline": return describe(g.node, depth) + " on same line";
+        case "if": return describe(g.true, depth + 1) + " | " + describe(g.false, depth + 1);
+        case "nothing": return "\"\"";
+        case "cut": return "cut";
+        case "fail_fast": return g.message;
+    }
+}
