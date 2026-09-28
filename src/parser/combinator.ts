@@ -73,7 +73,7 @@ export const describe = (g: GrammarCombinator, depth = 0): string => {
         case "repeat": return (g.required ? "one" : "zero") + " or more " + describe(g.node, depth + 1);
         case "repeat_seq": return "repeating " + g.nodes.map(n => describe(n, depth + 1)).join(" ");
         case "lookahead": return (g.negative ? "not " : "") + describe(g.node, depth + 1);
-        case "assert_nonempty": return "nonempty " + describe(g.node, depth);
+        case "assert_nonempty": return describe(g.node, depth);
         case "assert_sameline": return describe(g.node, depth) + " on same line";
         case "if": return describe(g.true, depth + 1) + " | " + describe(g.false, depth + 1);
         case "nothing": return "\"\"";
