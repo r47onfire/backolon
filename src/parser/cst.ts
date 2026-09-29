@@ -1,3 +1,5 @@
+import { GrammarCombinator } from "./combinator";
+
 export type CSTNode = Readonly<{
     type?: string | undefined,
     ignored?: boolean,
@@ -7,4 +9,6 @@ export type CSTNode = Readonly<{
     start: number,
     end: number,
     children?: readonly CSTNode[], // empty in leaf node
+    /** if set, it means this node is a fallback recovery node that should be translated into a lazy syntax error */
+    errorExpected?: GrammarCombinator,
 }>;

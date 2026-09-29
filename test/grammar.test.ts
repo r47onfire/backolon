@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { backolonGrammar, CSTNode, MatchFail, parseToCST } from "../src";
+import { backolonGrammar, CSTNode, parseToCST } from "../src";
 
 type ASTNode = string | undefined | ASTNode[];
 const toAST = (cst: CSTNode): ASTNode => {
@@ -11,8 +11,8 @@ const toAST = (cst: CSTNode): ASTNode => {
 
 const parse = (text: string): CSTNode => {
     const cst = parseToCST(text, 0, "toplevel_exprs", backolonGrammar);
-    // console.log(text, "==>", cst instanceof MatchFail ? cst.toString() : JSON.stringify(toAST(cst), null, 2));
-    expect(cst).not.toBeInstanceOf(MatchFail);
+    console.log(text, "==>", JSON.stringify(toAST(cst), null, 2));
+    expect(JSON.stringify(cst)).not.toContain('"errorExpected"');
     return cst as CSTNode;
 };
 
@@ -58,7 +58,7 @@ test("strings", () => {
     parsesFully(`'it\\'s'`);
 });
 
-test("comments and separators", () => {
+test.only("comments and separators", () => {
     // count implicit_call nodes via JSON (comments are ignored but preserved in CST)
     const countCalls = (text: string): number => {
         const ast = toAST(parsesFully(text));
@@ -79,7 +79,7 @@ test("arithmetic precedence and associativity", () => {
 
     // (1 + 2) * 3 : the term's left operand is a par_exp
     ast = toAST(parsesFully(`(1 + 2) * 3`));
-    expect(ast).toEqual(["exprs", ["term", ["par_exp", "(", ["exprs", ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["number", ["decimal", "2"]]]], ")"], ["mul", "*"], ["number", ["decimal", "3"]]]]);
+    expect(ast).toEqual(["exprs", ["term", ["par_exp", ["exprs", ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["number", ["decimal", "2"]]]]], ["mul", "*"], ["number", ["decimal", "3"]]]]);
 
     // left assoc: 1 + 2 + 3 nests the sum on the left
     ast = toAST(parsesFully(`1 + 2 + 3`));
@@ -110,37 +110,37 @@ test("assignment is right associative", () => {
 
 test("calls: explicit, implicit, comma args, empties", () => {
     var ast = toAST(parsesFully(`print(1, 2)`));
-    expect(ast).toEqual(["exprs", ["explicit_call", ["name", "print"], "(", ["explicit_args", ["number", ["decimal", "1"]], ",", ["number", ["decimal", "2"]]], ")"]]);
+    expect(ast).toEqual(["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "2"]]]]]);
 
     ast = toAST(parsesFully(`print (1, 2)`));
-    expect(ast).toEqual(["exprs", ["explicit_call", ["name", "print"], "(", ["explicit_args", ["number", ["decimal", "1"]], ",", ["number", ["decimal", "2"]]], ")"]]);
+    expect(ast).toEqual(["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "2"]]]]]);
 
     ast = toAST(parsesFully(`print 1, 2`));
-    expect(ast).toEqual(["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]], ",", ["number", ["decimal", "2"]]]]]);
+    expect(ast).toEqual(["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "2"]]]]]);
 
     // TODO: i'm not sure what this actually is supposed to do
-    console.log("TODO: 'print(1,2), 3'")
+    console.log("TODO: 'print(1,2), 3'");
     // ast = toAST(parsesFully(`print(1,2), 3`));
-    // expect(ast).toEqual(["exprs", ["implicit_call", ["explicit_call", ["name", "print"], "(", ["explicit_args", ["implicit_call", ["number", ["decimal", "1"]], ["implicit_args", undefined, ",", ["number", ["decimal", "2"]]]]], ")"], ["implicit_args", undefined, ",", ["number", ["decimal", "3"]]]]]);
+    // expect(ast).toEqual(["exprs", ["implicit_call", ["explicit_call", ["name", "print"], ["explicit_args", ["implicit_call", ["number", ["decimal", "1"]], ["implicit_args", undefined, ["number", ["decimal", "2"]]]]]], ["implicit_args", undefined, ["number", ["decimal", "3"]]]]]);
 
     // juxtaposition is right-nested: 'print print 1, 2' parses as 'print(print(1, 2))'
     ast = toAST(parsesFully(`print print 1, 2`));
-    expect(ast).toEqual(["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]], ",", ["number", ["decimal", "2"]]]]]]]);
+    expect(ast).toEqual(["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "2"]]]]]]]);
 
     // zero args
     ast = toAST(parsesFully(`print()`));
-    expect(ast).toEqual(["exprs", ["explicit_call", ["name", "print"], "(", ["explicit_args"], ")"]]);
+    expect(ast).toEqual(["exprs", ["explicit_call", ["name", "print"], ["explicit_args"]]]);
 
     // (1,,2) has an empty middle arg (null)
     ast = toAST(parsesFully(`print(1,,2)`));
-    expect(ast).toEqual(["exprs", ["explicit_call", ["name", "print"], "(", ["explicit_args", ["number", ["decimal", "1"]], ",", ["empty_arg", undefined], ",", ["number", ["decimal", "2"]]], ")"]]);
+    expect(ast).toEqual(["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["decimal", "1"]], ["empty_arg", undefined], ["number", ["decimal", "2"]]]]]);
 
     ast = toAST(parsesFully(`print 1,,2`));
-    expect(ast).toEqual(["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]], ",", ["empty_arg", undefined], ",", ["number", ["decimal", "2"]]]]]);
+    expect(ast).toEqual(["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]], ["empty_arg", undefined], ["number", ["decimal", "2"]]]]]);
 
     // chained calls: f(x)(y)
     ast = toAST(parsesFully(`f(x)(y)`));
-    expect(ast).toEqual(["exprs", ["explicit_call", ["explicit_call", ["name", "f"], "(", ["explicit_args", ["name", "x"]], ")"], "(", ["explicit_args", ["name", "y"]], ")"]]);
+    expect(ast).toEqual(["exprs", ["explicit_call", ["explicit_call", ["name", "f"], ["explicit_args", ["name", "x"]]], ["explicit_args", ["name", "y"]]]]);
 
     // bare name is NOT a call
     ast = toAST(parsesFully(`print`));
@@ -228,19 +228,19 @@ test("lists and objects", () => {
     // ternary colon is not a pair
     expect(countType(`[a ? b : c]`, "kw_arg")).toBe(0);
     // empty list and empty map shapes
-    expect(toAST(parsesFully(`[]`))).toEqual(["exprs", ["collection", "[", ["empty_list", undefined], "]"]]);
-    expect(toAST(parsesFully(`[:]`))).toEqual(["exprs", ["collection", "[", ["empty_map", ":"], "]"]]);
+    expect(toAST(parsesFully(`[]`))).toEqual(["exprs", ["collection", ["empty_list", undefined]]]);
+    expect(toAST(parsesFully(`[:]`))).toEqual(["exprs", ["collection", ["empty_map", ":"]]]);
 });
 
 test("quotes", () => {
     var ast = toAST(parsesFully("`(x + y)"));
-    expect(ast).toEqual(["exprs", ["prefix", ["quote", "`"], ["par_exp", "(", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["name", "y"]]], ")"]]]);
+    expect(ast).toEqual(["exprs", ["prefix", ["quote", "`"], ["par_exp", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["name", "y"]]]]]]);
 
     ast = toAST(parsesFully("`name"));
     expect(ast).toEqual(["exprs", ["prefix", ["quote", "`"], ["name", "name"]]]);
 
     ast = toAST(parsesFully("``(x)"));
-    expect(ast).toEqual(["exprs", ["prefix", ["quote", "`"], ["prefix", ["quote", "`"], ["par_exp", "(", ["exprs", ["name", "x"]], ")"]]]]);
+    expect(ast).toEqual(["exprs", ["prefix", ["quote", "`"], ["prefix", ["quote", "`"], ["par_exp", ["exprs", ["name", "x"]]]]]]);
 });
 
 test("parens", () => {

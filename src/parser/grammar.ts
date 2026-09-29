@@ -59,7 +59,7 @@ export const backolonGrammar: Grammar = {
         // can't use joined() here since the first and second are different!
         rule("implicit_call"),
         repeat(false, sequence(
-            seq_sep(rule("blank_sameline"), tag("operator", literal(","))),
+            ignored(seq_sep(rule("blank_sameline"), tag("operator", literal(",")))),
             alternatives(rule("implicit_call"), rule("empty_arg"))
         )),
     ),
@@ -184,10 +184,10 @@ export const backolonGrammar: Grammar = {
         rule("prefix"),
     ),
 
-    explicit_call: seq_sep(rule("blank"), rule("primary"), tag("operator", literal("(")), cut(), rule("explicit_args"), tag("operator", literal(")"))),
+    explicit_call: seq_sep(rule("blank"), rule("primary"), ignored(tag("operator", literal("("))), cut(), rule("explicit_args"), ignored(tag("operator", literal(")")))),
     explicit_args: alternatives(
         joined(
-            seq_sep(rule("blank"), tag("operator", literal(","))),
+            ignored(seq_sep(rule("blank"), tag("operator", literal(",")))),
             alternatives(rule("expr"), rule("empty_arg")),
             false, false,
         ),
@@ -278,10 +278,10 @@ export const backolonGrammar: Grammar = {
 
     boolean: tag("boolean", regex(/\b([Tt]rue|[Ff]alse)\b/)), // cSpell: ignore alse
 
-    collection: seq_sep(rule("blank"), literal("["), cut(), rule("collection_body"), literal("]")),
+    collection: seq_sep(rule("blank"), ignored(tag("operator", literal("["))), cut(), rule("collection_body"), ignored(tag("operator", literal("]")))),
     collection_body: alternatives(
         rule("empty_collection"),
-        joined(seq_sep(rule("blank"), tag("operator", literal(","))), rule("collection_item"), false, true), // TODO: allow trailing comma
+        joined(ignored(seq_sep(rule("blank"), tag("operator", literal(",")))), rule("collection_item"), false, true), // TODO: allow trailing comma
     ),
     empty_collection: alternatives(
         rule("empty_list"),
@@ -295,8 +295,8 @@ export const backolonGrammar: Grammar = {
     ),
     collection_shorthand: seq_sep(rule("blank"), rule("quote"), tag("operator", literal(":"))),
 
-    quasiquote: tag("quoted", seq_sep(rule("blank"), literal("{"), cut(), rule("exprs"), literal("}"))),
-    par_exp: seq_sep(rule("blank"), literal("("), cut(), rule("exprs"), literal(")")),
+    quasiquote: tag("quoted", seq_sep(rule("blank"), ignored(tag("operator", literal("{"))), cut(), rule("exprs"), ignored(tag("operator", literal("}"))))),
+    par_exp: seq_sep(rule("blank"), ignored(tag("operator", literal("("))), cut(), rule("exprs"), ignored(tag("operator", literal(")")))),
     name: tag("name", regex(/[_\p{L}][_\p{L}\p{N}]*/u)),
 };
 
