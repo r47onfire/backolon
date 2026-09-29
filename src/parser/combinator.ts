@@ -35,6 +35,8 @@ export type GrammarCombinator = Readonly<
     | { op: "nothing" }
     /** instantly fails */
     | { op: "fail_fast", message: string }
+    /** speculative parse: any inner failure is downgraded to an ordinary failure, so enclosing alternatives can fall back */
+    | { op: "try", node: GrammarCombinator }
 >;
 
 export const literal = (p: string, t?: string): GrammarCombinator => ({ op: "token", type: t, pattern: p, isRegex: false });
@@ -57,3 +59,4 @@ export const assert_nonempty = (n: GrammarCombinator): GrammarCombinator => ({ o
 export const assert_sameline = (n: GrammarCombinator): GrammarCombinator => ({ op: "assert_sameline", node: n });
 export const nothing = (): GrammarCombinator => ({ op: "nothing" });
 export const fail_fast = (m: string): GrammarCombinator => ({ op: "fail_fast", message: m });
+export const try_ = (n: GrammarCombinator): GrammarCombinator => ({ op: "try", node: n });

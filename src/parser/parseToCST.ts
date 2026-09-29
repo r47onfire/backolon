@@ -40,28 +40,73 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
     const consumeCut = () => { if (cutStack.length) last(cutStack)![0] = 0; };
     const errorNode = (start: number, end: number, expected: GrammarCombinator): CSTNode => ({ type: errorType, start, end, text: text.slice(start, end), errorExpected: expected });
     /**
-     * Scan forward for the next index where `item` matches, turning all skipped source into a single error node. Returns the index to continue parsing from. If nothing works, just throws out the rest of the source.
+     * True if an enclosing construct has committed (cut) without finishing yet.
+     * Resyncs inside such a scope must stay local to it!
+     */
+    const inCommittedScope = () => cutStack.some(f => f[0] > 0);
+    /**
+     * Probe `node` at index `j`, restoring cut/LR state afterwards (probes are
+     * speculative and don't log commits). Null if no progress was made
+     */
+    const probeAt = (path: string, node: GrammarCombinator, j: number): CSTNode | null => {
+        const savedCuts = cutStack.map(frame => frame[0]);
+        const savedLR = lrStack;
+        const probe = applyRule(path, node, j);
+        // restore cuts and LR stack
+        for (var k = 0; k < savedCuts.length; k++) cutStack[k]![0] = savedCuts[k]!;
+        cutStack.length = savedCuts.length;
+        lrStack = savedLR;
+        if (probe instanceof MatchFail) return null;
+        if (probe.end <= j) return null;
+        return probe;
+    };
+    /**
+     * Panic-mode recovery: scan forward for the next index where `item` matches,
+     * turning all skipped source into a single error node. Returns the index to
+     * continue parsing from. If nothing works, emits an error up to end of input.
+     *
+     * Only used when NOT inside a committed scope. Inside one, the enclosing
+     * construct owns resynchronization (seq_sep rescans for its failed child;
+     * repeats emit a minimal error), so no bracket guessing is needed.
      */
     const recover = (path: string, item: GrammarCombinator, i: number, fail: MatchFail, children: CSTNode[]): number => {
         if (i >= text.length) return i;
         for (var j = max(fail.i, i + 1); j <= text.length; j++) {
-            const savedCuts = cutStack.map(frame => frame[0]);
-            const savedLR = lrStack;
-            const probe = applyRule(path, item, j);
-            // restore cuts and LR stack
-            for (var k = 0; k < savedCuts.length; k++) cutStack[k]![0] = savedCuts[k]!;
-            cutStack.length = savedCuts.length;
-            lrStack = savedLR;
-            // ok?
-            if (probe instanceof MatchFail) continue;
-            // actually matched something?
-            if (probe.end <= j) continue;
+            const probe = probeAt(path, item, j);
+            if (!probe) continue;
             children.push(errorNode(i, j, fail.expected), probe);
             return probe.end;
         }
         children.push(errorNode(i, text.length, fail.expected));
         return text.length;
     };
+    /**
+     * Local recovery for a sequence with a fail after a cut.
+     * Resynchronize to the nearest position where that child matches, keeping the committed prefix intact.
+     * Returns the index to continue from, or null if the child never matches (give up and propagate the fail).
+     *
+     * The skipped text (BAD) and the recovered child are wrapped in a single
+     * "exprs" node, so existing fixed-length sequences keep their fixed arity.
+     * 
+     * TODO: "exprs" should not be hardcoded, to allow this to work with other grammars.
+     */
+    const recoverChild = (path: string, child: GrammarCombinator, i: number, fail: MatchFail, children: CSTNode[]): number | null => {
+        for (var j = i + 1; j <= text.length; j++) {
+            const probe = probeAt(path, child, j);
+            if (!probe) continue;
+            children.push({
+                type: "exprs",
+                start: i,
+                end: probe.end,
+                children: [errorNode(i, j, fail.expected), probe],
+            });
+            return probe.end;
+        }
+        return null;
+    };
+    /**
+     * Do the actual logic for the grammar node's operation.
+     */
     const callRule = (path: string, g: GrammarCombinator, i: number): CSTNode | MatchFail => {
         const op = g?.op;
         switch (op) {
@@ -104,6 +149,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 const children: CSTNode[] = [];
                 const start = i;
                 const items = g.nodes, len = items.length;
+                var committed = false;
                 const sep = () => {
                     if (op !== "seq_sep") return;
                     const sepThing = applyRule(path + "/s", g.sep, i);
@@ -116,8 +162,23 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 }
                 for (var j = 0; j < len; j++) {
                     sep();
-                    const thisMatch = applyRule(path + "/" + j, items[j]!, i);
-                    if (thisMatch instanceof MatchFail) return thisMatch;
+                    const child = items[j]!;
+                    if (child.op === "cut") committed = true;
+                    const thisMatch = applyRule(path + "/" + j, child, i);
+                    if (thisMatch instanceof MatchFail) {
+                        if (thisMatch.cut === Infinity) return thisMatch;
+                        if (committed) {
+                            // resync to the failed child (without breaking the outer grammar node)
+                            var depth = 0;
+                            for (const frame of cutStack) if (frame[0] > 0) depth++;
+                            if (depth > 1) return thisMatch;
+                            const resumed = recoverChild(path + "/" + j, child, i, thisMatch, children);
+                            if (resumed === null) return thisMatch;
+                            i = resumed;
+                            continue;
+                        }
+                        return thisMatch;
+                    }
                     children.push(thisMatch);
                     i = thisMatch.end;
                 }
@@ -159,13 +220,20 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 const nodes = op === "repeat_seq" ? g.nodes : [g.node], len = nodes.length;
                 if (len > 0) {
                     for (var count = 0; ; count++) {
+                        if (i >= text.length) break;
                         const item = nodes[count % len]!;
                         const thisMatch = applyRule(path + "/*", item, i);
                         if (thisMatch instanceof MatchFail) {
                             if (thisMatch.cut === Infinity) return thisMatch;
                             if (thisMatch.cut > 0) {
-                                // Committed failure inside a repetition: recover by
-                                // skipping ahead to the next match instead of dying.
+                                if (inCommittedScope()) {
+                                    // don't leak cuts, to allow resync
+                                    const end = max(thisMatch.i, i + 1);
+                                    children.push(errorNode(i, end, thisMatch.expected));
+                                    i = end;
+                                    continue;
+                                }
+                                // Not committed: panic-mode resync to next match.
                                 const next = recover(path + "/*", item, i, thisMatch, children);
                                 if (next <= i) break; // nowhere left to go
                                 i = next;
@@ -186,10 +254,18 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 const start = i;
                 const children: CSTNode[] = [];
                 for (; ;) {
+                    if (i >= text.length) break;
                     const elem = applyRule(path + "/e", g.node, i);
                     if (elem instanceof MatchFail) {
                         if (elem.cut === Infinity) return elem;
                         if (elem.cut > 0) {
+                            if (inCommittedScope()) {
+                                // Inside a committed construct: keep it local.
+                                const end = max(elem.i, i + 1);
+                                children.push(errorNode(i, end, elem.expected));
+                                i = end;
+                                continue;
+                            }
                             const next = recover(path + "/e", g.node, i, elem, children);
                             if (next <= i) break;
                             i = next;
@@ -206,6 +282,12 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                     if (s instanceof MatchFail) {
                         if (s.cut === Infinity) return s;
                         if (s.cut > 0) {
+                            if (inCommittedScope()) {
+                                const end = max(s.i, i + 1);
+                                children.push(errorNode(i, end, s.expected));
+                                i = end;
+                                continue;
+                            }
                             const next = recover(path + "/s", g.sep, i, s, children);
                             if (next <= i) break;
                             i = next;
@@ -239,6 +321,17 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             }
             case "nothing":
                 return { start: i, end: i };
+            case "try": {
+                // Speculative parse: if node fails, hide the cuts
+                const savedCuts = cutStack.map(frame => frame[0]);
+                const cst = applyRule(path + "/", g.node, i);
+                if (cst instanceof MatchFail) {
+                    for (var k = 0; k < savedCuts.length; k++) cutStack[k]![0] = savedCuts[k]!;
+                    cutStack.length = savedCuts.length;
+                    return new MatchFail(cst.i, 0, cst.expected);
+                }
+                return cst;
+            }
             case "fail_fast":
                 return new MatchFail(i, Infinity, g);
             default:
@@ -312,11 +405,13 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
     }
     const ans = applyRule("", rule(startRule), startIndex);
     if (ans instanceof MatchFail) {
-        // The start rule didn't match at all: resync past any leading garbage so
-        // we still return a CST instead of a MatchFail.
+        // The start rule didn't match at all: resync past any leading garbage.
         const children: CSTNode[] = [];
         const end = recover("", rule(startRule), startIndex, ans, children);
-        if (children.length < 1) children.push(errorNode(startIndex, end, ans.expected));
+        if (children.length < 1) {
+            // give up entirely
+            children.push(errorNode(startIndex, end, ans.expected));
+        }
         return { start: startIndex, end, children };
     }
     return ans;

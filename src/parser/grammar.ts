@@ -1,4 +1,4 @@
-import { alternatives, assert_nonempty, assert_sameline, cut, ignored, joined, literal, lookahead, nothing, optional, regex, repeat, repeat_seq, rule, seq_sep, sequence, tag } from "./combinator";
+import { alternatives, assert_nonempty, assert_sameline, try_, cut, ignored, joined, literal, lookahead, nothing, optional, regex, repeat, repeat_seq, rule, seq_sep, sequence, tag } from "./combinator";
 import { Grammar } from "./parseToCST";
 
 export const backolonGrammar: Grammar = {
@@ -54,7 +54,8 @@ export const backolonGrammar: Grammar = {
     reduce_pipe_op: sequence(tag("operator", literal("|+>")), cut(), tag("operator", literal("[")), rule("exprs"), tag("operator", literal("]"))),
 
     // right associative
-    implicit_call: alternatives(seq_sep(rule("blank_sameline"), rule("kw_arg"), assert_nonempty(rule("implicit_args"))), rule("kw_arg")),
+    // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try kw_arg
+    implicit_call: alternatives(seq_sep(rule("blank_sameline"), rule("kw_arg"), try_(assert_nonempty(rule("implicit_args")))), rule("kw_arg")),
     implicit_args: sequence(
         // can't use joined() here since the first and second are different!
         rule("implicit_call"),
@@ -125,7 +126,7 @@ export const backolonGrammar: Grammar = {
         rule("bitwise_xor"),
     ),
     bitwise_and: tag("operator", literal("&")),
-    bitwise_or: tag("operator", literal("|")),
+    bitwise_or: tag("operator", regex(/\|(?![?*+>])/)),
     bitwise_xor: tag("operator", literal("^")),
 
     // left associative

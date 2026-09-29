@@ -306,10 +306,11 @@ describe.only("error nodes", () => {
         checkSource(cst, text);
         const errors = errorNodes(cst);
         expect(errors).toHaveLength(1);
-        expect(errors[0]!.end).toBeLessThanOrEqual(5); // the error is before the recovered "2"
+        expect(errors[0]!.end).toBeLessThanOrEqual(6); // the error is before the recovered "2"
         const str = JSON.stringify(toAST(cst));
         expect(str).toContain(`"decimal","1"`);
         expect(str).toContain(`"decimal","2"`);
+        expect(str).toContain(`"sum"`); // the "1 +" is preserved as a sum, not discarded
     });
     // TODO: "1 + (+) + 1" should be add(add(1, BAD), 1): the bad "+" is *inside*
     // the parens, so the paren should recover locally instead of producing a

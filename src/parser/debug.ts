@@ -38,6 +38,7 @@ export const describe = (g: GrammarCombinator): string => {
             case "assert_sameline": return "($" + describeInner(g.node, depth + 1) + ")";
             case "if": return "(?(" + describeInner(g.cond, depth + 1) + ") " + describeInner(g.true, depth + 1) + " | " + describeInner(g.false, depth + 1) + ")";
             case "nothing": return "\u03B5"; // epsilon
+            case "try": return "(??" + describeInner(g.node, depth + 1) + ")";
             case "cut": return "!";
             case "fail_fast": return depth > 0 ? "" : g.message;
         }
