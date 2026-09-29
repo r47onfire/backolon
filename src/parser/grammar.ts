@@ -293,7 +293,7 @@ export const backolonGrammar: Grammar = {
         rule("collection_shorthand"),
         rule("expr"),
     ),
-    collection_shorthand: seq_sep(rule("blank"), rule("quote"), tag("operator", literal(":"))),
+    collection_shorthand: seq_sep(rule("blank"), rule("quote"), alternatives(rule("atom"), rule("par_exp")), ignored(tag("operator", literal(":")))),
 
     quasiquote: tag("quoted", seq_sep(rule("blank"), ignored(tag("operator", literal("{"))), cut(), rule("exprs"), ignored(tag("operator", literal("}"))))),
     par_exp: seq_sep(rule("blank"), ignored(tag("operator", literal("("))), cut(), rule("exprs"), ignored(tag("operator", literal(")")))),

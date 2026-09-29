@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
-import { backolonGrammar, CSTNode, parseToCST } from "../src";
+import { backolonGrammar, CSTNode, parseToCST, describe } from "../src";
 
-type ASTNode = string | undefined | ASTNode[];
+type ASTNode = string | number | undefined | ASTNode[];
 const toAST = (cst: CSTNode): ASTNode => {
     const c = () => cst.children?.filter(c => !c.ignored).flatMap(c => c.type ? [toAST(c)] : toAST(c)) ?? [];
+    if (cst.errorExpected) return [cst.type, describe(cst.errorExpected), cst.end, cst.text];
     if (cst.type) return [cst.type, ...c()];
     if (cst.children) return c();
     return cst.text;
@@ -12,7 +13,6 @@ const toAST = (cst: CSTNode): ASTNode => {
 const parse = (text: string): CSTNode => {
     const cst = parseToCST(text, 0, "toplevel_exprs", backolonGrammar);
     console.log(text, "==>", JSON.stringify(toAST(cst), null, 2));
-    expect(JSON.stringify(cst)).not.toContain('"errorExpected"');
     return cst as CSTNode;
 };
 
@@ -27,6 +27,7 @@ const checkSource = (node: CSTNode, source: string): void => {
 
 const parsesFully = (text: string): CSTNode => {
     const cst = parse(text);
+    expect(JSON.stringify(cst)).not.toContain('"errorExpected"');
     expect(cst.end).toBe(text.length);
     checkSource(cst, text);
     return cst;
@@ -230,6 +231,9 @@ test("lists and objects", () => {
     // empty list and empty map shapes
     expect(toAST(parsesFully(`[]`))).toEqual(["exprs", ["collection", ["empty_list", undefined]]]);
     expect(toAST(parsesFully(`[:]`))).toEqual(["exprs", ["collection", ["empty_map", ":"]]]);
+    // shorthand
+    expect(toAST(parsesFully("[`foo:]"))).toEqual(["exprs", ["collection", ["collection_body", ["collection_shorthand", ["quote", "`"], ["name", "foo"]]]]]);
+    expect(toAST(parsesFully("[`foo:, `bar: baz]"))).toEqual(["exprs", ["collection", ["collection_body", ["collection_shorthand", ["quote", "`"], ["name", "foo"]], ["kw_arg", ["prefix", ["quote", "`"], ["name", "bar"]], ["kw", ":"], ["name", "baz"]]]]]);
 });
 
 test("quotes", () => {
@@ -278,5 +282,6 @@ test("README examples", () => {
 });
 
 test.only("errors", () => {
-    parsesFully("hello(");
+    parse("@");
+    parse("1 + (+) + 1");
 });

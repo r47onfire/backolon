@@ -1,5 +1,6 @@
 export * from "./errors";
 export * from "./parser";
+export * from "./parser/debug";
 export * from "./parser/span";
 export * from "./runtime/finder";
 export * from "./runtime/importer";
