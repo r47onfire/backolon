@@ -58,7 +58,7 @@ test("strings", () => {
     parsesFully(`'it\\'s'`);
 });
 
-test.only("comments and separators", () => {
+test("comments and separators", () => {
     // count implicit_call nodes via JSON (comments are ignored but preserved in CST)
     const countCalls = (text: string): number => {
         const ast = toAST(parsesFully(text));
@@ -275,4 +275,8 @@ test("README examples", () => {
     // - `let fizzbuzz = fn(n) ...` (fizzbuzz with ternary)
     // - `foreach i in range(1, 100) do\n    print fizzbuzz i\nend`
     // - yin/yang line
+});
+
+test.only("errors", () => {
+    parsesFully("hello(");
 });
