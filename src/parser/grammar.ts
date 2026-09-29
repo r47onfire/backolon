@@ -208,6 +208,8 @@ export const backolonGrammar: Grammar = {
         rule("unquote_splicing"),
         rule("reference"),
         rule("lazy"),
+        rule("ref"),
+        rule("deref"),
     ),
 
     length: tag("operator", literal("#")),
@@ -221,6 +223,8 @@ export const backolonGrammar: Grammar = {
     unquote_splicing: tag("operator", literal("$.")),
     reference: tag("operator", literal("@")),
     lazy: tag("operator", literal("^")),
+    ref: tag("operator", regex(/&/)),
+    deref: tag("operator", literal("*")),
 
     // atoms: number, string, regex, boolean, null, collection literal, quasiquote, parenthesized expression, name
     atom: alternatives(
@@ -305,4 +309,4 @@ export const all_tags = new Set(Object.values(backolonGrammar).flatMap(function 
     if (typeof g !== "object") return [];
     return (g.op === "tag" ? [g.tag] : []).concat(Object.values(g).flatMap(walk));
 }));
-console.log({ all_tags });
+// console.log({ all_tags });

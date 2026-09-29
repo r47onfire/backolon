@@ -32,7 +32,7 @@ export type Grammar = Readonly<Record<string, GrammarCombinator>>;
 /**
  * Parse text into a CST. The CST may contain error nodes if there were syntax errors.
  */
-export const parseToCST = (text: string, startIndex: number, startRule: string, grammar: Grammar, errorType = "BAD", memo: Memo = {}): CSTNode => {
+export const parseToCST = (text: string, startIndex: number, startRule: string, grammar: Grammar, recoverNodeType: string, errorType = "BAD", memo: Memo = {}): CSTNode => {
     const heads: (Head | undefined)[] = [];
     var lrStack: LR | undefined;
     const cutStack: [number][] = [];
@@ -85,17 +85,15 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * Resynchronize to the nearest position where that child matches, keeping the committed prefix intact.
      * Returns the index to continue from, or null if the child never matches (give up and propagate the fail).
      *
-     * The skipped text (BAD) and the recovered child are wrapped in a single
-     * "exprs" node, so existing fixed-length sequences keep their fixed arity.
-     * 
-     * TODO: "exprs" should not be hardcoded, to allow this to work with other grammars.
+     * The skipped text becomes a BAD node that carries the recovered child in its `recovered` field.
+     * This keeps the sequence's fixed arity while still allowing the parse to recover later
      */
     const recoverChild = (path: string, child: GrammarCombinator, i: number, fail: MatchFail, children: CSTNode[]): number | null => {
         for (var j = i + 1; j <= text.length; j++) {
             const probe = probeAt(path, child, j);
             if (!probe) continue;
             children.push({
-                type: "exprs",
+                type: recoverNodeType,
                 start: i,
                 end: probe.end,
                 children: [errorNode(i, j, fail.expected), probe],

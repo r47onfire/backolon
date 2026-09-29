@@ -11,8 +11,8 @@ const toAST = (cst: CSTNode): ASTNode => {
 }
 
 const parse = (text: string): CSTNode => {
-    const cst = parseToCST(text, 0, "toplevel_exprs", backolonGrammar);
-    console.log(text, "==>", JSON.stringify(toAST(cst), null, 2));
+    const cst = parseToCST(text, 0, "toplevel_exprs", backolonGrammar, "exprs");
+    // console.log(text, "==>", JSON.stringify(toAST(cst), null, 2));
     return cst as CSTNode;
 };
 
@@ -287,7 +287,7 @@ const errorNodes = (node: CSTNode): CSTNode[] => [
     ...(node.children ?? []).flatMap(errorNodes),
 ];
 
-describe.only("error nodes", () => {
+describe("error nodes", () => {
     // "@" is the reference operator with a missing operand: one error covering just the "@"
     test("@", () =>{
         const text = "@";
@@ -298,9 +298,9 @@ describe.only("error nodes", () => {
         expect(errors).toHaveLength(1);
         expect([errors[0]!.start, errors[0]!.end, errors[0]!.text]).toEqual([0, 1, "@"]);
     });
-    // "1 + * 2": "*" can't start a term, but the "2" after it is recovered as a number, and the result should be 1 + 2
-    test("prefix *", () =>{
-        const text = "1 + * 2";
+    // "1 + % 2": "%" can't start a term, but the "2" after it is recovered as a number, and the result should be 1 + 2
+    test("%", () =>{
+        const text = "1 + % 2";
         const cst = parse(text);
         expect(cst.end).toBe(text.length);
         checkSource(cst, text);
@@ -312,10 +312,7 @@ describe.only("error nodes", () => {
         expect(str).toContain(`"decimal","2"`);
         expect(str).toContain(`"sum"`); // the "1 +" is preserved as a sum, not discarded
     });
-    // TODO: "1 + (+) + 1" should be add(add(1, BAD), 1): the bad "+" is *inside*
-    // the parens, so the paren should recover locally instead of producing a
-    // single toplevel BAD. Currently fails: the inner recovery eats the outer
-    // "+ 1" and the resync scan starts at the deepest failure index.
+    // "(+)" is invalid since + needs at least an argument after it
     test("(+)", () =>{
         const text = "1 + (+) + 1";
         const cst = parse(text);
@@ -331,5 +328,14 @@ describe.only("error nodes", () => {
         const outer = ast[1] as ASTNode[];
         expect(outer[0]).toBe("sum");
         expect((outer[1] as ASTNode[])[0]).toBe("sum");
+    });
+
+    test("++%++", () => {
+        const text = "1 + 1 + % 1 + 1 + 1";
+        const cst = parse(text);
+        expect(cst.end).toBe(text.length);
+        checkSource(cst, text);
+        const errors = errorNodes(cst);
+        expect(errors).toHaveLength(1);
     });
 });
