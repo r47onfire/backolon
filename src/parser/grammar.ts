@@ -12,7 +12,8 @@ export const backolonGrammar: Grammar = {
 
     expr_sep: ignored(repeat(true, alternatives(rule("semi"), rule("nl"), rule("comment")))),
     semi: ignored(tag("punctuation", literal(";"))),
-    nl: ignored(sequence(literal("\n"), optional(rule("comment")))),
+    nl: literal("\n"),
+    comma: ignored(tag("punctuation", literal(","))),
 
     exprs: repeat(false, seq_sep(rule("expr_sep"), seq_sep(rule("blank"), rule("expr")))),
     toplevel_exprs: assert_nonempty(rule("exprs")),
@@ -60,12 +61,12 @@ export const backolonGrammar: Grammar = {
         // can't use joined() here since the first and second are different!
         rule("implicit_call"),
         repeat(false, sequence(
-            ignored(seq_sep(rule("blank_sameline"), tag("operator", literal(",")))),
+            ignored(seq_sep(rule("blank_sameline"), rule("comma"))),
             alternatives(rule("implicit_call"), rule("empty_arg"))
         )),
     ),
 
-    empty_arg: sequence(nothing(), lookahead(tag("operator", literal(",")))), // only between commas
+    empty_arg: sequence(nothing(), lookahead(rule("comma"))), // only between commas
 
     // non-associative
     kw_arg: alternatives(seq_sep(rule("blank"), rule("assignment"), rule("kw_arg_op"), cut(), rule("assignment")), rule("assignment")),
@@ -188,7 +189,7 @@ export const backolonGrammar: Grammar = {
     explicit_call: seq_sep(rule("blank"), rule("primary"), ignored(tag("operator", literal("("))), cut(), rule("explicit_args"), ignored(tag("operator", literal(")")))),
     explicit_args: alternatives(
         joined(
-            ignored(seq_sep(rule("blank"), tag("operator", literal(",")))),
+            ignored(seq_sep(rule("blank"), rule("comma"))),
             alternatives(rule("expr"), rule("empty_arg")),
             false, false,
         ),
@@ -249,7 +250,7 @@ export const backolonGrammar: Grammar = {
 
     string: alternatives(rule("r_string"), rule("i_string")),
 
-    r_string: sequence(tag("string", literal("'")), cut(), repeat(false, rule("r_part")), tag("string", literal("'"))),
+    r_string: sequence(ignored(tag("string", literal("'"))), cut(), repeat(false, rule("r_part")), ignored(tag("string", literal("'")))),
     r_part: alternatives(
         rule("r_escape"),
         rule("r_body"),
@@ -257,7 +258,7 @@ export const backolonGrammar: Grammar = {
     r_escape: tag("escape", regex(/\\./)),
     r_body: tag("string", regex(/[^'\\]+/)),
 
-    i_string: sequence(tag("string", literal("\"")), cut(), repeat(false, rule("i_part")), tag("string", literal("\""))),
+    i_string: sequence(ignored(tag("string", literal("\""))), cut(), repeat(false, rule("i_part")), ignored(tag("string", literal("\"")))),
     i_part: alternatives(
         rule("i_escape"),
         rule("i_interpolation"),
@@ -286,7 +287,7 @@ export const backolonGrammar: Grammar = {
     collection: seq_sep(rule("blank"), ignored(tag("operator", literal("["))), cut(), rule("collection_body"), ignored(tag("operator", literal("]")))),
     collection_body: alternatives(
         rule("empty_collection"),
-        joined(ignored(seq_sep(rule("blank"), tag("operator", literal(",")))), rule("collection_item"), false, true), // TODO: allow trailing comma
+        joined(ignored(seq_sep(rule("blank"), rule("comma"))), rule("collection_item"), false, true), // TODO: allow trailing comma
     ),
     empty_collection: alternatives(
         rule("empty_list"),
