@@ -1,4 +1,4 @@
-import { alternatives, assert_nonempty, assert_sameline, try_, cut, ignored, joined, literal, lookahead, nothing, optional, regex, repeat, repeat_seq, rule, seq_sep, sequence, tag } from "./combinator";
+import { alternatives, assert_nonempty, assert_sameline, cut, ignored, joined, literal, lookahead, lookaheadNot, nothing, optional, regex, repeat, rule, seq_sep, sequence, tag, try_ } from "./combinator";
 import { Grammar } from "./parseToCST";
 
 export const backolonGrammar: Grammar = {
@@ -32,12 +32,32 @@ export const backolonGrammar: Grammar = {
     ),
 
     let: seq_sep(rule("blank"), tag("keyword", regex(/\blet\b/)), rule("let_body")),
+    let_body: sequence(
+        rule("implicit_args"),
+        optional(rule("body_exprs")),
+    ),
+
     if: seq_sep(rule("blank"), tag("keyword", regex(/\bif\b/)), rule("if_body")),
+
+
     while: seq_sep(rule("blank"), tag("keyword", regex(/\bwhile\b/)), rule("while_body")),
+
+
     foreach: seq_sep(rule("blank"), tag("keyword", regex(/\bforeach\b/)), rule("foreach_body")),
+
+
     trycatch: seq_sep(rule("blank"), tag("keyword", regex(/\btry\b/)), rule("trycatch_body")),
+
+
     with: seq_sep(rule("blank"), tag("keyword", regex(/\bwith\b/)), rule("with_body")),
+
+
     fn: seq_sep(rule("blank"), tag("keyword", regex(/\bfn\b/)), rule("fn_body")),
+
+
+    soft_keyword: alternatives(
+        regex(/\b(in|end|else|catch|finally)\b/),
+    ),
 
     simple_expr: rule("pipe"),
 
@@ -58,10 +78,12 @@ export const backolonGrammar: Grammar = {
     // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try kw_arg
     implicit_call: alternatives(seq_sep(rule("blank_sameline"), rule("kw_arg"), try_(assert_nonempty(rule("implicit_args")))), rule("kw_arg")),
     implicit_args: sequence(
-        // can't use joined() here since the first and second are different!
+        // can't use joined() here since the first and second are different + there are lookahead assertions!
+        lookaheadNot(rule("soft_keyword")),
         rule("implicit_call"),
         repeat(false, sequence(
             ignored(seq_sep(rule("blank_sameline"), rule("comma"))),
+            lookaheadNot(rule("soft_keyword")),
             alternatives(rule("implicit_call"), rule("empty_arg"))
         )),
     ),

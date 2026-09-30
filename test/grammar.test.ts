@@ -149,14 +149,15 @@ describe("unary operators", () => {
     });
 });
 
-describe("indexing is left associative", () => {
+describe("indexing", () => {
     test.each(([
         //  a.b.c is left-nested: (a.b).c
         [`a.b.c`, ["exprs", ["indexing", ["indexing", ["name", "a"], ["dot", "."], ["name", "b"]], ["dot", "."], ["name", "c"]]]],
+        // test it works with assignment
+        [`a.b.c = d.e.f`, ["exprs", ["assignment", ["indexing", ["indexing", ["name", "a"], ["dot", "."], ["name", "b"]], ["dot", "."], ["name", "c"]], ["assign_op", undefined, "="], ["indexing", ["indexing", ["name", "d"], ["dot", "."], ["name", "e"]], ["dot", "."], ["name", "f"]]]]],
     ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
         expect(toAST(parsesFully(text))).toEqual(ast);
     });
-    
 });
 
 test("pipes", () => {
