@@ -1,6 +1,7 @@
 import { B_atLocation, JSFun } from "@r47onfire/jeb";
 import { isArray } from "lib0/array";
-import { GrammarCombinator } from "./combinator";
+import { GrammarCombinator, GrammarOp, lit, rep, seq } from "./combinator";
+import { stringify } from "lib0/json";
 
 export const stripInlinedFunctions = <T>(ast: T): T => {
     if (ast instanceof JSFun) {
@@ -18,31 +19,36 @@ export const stripInlinedFunctions = <T>(ast: T): T => {
     return ast;
 }
 
+const describe_formats: Record<GrammarOp, [string, join?: string, map?: Record<string, string>]> = {
+    tok: ["v"],
+    rule: ["r"],
+    tag: ["#r=c"],
+    ign: [",c"],
+    opt: ["[c]"],
+    seq: ["(c)", " "],
+    ssep: ["j.@(c)", " "],
+    alt: ["(c)", " | "],
+    joined: ["j.c+"],
+    rep: ["cf", , { r: "+", o: "*" }],
+    lookahead: ["(?fc)", , { "+": "=", "-": "!" }],
+    nonempty: ["(=c)"],
+    sameline: ["($c)"],
+    if: ["(?(j)c)", " | "],
+    eps: ["\u03B5"],
+    try: ["(??c)"],
+    cut: ["!"],
+    die: ["^v"]
+}
+
 export const describe = (g: GrammarCombinator): string => {
-    const describeInner = (g: GrammarCombinator, depth: number): string => {
-        const c = (j = "") => g.c!.map(c => describeInner(c, depth + 1)).join(j);
-        const j = () => describeInner(g.j!, depth + 1);
-        if (depth > 3) return "...";
-        switch (g.op) {
-            case "tok": return isArray(g.v) ? "/" + g.v[0] + "/" + g.v[1] : JSON.stringify(g.v);
-            case "rule": return g.v as string;
-            case "tag": return "@" + g.v as string + "=" + c();
-            case "ign": return "{" + c() + "}";
-            case "opt": return "[" + c() + "]";
-            case "seq": return "(" + c(" ") + ")";
-            case "ssep": return j() + ".@(" + c(" ") + ")";
-            case "alt": return c(" | ");
-            case "joined": return c() + "." + j() + "+";
-            case "rep": return j() + { r: "+", o: "*" }[g.f!];
-            case "lookahead": return "(?" + { "+": "=", "-": "!" }[g.f!] + c() + ")";
-            case "nonempty": return "(=" + c() + ")";
-            case "sameline": return "($" + c() + ")";
-            case "if": return "(?(" + j() + ") " + c(" | ") + ")";
-            case "eps": return "\u03B5"; // epsilon
-            case "try": return "(??" + c() + ")";
-            case "cut": return "!";
-            case "die": return depth > 0 ? "" : g.v as string;
+    const formatcode = describe_formats[g.op];
+    return formatcode[0].replaceAll(/[vrcjf]/g, m => { // cSpell: ignore vrcjf
+        switch (m as "v" | "r" | "c" | "j" | "f") {
+            case "v": return isArray(g.v) ? "/" + g.v[0] + "/" + g.v[1] : stringify(g.v);
+            case "r": return g.v as string;
+            case "c": return g.c!.map(c => describe(c)).join(formatcode[1] ?? "");
+            case "j": return describe(g.j!);
+            case "f": return formatcode[2]![g.f as string] ?? "\uFFEF";
         }
-    }
-    return (g.op === "die" ? "" : "expected ") + describeInner(g, 0);
+    });
 }

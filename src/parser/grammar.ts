@@ -1,5 +1,6 @@
-import { alt, nonempty, sameline, cut, ignored, joined, lit, lookahead, eps, opt, regex, rep, rule, ssep, seq, tag, try_ } from "./combinator";
+import { alt, cut, eps, ignored, joined, lit, lookahead, nonempty, opt, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
 import { Grammar } from "./parseToCST";
+// import { describe } from "./debug";
 
 export const backolonGrammar: Grammar = {
     blank: ignored(rep(false, alt(regex(/\s*/), rule("comment")))),
@@ -330,6 +331,9 @@ export const backolonGrammar: Grammar = {
 
 export const all_tags = new Set(Object.values(backolonGrammar).flatMap(function walk(g: any): string[] {
     if (typeof g !== "object") return [];
-    return (g.op === "tag" ? [g.tag] : []).concat(Object.values(g).flatMap(walk));
+    return (g.op === "tag" ? [g.v] : []).concat(Object.values(g).flatMap(walk));
 }));
 // console.log({ all_tags });
+// Object.entries(backolonGrammar).forEach(([rule, g]) => {
+//     console.log(`    ${rule}: ${describe(g)}`);
+// });
