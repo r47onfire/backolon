@@ -1,27 +1,27 @@
-import { alternatives, assert_nonempty, assert_sameline, cut, ignored, joined, literal, lookahead, lookaheadNot, nothing, optional, regex, repeat, rule, seq_sep, sequence, tag, try_ } from "./combinator";
+import { alt, nonempty, sameline, cut, ignored, joined, lit, lookahead, eps, opt, regex, rep, rule, ssep, seq, tag, try_ } from "./combinator";
 import { Grammar } from "./parseToCST";
 
 export const backolonGrammar: Grammar = {
-    blank: ignored(repeat(false, alternatives(regex(/\s*/), rule("comment")))),
-    blank_required: ignored(assert_nonempty(rule("blank"))),
-    blank_sameline: ignored(assert_sameline(rule("blank_required"))),
+    blank: ignored(rep(false, alt(regex(/\s*/), rule("comment")))),
+    blank_required: ignored(nonempty(rule("blank"))),
+    blank_sameline: ignored(sameline(rule("blank_required"))),
 
-    comment: ignored(tag("comment", alternatives(rule("block_comment"), rule("line_comment")))),
-    block_comment: sequence(literal("##[["), repeat(false, alternatives(rule("block_comment"), regex(/./))), literal("##]]")),
+    comment: ignored(tag("comment", alt(rule("block_comment"), rule("line_comment")))),
+    block_comment: seq(lit("##[["), rep(false, alt(rule("block_comment"), regex(/./))), lit("##]]")),
     line_comment: regex(/##[^\n]*(\n|$)/),
 
-    expr_sep: ignored(repeat(true, alternatives(rule("semi"), rule("nl"), rule("comment")))),
-    semi: ignored(tag("punctuation", literal(";"))),
-    nl: literal("\n"),
-    comma: ignored(tag("punctuation", literal(","))),
+    expr_sep: ignored(rep(true, alt(rule("semi"), rule("nl"), rule("comment")))),
+    semi: ignored(tag("punctuation", lit(";"))),
+    nl: lit("\n"),
+    comma: ignored(tag("punctuation", lit(","))),
 
-    exprs: repeat(false, seq_sep(rule("expr_sep"), seq_sep(rule("blank"), rule("expr")))),
-    toplevel_exprs: assert_nonempty(rule("exprs")),
-    toplevel_expr: repeat(true, seq_sep(rule("expr_sep"), seq_sep(rule("blank"), rule("expr")))),
-    expr: alternatives(rule("block_expr"), rule("simple_expr")),
+    exprs: rep(false, ssep(rule("expr_sep"), ssep(rule("blank"), rule("expr")))),
+    toplevel_exprs: nonempty(rule("exprs")),
+    toplevel_expr: rep(true, ssep(rule("expr_sep"), ssep(rule("blank"), rule("expr")))),
+    expr: alt(rule("block_expr"), rule("simple_expr")),
 
     // block_expr: let, if, while, foreach, trycatch, with, fn
-    block_expr: alternatives(
+    block_expr: alt(
         rule("let"),
         rule("if"),
         rule("while"),
@@ -31,80 +31,80 @@ export const backolonGrammar: Grammar = {
         rule("fn"),
     ),
 
-    let: seq_sep(rule("blank"), tag("keyword", regex(/\blet\b/)), rule("let_body")),
-    let_body: sequence(
+    let: ssep(rule("blank"), tag("keyword", regex(/\blet\b/)), rule("let_body")),
+    let_body: seq(
         rule("implicit_args"),
-        optional(rule("body_exprs")),
+        opt(rule("body_exprs")),
     ),
 
-    if: seq_sep(rule("blank"), tag("keyword", regex(/\bif\b/)), rule("if_body")),
+    if: ssep(rule("blank"), tag("keyword", regex(/\bif\b/)), rule("if_body")),
 
 
-    while: seq_sep(rule("blank"), tag("keyword", regex(/\bwhile\b/)), rule("while_body")),
+    while: ssep(rule("blank"), tag("keyword", regex(/\bwhile\b/)), rule("while_body")),
 
 
-    foreach: seq_sep(rule("blank"), tag("keyword", regex(/\bforeach\b/)), rule("foreach_body")),
+    foreach: ssep(rule("blank"), tag("keyword", regex(/\bforeach\b/)), rule("foreach_body")),
 
 
-    trycatch: seq_sep(rule("blank"), tag("keyword", regex(/\btry\b/)), rule("trycatch_body")),
+    trycatch: ssep(rule("blank"), tag("keyword", regex(/\btry\b/)), rule("trycatch_body")),
 
 
-    with: seq_sep(rule("blank"), tag("keyword", regex(/\bwith\b/)), rule("with_body")),
+    with: ssep(rule("blank"), tag("keyword", regex(/\bwith\b/)), rule("with_body")),
 
 
-    fn: seq_sep(rule("blank"), tag("keyword", regex(/\bfn\b/)), rule("fn_body")),
+    fn: ssep(rule("blank"), tag("keyword", regex(/\bfn\b/)), rule("fn_body")),
 
 
-    soft_keyword: alternatives(
+    soft_keyword: alt(
         regex(/\b(in|end|else|catch|finally)\b/),
     ),
 
     simple_expr: rule("pipe"),
 
     // left associative
-    pipe: alternatives(seq_sep(rule("blank"), rule("pipe"), rule("pipe_op"), cut(), rule("implicit_call")), rule("implicit_call")),
-    pipe_op: alternatives(
+    pipe: alt(ssep(rule("blank"), rule("pipe"), rule("pipe_op"), cut(), rule("implicit_call")), rule("implicit_call")),
+    pipe_op: alt(
         rule("normal_pipe_op"),
         rule("filter_pipe_op"),
         rule("map_pipe_op"),
         rule("reduce_pipe_op"),
     ),
-    normal_pipe_op: tag("operator", literal("|>")),
-    filter_pipe_op: tag("operator", literal("|?>")),
-    map_pipe_op: tag("operator", literal("|*>")),
-    reduce_pipe_op: sequence(tag("operator", literal("|+>")), cut(), tag("operator", literal("[")), rule("exprs"), tag("operator", literal("]"))),
+    normal_pipe_op: tag("operator", lit("|>")),
+    filter_pipe_op: tag("operator", lit("|?>")),
+    map_pipe_op: tag("operator", lit("|*>")),
+    reduce_pipe_op: seq(tag("operator", lit("|+>")), cut(), tag("operator", lit("[")), rule("exprs"), tag("operator", lit("]"))),
 
     // right associative
     // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try kw_arg
-    implicit_call: alternatives(seq_sep(rule("blank_sameline"), rule("kw_arg"), try_(assert_nonempty(rule("implicit_args")))), rule("kw_arg")),
-    implicit_args: sequence(
+    implicit_call: alt(ssep(rule("blank_sameline"), rule("kw_arg"), try_(nonempty(rule("implicit_args")))), rule("kw_arg")),
+    implicit_args: seq(
         // can't use joined() here since the first and second are different + there are lookahead assertions!
-        lookaheadNot(rule("soft_keyword")),
+        lookahead(false, rule("soft_keyword")),
         rule("implicit_call"),
-        repeat(false, sequence(
-            ignored(seq_sep(rule("blank_sameline"), rule("comma"))),
-            lookaheadNot(rule("soft_keyword")),
-            alternatives(rule("implicit_call"), rule("empty_arg"))
+        rep(false, seq(
+            ignored(ssep(rule("blank_sameline"), rule("comma"))),
+            lookahead(false, rule("soft_keyword")),
+            alt(rule("implicit_call"), rule("empty_arg"))
         )),
     ),
 
-    empty_arg: sequence(nothing(), lookahead(rule("comma"))), // only between commas
+    empty_arg: seq(eps(), lookahead(true, rule("comma"))), // only between commas
 
     // non-associative
-    kw_arg: alternatives(seq_sep(rule("blank"), rule("assignment"), rule("kw_arg_op"), cut(), rule("assignment")), rule("assignment")),
-    kw_arg_op: alternatives(
+    kw_arg: alt(ssep(rule("blank"), rule("assignment"), rule("kw_arg_op"), cut(), rule("assignment")), rule("assignment")),
+    kw_arg_op: alt(
         rule("kw"),
     ),
-    kw: tag("operator", literal(":")),
+    kw: tag("operator", lit(":")),
 
     // right associative
-    assignment: alternatives(seq_sep(rule("blank"), rule("ternary"), rule("assign_op"), cut(), rule("assignment")), rule("ternary")),
-    assign_op: alternatives(
+    assignment: alt(ssep(rule("blank"), rule("ternary"), rule("assign_op"), cut(), rule("assignment")), rule("ternary")),
+    assign_op: alt(
         rule("old_assign_op"),
-        sequence(optional(rule("aug_assign_prefix")), tag("operator", regex(/=(?!=)/))),
+        seq(opt(rule("aug_assign_prefix")), tag("operator", regex(/=(?!=)/))),
     ),
-    old_assign_op: tag("operator", literal("<-")),
-    aug_assign_prefix: sequence(alternatives( // wrapped in single sequence so it's kept
+    old_assign_op: tag("operator", lit("<-")),
+    aug_assign_prefix: seq(alt( // wrapped in single sequence so it's kept
         rule("logical_op"),
         rule("bitwise_op"),
         rule("bitshift_op"),
@@ -113,20 +113,20 @@ export const backolonGrammar: Grammar = {
     )),
 
     // right associative
-    ternary: alternatives(seq_sep(rule("blank"), rule("logical"), tag("operator", literal("?")), cut(), rule("assignment"), cut(), tag("operator", literal(":")), rule("ternary")), rule("logical")),
+    ternary: alt(ssep(rule("blank"), rule("logical"), tag("operator", lit("?")), cut(), rule("assignment"), cut(), tag("operator", lit(":")), rule("ternary")), rule("logical")),
 
     // left associative
-    logical: alternatives(seq_sep(rule("blank"), rule("logical"), rule("logical_op"), cut(), rule("comparison")), rule("comparison")),
-    logical_op: alternatives(
+    logical: alt(ssep(rule("blank"), rule("logical"), rule("logical_op"), cut(), rule("comparison")), rule("comparison")),
+    logical_op: alt(
         rule("logical_and"),
         rule("logical_or"),
     ),
-    logical_and: alternatives(tag("operator", literal("&&")), tag("keyword", regex(/\band\b/))),
-    logical_or: alternatives(tag("operator", literal("||")), tag("keyword", regex(/\bor\b/))),
+    logical_and: alt(tag("operator", lit("&&")), tag("keyword", regex(/\band\b/))),
+    logical_or: alt(tag("operator", lit("||")), tag("keyword", regex(/\bor\b/))),
 
     // chain associative
-    comparison: alternatives(joined(seq_sep(rule("blank"), rule("comparison_op")), seq_sep(rule("blank"), rule("bitwise")), true, false), rule("bitwise")),
-    comparison_op: alternatives(
+    comparison: alt(joined(ssep(rule("blank"), rule("comparison_op")), ssep(rule("blank"), rule("bitwise")), true, false), rule("bitwise")),
+    comparison_op: alt(
         rule("equal_op"),
         rule("not_equal_op"),
         rule("lte_op"),
@@ -134,92 +134,92 @@ export const backolonGrammar: Grammar = {
         rule("less_op"),
         rule("greater_op"),
     ),
-    equal_op: tag("operator", literal("==")),
-    not_equal_op: tag("operator", literal("!=")),
-    lte_op: tag("operator", literal("<=")),
-    gte_op: tag("operator", literal(">=")),
+    equal_op: tag("operator", lit("==")),
+    not_equal_op: tag("operator", lit("!=")),
+    lte_op: tag("operator", lit("<=")),
+    gte_op: tag("operator", lit(">=")),
     less_op: tag("operator", regex(/<(?![<-])/)),
     greater_op: tag("operator", regex(/>(?!>)/)),
 
     // left associative
-    bitwise: alternatives(seq_sep(rule("blank"), rule("bitwise"), rule("bitwise_op"), cut(), rule("bitshift")), rule("bitshift")),
-    bitwise_op: alternatives(
+    bitwise: alt(ssep(rule("blank"), rule("bitwise"), rule("bitwise_op"), cut(), rule("bitshift")), rule("bitshift")),
+    bitwise_op: alt(
         rule("bitwise_and"),
         rule("bitwise_or"),
         rule("bitwise_xor"),
     ),
-    bitwise_and: tag("operator", literal("&")),
+    bitwise_and: tag("operator", lit("&")),
     bitwise_or: tag("operator", regex(/\|(?![?*+>])/)),
-    bitwise_xor: tag("operator", literal("^")),
+    bitwise_xor: tag("operator", lit("^")),
 
     // left associative
-    bitshift: alternatives(seq_sep(rule("blank"), rule("bitshift"), rule("bitshift_op"), cut(), rule("sum")), rule("sum")),
-    bitshift_op: alternatives(
+    bitshift: alt(ssep(rule("blank"), rule("bitshift"), rule("bitshift_op"), cut(), rule("sum")), rule("sum")),
+    bitshift_op: alt(
         rule("shift_left"),
         rule("shift_right"),
     ),
-    shift_left: tag("operator", literal("<<")),
-    shift_right: tag("operator", literal(">>")),
+    shift_left: tag("operator", lit("<<")),
+    shift_right: tag("operator", lit(">>")),
 
     // left associative
-    sum: alternatives(seq_sep(rule("blank"), rule("sum"), rule("sum_op"), cut(), rule("term")), rule("term")),
-    sum_op: alternatives(
+    sum: alt(ssep(rule("blank"), rule("sum"), rule("sum_op"), cut(), rule("term")), rule("term")),
+    sum_op: alt(
         rule("add"),
         rule("sub"),
     ),
-    add: tag("operator", literal("+")),
+    add: tag("operator", lit("+")),
     sub: tag("operator", regex(/-(?!>)/)),
 
     // left associative
-    term: alternatives(seq_sep(rule("blank"), rule("term"), rule("term_op"), cut(), rule("factor")), rule("factor")),
-    term_op: alternatives(
+    term: alt(ssep(rule("blank"), rule("term"), rule("term_op"), cut(), rule("factor")), rule("factor")),
+    term_op: alt(
         rule("mul"),
         rule("div"),
         rule("mod"),
     ),
     mul: tag("operator", regex(/\*(?!\*)/)),
-    div: tag("operator", literal("/")),
-    mod: tag("operator", literal("%")),
+    div: tag("operator", lit("/")),
+    mod: tag("operator", lit("%")),
 
     // right associative
-    factor: alternatives(seq_sep(rule("blank"), rule("indexing"), rule("factor_op"), cut(), rule("factor")), rule("indexing")),
-    factor_op: alternatives(
+    factor: alt(ssep(rule("blank"), rule("indexing"), rule("factor_op"), cut(), rule("factor")), rule("indexing")),
+    factor_op: alt(
         rule("pow"),
     ),
-    pow: tag("operator", literal("**")),
+    pow: tag("operator", lit("**")),
 
     // left associative
-    indexing: alternatives(seq_sep(rule("blank"), rule("indexing"), rule("indexing_op"), cut(), rule("primary")), rule("primary")),
-    indexing_op: alternatives(
+    indexing: alt(ssep(rule("blank"), rule("indexing"), rule("indexing_op"), cut(), rule("primary")), rule("primary")),
+    indexing_op: alt(
         rule("dot"),
         rule("arrow"),
     ),
-    dot: tag("operator", literal(".")),
-    arrow: tag("operator", literal("->")),
+    dot: tag("operator", lit(".")),
+    arrow: tag("operator", lit("->")),
 
     // primary: unary operators or atom
-    primary: alternatives(
+    primary: alt(
         rule("unary"),
         rule("atom"),
     ),
     // these are all prefix unary
-    unary: alternatives(
+    unary: alt(
         rule("explicit_call"),
         rule("prefix"),
     ),
 
-    explicit_call: seq_sep(rule("blank"), rule("primary"), ignored(tag("operator", literal("("))), cut(), rule("explicit_args"), ignored(tag("operator", literal(")")))),
-    explicit_args: alternatives(
+    explicit_call: ssep(rule("blank"), rule("primary"), ignored(tag("operator", lit("("))), cut(), rule("explicit_args"), ignored(tag("operator", lit(")")))),
+    explicit_args: alt(
         joined(
-            ignored(seq_sep(rule("blank"), rule("comma"))),
-            alternatives(rule("expr"), rule("empty_arg")),
+            ignored(ssep(rule("blank"), rule("comma"))),
+            alt(rule("expr"), rule("empty_arg")),
             false, false,
         ),
-        sequence(), // empty args
+        seq(), // empty args
     ), // allow blank arguments
 
-    prefix: seq_sep(rule("blank"), rule("prefix_op"), cut(), rule("factor")),
-    prefix_op: alternatives(
+    prefix: ssep(rule("blank"), rule("prefix_op"), cut(), rule("factor")),
+    prefix_op: alt(
         rule("length"),
         rule("spread"),
         rule("negate"),
@@ -235,22 +235,22 @@ export const backolonGrammar: Grammar = {
         rule("deref"),
     ),
 
-    length: tag("operator", literal("#")),
-    spread: tag("operator", literal("...")),
-    negate: tag("operator", literal("-")),
-    abs: tag("operator", literal("+")),
+    length: tag("operator", lit("#")),
+    spread: tag("operator", lit("...")),
+    negate: tag("operator", lit("-")),
+    abs: tag("operator", lit("+")),
     not: tag("operator", regex(/!(?!=)/)),
-    bit_not: tag("operator", literal("~")),
-    quote: tag("operator", literal("`")),
-    unquote: tag("operator", literal("$")),
-    unquote_splicing: tag("operator", literal("$.")),
-    reference: tag("operator", literal("@")),
-    lazy: tag("operator", literal("^")),
+    bit_not: tag("operator", lit("~")),
+    quote: tag("operator", lit("`")),
+    unquote: tag("operator", lit("$")),
+    unquote_splicing: tag("operator", lit("$.")),
+    reference: tag("operator", lit("@")),
+    lazy: tag("operator", lit("^")),
     ref: tag("operator", regex(/&/)),
-    deref: tag("operator", literal("*")),
+    deref: tag("operator", lit("*")),
 
     // atoms: number, string, regex, boolean, null, collection literal, quasiquote, parenthesized expression, name
-    atom: alternatives(
+    atom: alt(
         rule("number"),
         rule("string"),
         rule("regex"),
@@ -261,7 +261,7 @@ export const backolonGrammar: Grammar = {
         rule("name"),
     ),
 
-    number: tag("number", alternatives(
+    number: tag("number", alt(
         rule("hex"),
         rule("bin"),
         rule("decimal"),
@@ -270,61 +270,61 @@ export const backolonGrammar: Grammar = {
     bin: regex(/0b[01]+/i),
     decimal: regex(/((?!0\d)\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?/i),
 
-    string: alternatives(rule("r_string"), rule("i_string")),
+    string: alt(rule("r_string"), rule("i_string")),
 
-    r_string: sequence(ignored(tag("string", literal("'"))), cut(), repeat(false, rule("r_part")), ignored(tag("string", literal("'")))),
-    r_part: alternatives(
+    r_string: seq(ignored(tag("string", lit("'"))), cut(), rep(false, rule("r_part")), ignored(tag("string", lit("'")))),
+    r_part: alt(
         rule("r_escape"),
         rule("r_body"),
     ),
     r_escape: tag("escape", regex(/\\./)),
     r_body: tag("string", regex(/[^'\\]+/)),
 
-    i_string: sequence(ignored(tag("string", literal("\""))), cut(), repeat(false, rule("i_part")), ignored(tag("string", literal("\"")))),
-    i_part: alternatives(
+    i_string: seq(ignored(tag("string", lit("\""))), cut(), rep(false, rule("i_part")), ignored(tag("string", lit("\"")))),
+    i_part: alt(
         rule("i_escape"),
         rule("i_interpolation"),
         rule("i_body"),
     ),
-    i_escape: tag("escape", sequence(regex(/\\(?!\()/), cut(), rule("i_escape_body"))),
-    i_escape_body: alternatives(
+    i_escape: tag("escape", seq(regex(/\\(?!\()/), cut(), rule("i_escape_body"))),
+    i_escape_body: alt(
         rule("i_known_escape"),
         rule("i_x_escape"),
         rule("i_u_escape"),
         rule("i_U_escape"),
     ),
     i_known_escape: regex(/[abefnrtvz"']/), // cSpell: ignore abefnrtvz
-    i_x_escape: sequence(literal("x"), cut(), regex(/[0-9a-f]{2}/)),
-    i_u_escape: sequence(literal("u"), cut(), regex(/[0-9a-f]{4}/)),
-    i_U_escape: sequence(literal("U"), cut(), regex(/\{[0-9a-f]+\}/)),
-    i_interpolation: sequence(tag("escape", literal("\\(")), cut(), rule("exprs"), tag("escape", literal(")"))),
+    i_x_escape: seq(lit("x"), cut(), regex(/[0-9a-f]{2}/)),
+    i_u_escape: seq(lit("u"), cut(), regex(/[0-9a-f]{4}/)),
+    i_U_escape: seq(lit("U"), cut(), regex(/\{[0-9a-f]+\}/)),
+    i_interpolation: seq(tag("escape", lit("\\(")), cut(), rule("exprs"), tag("escape", lit(")"))),
     i_body: tag("string", regex(/[^"\\]+/)),
 
-    regex: tag("regex", sequence(literal("/"), rule("regex_body"), literal("/"), rule("regex_flags"))),
+    regex: tag("regex", seq(lit("/"), rule("regex_body"), lit("/"), rule("regex_flags"))),
     regex_body: regex(/(\[([^\]]|\\\])+\]|\\.|[^\\/\n])*/),
     regex_flags: regex(/[gimsuvy]*/), // cSpell: ignore gimsuvy
 
     boolean: tag("boolean", regex(/\b([Tt]rue|[Ff]alse)\b/)), // cSpell: ignore alse
 
-    collection: seq_sep(rule("blank"), ignored(tag("operator", literal("["))), cut(), rule("collection_body"), ignored(tag("operator", literal("]")))),
-    collection_body: alternatives(
+    collection: ssep(rule("blank"), ignored(tag("operator", lit("["))), cut(), rule("collection_body"), ignored(tag("operator", lit("]")))),
+    collection_body: alt(
         rule("empty_collection"),
-        joined(ignored(seq_sep(rule("blank"), rule("comma"))), rule("collection_item"), false, true), // TODO: allow trailing comma
+        joined(ignored(ssep(rule("blank"), rule("comma"))), rule("collection_item"), false, true), // TODO: allow trailing comma
     ),
-    empty_collection: alternatives(
+    empty_collection: alt(
         rule("empty_list"),
         rule("empty_map"),
     ),
-    empty_list: nothing(),
-    empty_map: tag("operator", literal(":")),
-    collection_item: alternatives(
+    empty_list: eps(),
+    empty_map: tag("operator", lit(":")),
+    collection_item: alt(
         rule("collection_shorthand"),
         rule("expr"),
     ),
-    collection_shorthand: seq_sep(rule("blank"), rule("quote"), alternatives(rule("atom"), rule("par_exp")), ignored(tag("operator", literal(":")))),
+    collection_shorthand: ssep(rule("blank"), rule("quote"), alt(rule("atom"), rule("par_exp")), ignored(tag("operator", lit(":")))),
 
-    quasiquote: tag("quoted", seq_sep(rule("blank"), ignored(tag("operator", literal("{"))), cut(), rule("exprs"), ignored(tag("operator", literal("}"))))),
-    par_exp: seq_sep(rule("blank"), ignored(tag("operator", literal("("))), cut(), rule("exprs"), ignored(tag("operator", literal(")")))),
+    quasiquote: tag("quoted", ssep(rule("blank"), ignored(tag("operator", lit("{"))), cut(), rule("exprs"), ignored(tag("operator", lit("}"))))),
+    par_exp: ssep(rule("blank"), ignored(tag("operator", lit("("))), cut(), rule("exprs"), ignored(tag("operator", lit(")")))),
     name: tag("name", regex(/[_\p{L}][_\p{L}\p{N}]*/u)),
 };
 

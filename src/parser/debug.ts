@@ -20,28 +20,29 @@ export const stripInlinedFunctions = <T>(ast: T): T => {
 
 export const describe = (g: GrammarCombinator): string => {
     const describeInner = (g: GrammarCombinator, depth: number): string => {
+        const c = (j = "") => g.c!.map(c => describeInner(c, depth + 1)).join(j);
+        const j = () => describeInner(g.j!, depth + 1);
         if (depth > 3) return "...";
         switch (g.op) {
-            case "token": return g.isRegex ? g.pattern.toString() : JSON.stringify(g.pattern);
-            case "rule": return g.rule;
-            case "tag": return "@" + g.tag + "=" + describeInner(g.node, depth + 1);
-            case "ignored": return "{" + describeInner(g.node, depth + 1) + "}";
-            case "optional": return "[" + describeInner(g.node, depth + 1) + "]";
-            case "sequence": return "(" + g.nodes.map(n => describeInner(n, depth + 1)).join(" ") + ")";
-            case "seq_sep": return describeInner(g.sep, depth + 1) + ".@(" + g.nodes.map(n => describeInner(n, depth + 1)).join(" ") + ")";
-            case "alternatives": return g.nodes.map(n => describeInner(n, depth + 1)).join(" | ");
-            case "joined": return describeInner(g.node, depth + 1) + "." + describeInner(g.sep, depth + 1) + "+";
-            case "repeat": return describeInner(g.node, depth + 1) + (g.required ? "+" : "*");
-            case "repeat_seq": return "(" + g.nodes.map(n => describeInner(n, depth + 1)).join(" ") + ")@" + (g.required ? "+" : "*");
-            case "lookahead": return "(?" + (g.negative ? "!" : "=") + describeInner(g.node, depth + 1) + ")";
-            case "assert_nonempty": return "(=" + describeInner(g.node, depth + 1) + ")";
-            case "assert_sameline": return "($" + describeInner(g.node, depth + 1) + ")";
-            case "if": return "(?(" + describeInner(g.cond, depth + 1) + ") " + describeInner(g.true, depth + 1) + " | " + describeInner(g.false, depth + 1) + ")";
-            case "nothing": return "\u03B5"; // epsilon
-            case "try": return "(??" + describeInner(g.node, depth + 1) + ")";
+            case "tok": return isArray(g.v) ? "/" + g.v[0] + "/" + g.v[1] : JSON.stringify(g.v);
+            case "rule": return g.v as string;
+            case "tag": return "@" + g.v as string + "=" + c();
+            case "ign": return "{" + c() + "}";
+            case "opt": return "[" + c() + "]";
+            case "seq": return "(" + c(" ") + ")";
+            case "ssep": return j() + ".@(" + c(" ") + ")";
+            case "alt": return c(" | ");
+            case "joined": return c() + "." + j() + "+";
+            case "rep": return j() + { r: "+", o: "*" }[g.f!];
+            case "lookahead": return "(?" + { "+": "=", "-": "!" }[g.f!] + c() + ")";
+            case "nonempty": return "(=" + c() + ")";
+            case "sameline": return "($" + c() + ")";
+            case "if": return "(?(" + j() + ") " + c(" | ") + ")";
+            case "eps": return "\u03B5"; // epsilon
+            case "try": return "(??" + c() + ")";
             case "cut": return "!";
-            case "fail_fast": return depth > 0 ? "" : g.message;
+            case "die": return depth > 0 ? "" : g.v as string;
         }
     }
-    return (g.op === "fail_fast" ? "" : "expected ") + describeInner(g, 0);
+    return (g.op === "die" ? "" : "expected ") + describeInner(g, 0);
 }

@@ -2,15 +2,6 @@
 
 ## parser
 
-### `MatchFail`
-```ts
-constructor(i: number, cut: number, expected: GrammarCombinator): MatchFail
-```
-**Properties:**
-- `i: number`
-- `cut: number`
-- `expected: GrammarCombinator`
-
 ### `Span`
 Source location information for a token.
 ```ts

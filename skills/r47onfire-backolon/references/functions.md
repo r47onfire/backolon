@@ -2,22 +2,28 @@
 
 ## parser
 
-### `literal`
+### `lit`
 ```ts
-literal(p: string, t?: string): GrammarCombinator
+lit(p: string): GrammarCombinator
 ```
 **Parameters:**
 - `p: string`
-- `t: string` (optional)
 **Returns:** `GrammarCombinator`
 
 ### `regex`
 ```ts
-regex(p: RegExp, t?: string): GrammarCombinator
+regex(p: RegExp): GrammarCombinator
 ```
 **Parameters:**
 - `p: RegExp`
-- `t: string` (optional)
+**Returns:** `GrammarCombinator`
+
+### `ignored`
+```ts
+ignored(n: GrammarCombinator): GrammarCombinator
+```
+**Parameters:**
+- `n: GrammarCombinator`
 **Returns:** `GrammarCombinator`
 
 ### `rule`
@@ -28,56 +34,67 @@ rule(r: string): GrammarCombinator
 - `r: string`
 **Returns:** `GrammarCombinator`
 
-### `transform`
+### `seq`
 ```ts
-transform(t: string, n: GrammarCombinator): GrammarCombinator
-```
-**Parameters:**
-- `t: string`
-- `n: GrammarCombinator`
-**Returns:** `GrammarCombinator`
-
-### `sequence`
-```ts
-sequence(n: GrammarCombinator[]): GrammarCombinator
+seq(n: GrammarCombinator[]): GrammarCombinator
 ```
 **Parameters:**
 - `n: GrammarCombinator[]`
 **Returns:** `GrammarCombinator`
 
-### `alternatives`
+### `ssep`
 ```ts
-alternatives(n: GrammarCombinator[]): GrammarCombinator
+ssep(s: GrammarCombinator, n: GrammarCombinator[]): GrammarCombinator
+```
+**Parameters:**
+- `s: GrammarCombinator`
+- `n: GrammarCombinator[]`
+**Returns:** `GrammarCombinator`
+
+### `joined`
+```ts
+joined(j: GrammarCombinator, n: GrammarCombinator, r2: boolean, t: boolean): GrammarCombinator
+```
+**Parameters:**
+- `j: GrammarCombinator`
+- `n: GrammarCombinator`
+- `r2: boolean`
+- `t: boolean`
+**Returns:** `GrammarCombinator`
+
+### `alt`
+```ts
+alt(n: GrammarCombinator[]): GrammarCombinator
 ```
 **Parameters:**
 - `n: GrammarCombinator[]`
 **Returns:** `GrammarCombinator`
 
-### `optional`
+### `opt`
 ```ts
-optional(g: boolean, n: GrammarCombinator): GrammarCombinator
+opt(n: GrammarCombinator): GrammarCombinator
 ```
 **Parameters:**
-- `g: boolean`
 - `n: GrammarCombinator`
 **Returns:** `GrammarCombinator`
 
-### `repeat`
+### `rep`
 ```ts
-repeat(r: boolean, n: GrammarCombinator): GrammarCombinator
+rep(r: boolean, n: GrammarCombinator): GrammarCombinator
 ```
 **Parameters:**
 - `r: boolean`
 - `n: GrammarCombinator`
 **Returns:** `GrammarCombinator`
 
-### `repeat_seq`
+### `if_`
 ```ts
-repeat_seq(r: boolean, n: GrammarCombinator[]): GrammarCombinator
+if_(c: GrammarCombinator, t: GrammarCombinator, f: GrammarCombinator): GrammarCombinator
 ```
 **Parameters:**
-- `r: boolean`
-- `n: GrammarCombinator[]`
+- `c: GrammarCombinator`
+- `t: GrammarCombinator`
+- `f: GrammarCombinator`
 **Returns:** `GrammarCombinator`
 
 ### `tag`
@@ -99,50 +116,78 @@ cut(d: number): GrammarCombinator
 
 ### `lookahead`
 ```ts
-lookahead(n: GrammarCombinator): GrammarCombinator
+lookahead(p: boolean, n: GrammarCombinator): GrammarCombinator
+```
+**Parameters:**
+- `p: boolean`
+- `n: GrammarCombinator`
+**Returns:** `GrammarCombinator`
+
+### `nonempty`
+```ts
+nonempty(n: GrammarCombinator): GrammarCombinator
 ```
 **Parameters:**
 - `n: GrammarCombinator`
 **Returns:** `GrammarCombinator`
 
-### `lookaheadNot`
+### `sameline`
 ```ts
-lookaheadNot(n: GrammarCombinator): GrammarCombinator
+sameline(n: GrammarCombinator): GrammarCombinator
 ```
 **Parameters:**
 - `n: GrammarCombinator`
 **Returns:** `GrammarCombinator`
 
-### `assert_nonempty`
+### `eps`
 ```ts
-assert_nonempty(n: GrammarCombinator): GrammarCombinator
-```
-**Parameters:**
-- `n: GrammarCombinator`
-**Returns:** `GrammarCombinator`
-
-### `epsilon`
-```ts
-epsilon(): GrammarCombinator
+eps(): GrammarCombinator
 ```
 **Returns:** `GrammarCombinator`
 
-### `fail_fast`
+### `die`
 ```ts
-fail_fast(m: string): GrammarCombinator
+die(m: string): GrammarCombinator
 ```
 **Parameters:**
 - `m: string`
 **Returns:** `GrammarCombinator`
 
-### `parseToCST`
+### `try_`
 ```ts
-parseToCST(text: string, startIndex: number, startRule: string, grammar: Grammar, memo: Memo): Readonly<{ type?: string; tag?: string; text?: string; transform?: string; start: number; end: number; children?: readonly (Readonly<{ type?: string | undefined; tag?: string | undefined; text?: string | undefined; transform?: string | undefined; start: number; end: number; children?: readonly Readonly<...>[] | undefined; }>)[] }> | MatchFail
+try_(n: GrammarCombinator): GrammarCombinator
+```
+**Parameters:**
+- `n: GrammarCombinator`
+**Returns:** `GrammarCombinator`
+
+### `parseToCST`
+Parse text into a CST. The CST may contain error nodes if there were syntax errors.
+```ts
+parseToCST(text: string, startIndex: number, startRule: string, grammar: Grammar, recoverNodeType: string, errorType: string, memo: Memo): CSTNode
 ```
 **Parameters:**
 - `text: string`
 - `startIndex: number`
 - `startRule: string`
 - `grammar: Grammar`
+- `recoverNodeType: string`
+- `errorType: string` — default: `"BAD"`
 - `memo: Memo` — default: `{}`
-**Returns:** `Readonly<{ type?: string; tag?: string; text?: string; transform?: string; start: number; end: number; children?: readonly (Readonly<{ type?: string | undefined; tag?: string | undefined; text?: string | undefined; transform?: string | undefined; start: number; end: number; children?: readonly Readonly<...>[] | undefined; }>)[] }> | MatchFail`
+**Returns:** `CSTNode`
+
+### `stripInlinedFunctions`
+```ts
+stripInlinedFunctions<T>(ast: T): T
+```
+**Parameters:**
+- `ast: T`
+**Returns:** `T`
+
+### `describe`
+```ts
+describe(g: GrammarCombinator): string
+```
+**Parameters:**
+- `g: GrammarCombinator`
+**Returns:** `string`

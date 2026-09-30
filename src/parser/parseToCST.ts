@@ -1,4 +1,4 @@
-import { last } from "lib0/array";
+import { isArray, last } from "lib0/array";
 import { isString } from "lib0/function";
 import { max } from "lib0/math";
 import { GrammarCombinator, rule } from "./combinator";
@@ -106,28 +106,31 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * Do the actual logic for the grammar node's operation.
      */
     const callRule = (path: string, g: GrammarCombinator, i: number): CSTNode | MatchFail => {
+        const badflag = (): never => {
+            throw new Error("bad flag for " + op + ": " + g.f);
+        };
         const op = g?.op;
         switch (op) {
-            case "token": {
-                const p = g.pattern;
-                if (g.isRegex) {
-                    const re = new RegExp(p, g.flags + "y");
+            case "tok": {
+                const p = g.v as string | [string, string];
+                if (isArray(p)) {
+                    const re = new RegExp(p[0], p[1] + "y");
                     re.lastIndex = i;
                     const match = re.exec(text);
-                    return match ? { text: match[0], type: g.type, start: i, end: i + match[0].length } : new MatchFail(i, 0, g);
+                    return match ? { text: match[0], start: i, end: i + match[0].length } : new MatchFail(i, 0, g);
                 } else {
-                    return text.startsWith(p, i) ? { text: p, type: g.type, start: i, end: i + p.length } : new MatchFail(i, 0, g);
+                    return text.startsWith(p, i) ? { text: p, start: i, end: i + p.length } : new MatchFail(i, 0, g);
                 }
             }
-            case "ignored": {
-                const cst = applyRule(path + "/", g.node, i);
+            case "ign": {
+                const cst = applyRule(path + "/", g.c![0]!, i);
                 return cst instanceof MatchFail ? cst : { ignored: true, start: cst.start, end: cst.end, children: [cst] };
             }
             case "rule": {
-                const rule = grammar[g.rule];
-                if (!rule) throw new Error("unknown named rule " + g.rule + " at " + path);
+                const rule = grammar[g.v as string];
+                if (!rule) throw new Error("unknown named rule " + g.v + " at " + path);
                 cutStack.push([0]);
-                const cst = applyRule(g.rule, rule, i);
+                const cst = applyRule(g.v as string, rule, i);
                 const frameDepth = cutDepth();
                 cutStack.pop();
                 if (cst instanceof MatchFail) {
@@ -136,21 +139,21 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 }
                 // Don't nest when the rule only delegated to another named rule
                 if (cst.text === undefined && isString(cst.type)) return cst;
-                return { type: g.rule, start: cst.start, end: cst.end, children: [cst] };
+                return { type: g.v as string, start: cst.start, end: cst.end, children: [cst] };
             }
             case "tag": {
-                const cst = applyRule(path + "/", g.node, i);
-                return cst instanceof MatchFail ? cst : { tag: g.tag, start: cst.start, end: cst.end, children: [cst] };
+                const cst = applyRule(path + "/", g.c![0]!, i);
+                return cst instanceof MatchFail ? cst : { tag: g.v as string, start: cst.start, end: cst.end, children: [cst] };
             }
-            case "sequence":
-            case "seq_sep": {
+            case "seq":
+            case "ssep": {
                 const children: CSTNode[] = [];
                 const start = i;
-                const items = g.nodes, len = items.length;
+                const items = g.c!, len = items.length;
                 var committed = false;
                 const sep = () => {
-                    if (op !== "seq_sep") return;
-                    const sepThing = applyRule(path + "/s", g.sep, i);
+                    if (op !== "ssep") return;
+                    const sepThing = applyRule(path + "/s", g.j!, i);
                     if (sepThing instanceof MatchFail) {
                         children.push({ ignored: true, start: i, end: i });
                     } else {
@@ -183,8 +186,8 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 sep();
                 return { start, end: i, children };
             }
-            case "alternatives": {
-                const items = g.nodes, len = items.length;
+            case "alt": {
+                const items = g.c!, len = items.length;
                 const options: CSTNode[] = [];
                 var furthestFail: MatchFail | undefined;
                 for (var j = 0; j < len; j++) {
@@ -206,16 +209,16 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 }
                 return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, g)) : options.reduce((a, b) => b.end > a.end ? b : a);
             }
-            case "optional": {
-                const cst = applyRule(path + "/", g.node, i);
+            case "opt": {
+                const cst = applyRule(path + "/", g.c![0]!, i);
                 // don't swallow a cut fail
                 return cst instanceof MatchFail ? (cst.cut > 0 ? cst : { start: i, end: i }) : cst;
             }
-            case "repeat":
-            case "repeat_seq": {
+            case "rep": {
                 const start = i;
                 const children: CSTNode[] = [];
-                const nodes = op === "repeat_seq" ? g.nodes : [g.node], len = nodes.length;
+                if (g.f !== "r" && g.f !== "o") badflag();
+                const nodes = g.c!, len = nodes.length;
                 if (len > 0) {
                     for (var count = 0; ; count++) {
                         if (i >= text.length) break;
@@ -237,7 +240,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                                 i = next;
                                 continue;
                             }
-                            if (g.required && count < 1) return thisMatch;
+                            if (g.f === "r" && count < 1) return thisMatch;
                             // normal failure
                             break;
                         }
@@ -251,9 +254,12 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             case "joined": {
                 const start = i;
                 const children: CSTNode[] = [];
+                const elemRule = g.c![0]!, sepRule = g.j!;
+                const require2 = /2/.test(g.f!);
+                const trailing = /t/.test(g.f!);
                 for (; ;) {
                     if (i >= text.length) break;
-                    const elem = applyRule(path + "/e", g.node, i);
+                    const elem = applyRule(path + "/e", elemRule, i);
                     if (elem instanceof MatchFail) {
                         if (elem.cut === Infinity) return elem;
                         if (elem.cut > 0) {
@@ -264,19 +270,19 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                                 i = end;
                                 continue;
                             }
-                            const next = recover(path + "/e", g.node, i, elem, children);
+                            const next = recover(path + "/e", elemRule, i, elem, children);
                             if (next <= i) break;
                             i = next;
                             continue;
                         }
-                        if (children.length < (g.require2 ? 3 : 1)) return elem; // need at least one or two elements
+                        if (children.length < (require2 ? 3 : 1)) return elem; // need at least one or two elements
                         // trailing sep is cut-fail
-                        if (g.trailing) break;
+                        if (trailing) break;
                         return new MatchFail(elem.i, 1, elem.expected);
                     }
                     children.push(elem);
                     i = elem.end;
-                    const s = applyRule(path + "/s", g.sep, i);
+                    const s = applyRule(path + "/s", sepRule, i);
                     if (s instanceof MatchFail) {
                         if (s.cut === Infinity) return s;
                         if (s.cut > 0) {
@@ -286,12 +292,12 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                                 i = end;
                                 continue;
                             }
-                            const next = recover(path + "/s", g.sep, i, s, children);
+                            const next = recover(path + "/s", sepRule, i, s, children);
                             if (next <= i) break;
                             i = next;
                             continue;
                         }
-                        if (children.length < (g.require2 ? 3 : 1)) return s; // need at least one or two elements
+                        if (children.length < (require2 ? 3 : 1)) return s; // need at least one or two elements
                         break; // no separator: done
                     }
                     if (s.end === i) break; // empty separator ?!?
@@ -301,28 +307,30 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 return { start, end: i, children };
             }
             case "if": {
-                return applyRule(path + "/c", g.cond, i) instanceof MatchFail ? applyRule(path + "/f", g.false, i) : applyRule(path + "/t", g.true, i);
+                return applyRule(path + "/c", g.j!, i) instanceof MatchFail ? applyRule(path + "/f", g.c![1]!, i) : applyRule(path + "/t", g.c![0]!, i);
             }
             case "cut": {
                 const f = last(cutStack);
-                if (f) f[0] = max(f[0], g.depth);
+                if (f) f[0] = max(f[0], g.v as number);
                 return { ignored: true, start: i, end: i };
             }
             case "lookahead": {
-                const cst = applyRule(path + "/?", g.node, i);
-                return cst instanceof MatchFail === g.negative ? { ignored: true, start: i, end: i } : new MatchFail(i, 0, g);
+                const cst = applyRule(path + "/?", g.c![0]!, i);
+                const neg = g.f === "-";
+                if (!neg && g.f !== "+") badflag();
+                return cst instanceof MatchFail === neg ? { ignored: true, start: i, end: i } : new MatchFail(i, 0, g);
             }
-            case "assert_sameline":
-            case "assert_nonempty": {
-                const cst = applyRule(path + "/", g.node, i);
-                return cst instanceof MatchFail ? cst : (op === "assert_nonempty" ? cst.end === i : text.slice(cst.start, cst.end).indexOf("\n") >= 0) ? new MatchFail(i, 0, g) : cst;
+            case "sameline":
+            case "nonempty": {
+                const cst = applyRule(path + "/", g.c![0]!, i);
+                return cst instanceof MatchFail ? cst : (op === "nonempty" ? cst.end === i : text.slice(cst.start, cst.end).indexOf("\n") >= 0) ? new MatchFail(i, 0, g) : cst;
             }
-            case "nothing":
+            case "eps":
                 return { start: i, end: i };
             case "try": {
                 // Speculative parse: if node fails, hide the cuts
                 const savedCuts = cutStack.map(frame => frame[0]);
-                const cst = applyRule(path + "/", g.node, i);
+                const cst = applyRule(path + "/", g.c![0]!, i);
                 if (cst instanceof MatchFail) {
                     for (var k = 0; k < savedCuts.length; k++) cutStack[k]![0] = savedCuts[k]!;
                     cutStack.length = savedCuts.length;
@@ -330,7 +338,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 }
                 return cst;
             }
-            case "fail_fast":
+            case "die":
                 return new MatchFail(i, Infinity, g);
             default:
                 op satisfies never;

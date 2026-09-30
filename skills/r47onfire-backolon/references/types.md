@@ -3,13 +3,15 @@
 ## parser
 
 ### `GrammarCombinator`
+
+### `GrammarOp`
 ```ts
-Readonly<{ op: "token"; type?: string; pattern: string; flags?: string; isRegex: boolean } | { op: "rule"; rule: string } | { op: "transform"; transformer: string; node: GrammarCombinator } | { op: "sequence"; nodes: GrammarCombinator[] } | { op: "alternatives"; nodes: GrammarCombinator[] } | { op: "optional"; greedy: boolean; node: GrammarCombinator } | { op: "repeat"; required: boolean; node: GrammarCombinator } | { op: "repeat_seq"; required: boolean; nodes: GrammarCombinator[] } | { op: "tag"; tag: string; node: GrammarCombinator } | { op: "cut"; depth: number } | { op: "lookahead"; negative: boolean; node: GrammarCombinator } | { op: "assert_nonempty"; node: GrammarCombinator } | { op: "nothing" } | { op: "fail_fast"; message: string }>
+"tok" | "ign" | "rule" | "seq" | "ssep" | "joined" | "alt" | "opt" | "rep" | "if" | "tag" | "cut" | "lookahead" | "nonempty" | "sameline" | "eps" | "die" | "try"
 ```
 
 ### `CSTNode`
 ```ts
-Readonly<{ type?: string; tag?: string; text?: string; transform?: string; start: number; end: number; children?: readonly CSTNode[] }>
+Readonly<{ type?: string; ignored?: boolean; tag?: string; text?: string; start: number; end: number; children?: readonly CSTNode[]; errorExpected?: GrammarCombinator }>
 ```
 
 ### `MemoLoc`

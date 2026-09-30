@@ -7,6 +7,11 @@
 const backolonGrammar: Grammar
 ```
 
+### `all_tags`
+```ts
+const all_tags: Set<string>
+```
+
 ## runtime
 
 ### `OP_do_import`
