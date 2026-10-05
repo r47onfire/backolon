@@ -65,15 +65,15 @@ export const backolonGrammar: Grammar = {
     // left associative
     pipe: alt(ssep(rule("blank"), rule("pipe"), rule("pipe_op"), cut(), rule("implicit_call")), rule("implicit_call")),
     pipe_op: alt(
-        rule("normal_pipe_op"),
-        rule("filter_pipe_op"),
-        rule("map_pipe_op"),
-        rule("reduce_pipe_op"),
+        rule("normal_pipe"),
+        rule("filter_pipe"),
+        rule("map_pipe"),
+        rule("reduce_pipe"),
     ),
-    normal_pipe_op: tag("operator", lit("|>")),
-    filter_pipe_op: tag("operator", lit("|?>")),
-    map_pipe_op: tag("operator", lit("|*>")),
-    reduce_pipe_op: seq(tag("operator", lit("|+>")), cut(), tag("operator", lit("[")), rule("exprs"), tag("operator", lit("]"))),
+    normal_pipe: tag("operator", lit("|>")),
+    filter_pipe: tag("operator", lit("|?>")),
+    map_pipe: tag("operator", lit("|*>")),
+    reduce_pipe: seq(tag("operator", lit("|+>")), cut(), tag("operator", lit("[")), rule("exprs"), tag("operator", lit("]"))),
 
     // right associative
     // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try kw_arg
@@ -101,17 +101,20 @@ export const backolonGrammar: Grammar = {
     // right associative
     assignment: alt(ssep(rule("blank"), rule("ternary"), rule("assign_op"), cut(), rule("assignment")), rule("ternary")),
     assign_op: alt(
-        rule("old_assign_op"),
-        seq(opt(rule("aug_assign_prefix")), tag("operator", regex(/=(?!=)/))),
+        rule("old_assign"),
+        rule("aug_assign"),
+        rule("normal_assign"),
     ),
-    old_assign_op: tag("operator", lit("<-")),
-    aug_assign_prefix: seq(alt( // wrapped in single sequence so it's kept
+    old_assign: tag("operator", lit("<-")),
+    aug_assign: seq(rule("aug_assign_prefix"), rule("normal_assign")),
+    normal_assign: tag("operator", regex(/=(?!=)/)),
+    aug_assign_prefix: alt(
         rule("logical_op"),
         rule("bitwise_op"),
         rule("bitshift_op"),
         rule("sum_op"),
         rule("term_op"),
-    )),
+    ),
 
     // right associative
     ternary: alt(ssep(rule("blank"), rule("logical"), tag("operator", lit("?")), cut(), rule("assignment"), cut(), tag("operator", lit(":")), rule("ternary")), rule("logical")),
@@ -128,19 +131,19 @@ export const backolonGrammar: Grammar = {
     // chain associative
     comparison: alt(joined(ssep(rule("blank"), rule("comparison_op")), ssep(rule("blank"), rule("bitwise")), true, false), rule("bitwise")),
     comparison_op: alt(
-        rule("equal_op"),
-        rule("not_equal_op"),
-        rule("lte_op"),
-        rule("gte_op"),
-        rule("less_op"),
-        rule("greater_op"),
+        rule("equal"),
+        rule("not_equal"),
+        rule("lte"),
+        rule("gte"),
+        rule("less"),
+        rule("greater"),
     ),
-    equal_op: tag("operator", lit("==")),
-    not_equal_op: tag("operator", lit("!=")),
-    lte_op: tag("operator", lit("<=")),
-    gte_op: tag("operator", lit(">=")),
-    less_op: tag("operator", regex(/<(?![<-])/)),
-    greater_op: tag("operator", regex(/>(?!>)/)),
+    equal: tag("operator", lit("==")),
+    not_equal: tag("operator", lit("!=")),
+    lte: tag("operator", lit("<=")),
+    gte: tag("operator", lit(">=")),
+    less: tag("operator", regex(/<(?![<-])/)),
+    greater: tag("operator", regex(/>(?!>)/)),
 
     // left associative
     bitwise: alt(ssep(rule("blank"), rule("bitwise"), rule("bitwise_op"), cut(), rule("bitshift")), rule("bitshift")),
@@ -230,7 +233,7 @@ export const backolonGrammar: Grammar = {
         rule("quote"),
         rule("unquote"),
         rule("unquote_splicing"),
-        rule("reference"),
+        rule("special"),
         rule("lazy"),
         rule("ref"),
         rule("deref"),
@@ -245,7 +248,7 @@ export const backolonGrammar: Grammar = {
     quote: tag("operator", lit("`")),
     unquote: tag("operator", lit("$")),
     unquote_splicing: tag("operator", lit("$.")),
-    reference: tag("operator", lit("@")),
+    special: tag("operator", lit("@")),
     lazy: tag("operator", lit("^")),
     ref: tag("operator", regex(/&/)),
     deref: tag("operator", lit("*")),

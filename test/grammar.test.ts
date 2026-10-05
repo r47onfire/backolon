@@ -105,7 +105,9 @@ describe("precedence/associativity", () => {
         // -0.8-8 : (-0.8) - 8
         [`-0.8-8`, ["exprs", ["sum", ["prefix", ["negate", "-"], ["number", ["decimal", "0.8"]]], ["sub", "-"], ["number", ["decimal", "8"]]]]],
         // Right associative: a = (b <- 1)
-        [`a = b <- 1`, ["exprs", ["assignment", ["name", "a"], ["assign_op", undefined, "="], ["assignment", ["name", "b"], ["old_assign_op", "<-"], ["number", ["decimal", "1"]]]]]],
+        [`a = b <- 1`, ["exprs", ["assignment", ["name", "a"], ["normal_assign", "="], ["assignment", ["name", "b"], ["old_assign", "<-"], ["number", ["decimal", "1"]]]]]],
+        // Augmented assignment
+        [`a += b /= 3`, []],
     ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
         expect(toAST(parsesFully(text))).toEqual(ast);
     });
@@ -143,7 +145,7 @@ describe("unary operators", () => {
         //  ...args (splat)
         [`...args`, ["exprs", ["prefix", ["spread", "..."], ["name", "args"]]]],
         //  != is a comparison, not ! followed by =
-        [`a != b`, ["exprs", ["comparison", ["name", "a"], ["not_equal_op", "!="], ["name", "b"]]]],
+        [`a != b`, ["exprs", ["comparison", ["name", "a"], ["not_equal", "!="], ["name", "b"]]]],
     ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
         expect(toAST(parsesFully(text))).toEqual(ast);
     });
@@ -154,7 +156,12 @@ describe("indexing", () => {
         //  a.b.c is left-nested: (a.b).c
         [`a.b.c`, ["exprs", ["indexing", ["indexing", ["name", "a"], ["dot", "."], ["name", "b"]], ["dot", "."], ["name", "c"]]]],
         // test it works with assignment
-        [`a.b.c = d.e.f`, ["exprs", ["assignment", ["indexing", ["indexing", ["name", "a"], ["dot", "."], ["name", "b"]], ["dot", "."], ["name", "c"]], ["assign_op", undefined, "="], ["indexing", ["indexing", ["name", "d"], ["dot", "."], ["name", "e"]], ["dot", "."], ["name", "f"]]]]],
+        [`a.b.c = d.e.f`, ["exprs", ["assignment", ["indexing", ["indexing", ["name", "a"], ["dot", "."], ["name", "b"]], ["dot", "."], ["name", "c"]], ["normal_assign", "="], ["indexing", ["indexing", ["name", "d"], ["dot", "."], ["name", "e"]], ["dot", "."], ["name", "f"]]]]],
+        // indexing binds TIGHTER than referencing!
+        [`&x.y`, ["exprs", ["prefix", ["ref", "&"], ["indexing", ["name", "x"], ["dot", "."], ["name", "y"]]]]],
+        [`&x->y`, ["exprs", ["prefix", ["ref", "&"], ["indexing", ["name", "x"], ["arrow", "->"], ["name", "y"]]]]],
+        // ...but indexing binds LOOSER than dereferencing!
+        [`*x.y`, ["exprs", ["indexing", ["prefix", ["deref", "*"], ["name", "x"]], ["dot", "."], ["name", "y"]]]],
     ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
         expect(toAST(parsesFully(text))).toEqual(ast);
     });
@@ -163,7 +170,7 @@ describe("indexing", () => {
 test("pipes", () => {
     // pipes are left-nested: (a |> b it) |> c it
     const ast = toAST(parsesFully(`a |> b it |> c it`));
-    expect(ast).toEqual(["exprs", ["pipe", ["pipe", ["name", "a"], ["normal_pipe_op", "|>"], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "it"]]]], ["normal_pipe_op", "|>"], ["implicit_call", ["name", "c"], ["implicit_args", ["name", "it"]]]]]);
+    expect(ast).toEqual(["exprs", ["pipe", ["pipe", ["name", "a"], ["normal_pipe", "|>"], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "it"]]]], ["normal_pipe", "|>"], ["implicit_call", ["name", "c"], ["implicit_args", ["name", "it"]]]]]);
     // pipe variants parse (except |+> without brackets, see README test)
     parsesFully(`["hello", "world", "!"] |?> it != "!" |*> upper it`);
 });
