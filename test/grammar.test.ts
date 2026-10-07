@@ -82,6 +82,9 @@ describe("comments/separators", () => {
         [`print 1;;;;;;;;;print 2`, 2],
         [`;print 1;`, 1],
         [`print 1 ## trailing\nprint 2`, 2],
+        [`##[[\nprint 1\n##]]`, 0],
+        [`###[[\nprint 1\n##]]`, 1],
+        [`##[[\nprint 1\n##]]\nprint 1\n##[[\nprint 1\n##]]`, 1],
     ] satisfies [string, number][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, calls) => {
         const ast = toAST(parsesFully(text));
         expect(JSON.stringify(ast).split('"implicit_call"').length - 1).toEqual(calls);
@@ -160,8 +163,7 @@ describe("indexing", () => {
         // indexing binds TIGHTER than referencing!
         [`&x.y`, ["exprs", ["prefix", ["ref", "&"], ["indexing", ["name", "x"], ["dot", "."], ["name", "y"]]]]],
         [`&x->y`, ["exprs", ["prefix", ["ref", "&"], ["indexing", ["name", "x"], ["arrow", "->"], ["name", "y"]]]]],
-        // ...but indexing binds LOOSER than dereferencing!
-        [`*x.y`, ["exprs", ["indexing", ["prefix", ["deref", "*"], ["name", "x"]], ["dot", "."], ["name", "y"]]]],
+        [`(*x).y`, ["exprs", ["indexing", ["par_exp", ["exprs", ["prefix", ["deref", "*"], ["name", "x"]]]], ["dot", "."], ["name", "y"]]]],
     ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
         expect(toAST(parsesFully(text))).toEqual(ast);
     });
@@ -232,6 +234,7 @@ describe("quotes", () => {
         ["`(x + y)", ["exprs", ["prefix", ["quote", "`"], ["par_exp", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["name", "y"]]]]]]],
         ["`name", ["exprs", ["prefix", ["quote", "`"], ["name", "name"]]]],
         ["``(x)", ["exprs", ["prefix", ["quote", "`"], ["prefix", ["quote", "`"], ["par_exp", ["exprs", ["name", "x"]]]]]]],
+        ["{$x}", ["exprs", ["quasiquote", ["exprs", ["prefix", ["unquote", "$"], ["name", "x"]]]]]]
     ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
         expect(toAST(parsesFully(text))).toEqual(ast);
     });
