@@ -356,22 +356,16 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
         const loc = toMemoLoc(path, i);
         memo[loc] = l.seed;
         if (l.seed instanceof MatchFail) return l.seed;
-        return growLeftRecursion(path, g, i, l, loc);
-    }
-    const growLeftRecursion = (path: string, g: GrammarCombinator, i: number, l: LR, loc: MemoLoc): CSTNode | MatchFail => {
+        // grow left recursion
         const head = l.head!;
         heads[i] = head;
-        try {
-            while (true) {
-                head.eval = new Set(head.involved);
-                consumeCut();
-                const ans = callRule(path, g, i);
-                if (ans instanceof MatchFail || ans.end <= (l.seed as CSTNode).end) return l.seed;
-                l.seed = ans;
-                memo[loc] = ans;
-            }
-        } finally {
-            heads[i] = undefined;
+        for (; ;) {
+            head.eval = new Set(head.involved);
+            consumeCut();
+            const ans = callRule(path, g, i);
+            if (ans instanceof MatchFail || ans.end <= (l.seed as CSTNode).end) return l.seed;
+            l.seed = ans;
+            memo[loc] = ans;
         }
     }
     const recall = (path: string, g: GrammarCombinator, i: number): CSTNode | LR | MatchFail | undefined => {
