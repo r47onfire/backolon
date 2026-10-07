@@ -1,7 +1,7 @@
 import { isArray, last } from "lib0/array";
 import { isString } from "lib0/function";
 import { max } from "lib0/math";
-import { GrammarCombinator, rule } from "./combinator";
+import { Grammar, GrammarCombinator, rule } from "./combinator";
 import { CSTNode } from "./cst";
 
 export type MemoLoc = `${number}#${string}`;
@@ -27,7 +27,6 @@ class MatchFail {
 }
 
 export type Memo = Record<MemoLoc, CSTNode | MatchFail | LR>;
-export type Grammar = Readonly<Record<string, GrammarCombinator>>;
 
 /**
  * Parse text into a CST. The CST may contain error nodes if there were syntax errors.

@@ -1,5 +1,4 @@
-import { alt, cut, eps, ignored, joined, lit, lookahead, nonempty, opt, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
-import { Grammar } from "./parseToCST";
+import { alt, cut, eps, Grammar, ignored, joined, lit, lookahead, nonempty, opt, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
 // import { describe } from "./debug";
 
 export const backolonGrammar: Grammar = {
@@ -114,6 +113,7 @@ export const backolonGrammar: Grammar = {
         rule("bitshift_op"),
         rule("sum_op"),
         rule("term_op"),
+        rule("factor_op"),
     ),
 
     // right associative
@@ -125,8 +125,8 @@ export const backolonGrammar: Grammar = {
         rule("logical_and"),
         rule("logical_or"),
     ),
-    logical_and: alt(tag("operator", lit("&&")), tag("keyword", regex(/\band\b/))),
-    logical_or: alt(tag("operator", lit("||")), tag("keyword", regex(/\bor\b/))),
+    logical_and: alt(tag("operator", regex(/&&(?!=)/)), tag("keyword", regex(/\band\b/))),
+    logical_or: alt(tag("operator", regex(/\|\|(?!=)/)), tag("keyword", regex(/\bor\b/))),
 
     // chain associative
     comparison: alt(joined(ssep(rule("blank"), rule("comparison_op")), ssep(rule("blank"), rule("bitwise")), true, false), rule("bitwise")),
@@ -152,9 +152,9 @@ export const backolonGrammar: Grammar = {
         rule("bitwise_or"),
         rule("bitwise_xor"),
     ),
-    bitwise_and: tag("operator", lit("&")),
-    bitwise_or: tag("operator", regex(/\|(?![?*+>])/)),
-    bitwise_xor: tag("operator", lit("^")),
+    bitwise_and: tag("operator", regex(/&(?!=)/)),
+    bitwise_or: tag("operator", regex(/\|(?![?*+>=])/)),
+    bitwise_xor: tag("operator", regex(/\^(?!=)/)),
 
     // left associative
     bitshift: alt(ssep(rule("blank"), rule("bitshift"), rule("bitshift_op"), cut(), rule("sum")), rule("sum")),
@@ -162,8 +162,8 @@ export const backolonGrammar: Grammar = {
         rule("shift_left"),
         rule("shift_right"),
     ),
-    shift_left: tag("operator", lit("<<")),
-    shift_right: tag("operator", lit(">>")),
+    shift_left: tag("operator", regex(/<<(?!=)/)),
+    shift_right: tag("operator", regex(/>>(?!=)/)),
 
     // left associative
     sum: alt(ssep(rule("blank"), rule("sum"), rule("sum_op"), cut(), rule("term")), rule("term")),
@@ -171,8 +171,8 @@ export const backolonGrammar: Grammar = {
         rule("add"),
         rule("sub"),
     ),
-    add: tag("operator", lit("+")),
-    sub: tag("operator", regex(/-(?!>)/)),
+    add: tag("operator", regex(/\+(?!=)/)),
+    sub: tag("operator", regex(/-(?![=>])/)),
 
     // left associative
     term: alt(ssep(rule("blank"), rule("term"), rule("term_op"), cut(), rule("factor")), rule("factor")),
@@ -181,16 +181,16 @@ export const backolonGrammar: Grammar = {
         rule("div"),
         rule("mod"),
     ),
-    mul: tag("operator", regex(/\*(?!\*)/)),
-    div: tag("operator", lit("/")),
-    mod: tag("operator", lit("%")),
+    mul: tag("operator", regex(/\*(?![*=])/)),
+    div: tag("operator", regex(/\/(?!=)/)),
+    mod: tag("operator", regex(/%(?!=)/)),
 
     // right associative
     factor: alt(ssep(rule("blank"), rule("indexing"), rule("factor_op"), cut(), rule("factor")), rule("indexing")),
     factor_op: alt(
         rule("pow"),
     ),
-    pow: tag("operator", lit("**")),
+    pow: tag("operator", regex(/\*\*(?!=)/)),
 
     // left associative
     indexing: alt(ssep(rule("blank"), rule("indexing"), rule("indexing_op"), cut(), rule("primary")), rule("primary")),

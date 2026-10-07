@@ -1,3 +1,5 @@
+export type Grammar = Readonly<Record<string, GrammarCombinator>>;
+
 export type GrammarCombinator = {
     readonly op: GrammarOp;
     /**

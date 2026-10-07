@@ -105,15 +105,20 @@ constructor(bindings: Record<Identifier, any>, parents: readonly Env[]): Env
 ```
 **Properties:**
 - `constants: Record<Identifier, true>`
+- `watchers: Record<Identifier, RemovableSet<Block>>`
 - `bindings: Record<Identifier, any>`
 - `parents: readonly Env[]`
 **Methods:**
+- `scopeFor(name: Identifier): Result<Env, void>` — Returns the Env in which the given variable is defined.
+- `watch(name: Identifier, handler: Block): () => void`
 - `get(name: Identifier): Result<any, void>` — Look up the value, and return its value (in an ok result)
 or an err result if not found
-- `add(name: Identifier, value: any): void` — Defines the value in this scope (always succeeds)
-- `addConst(name: Identifier, value: any): void` — Defines the constant in this scope (always succeeds)
-- `set(name: Identifier, value: any): boolean | undefined` — Finds the scope in which this value is defined, and sets it there.
-Returns true if it was set, false if it's a constant and can't be changed,
+- `add(name: Identifier, value: any): void` — Defines the value in this scope (always succeeds).
+Note: bailing on trying to reassign a constant is not checked here.
+- `addConst(name: Identifier, value: any): void` — Defines the constant in this scope (always succeeds).
+Note: bailing on trying to reassign a constant is not checked here.
+- `set(name: Identifier, value: any): false | Env | undefined` — Finds the scope in which this value is defined, and sets it there.
+Returns the env it was just set in if it was set, false if it's a constant and can't be changed,
 or undefined if it wasn't defined anywhere.
 
 ## errors
@@ -179,6 +184,7 @@ constructor(type: AccessType, env: Env, name: Identifier): VariableReference
 - `get(): any` — Returns the current value, or returns `NOTHING` and throws an error (in the VM, not Javascript) if it's not readable.
 - `set(vm: JebVM, value: any, create: boolean, readonly: boolean): void` — Set the value of the slot to the provided value,
 or throws an error if it's readonly. The stack should not be modified either way.
+- `referenceError(): never`
 
 ## vm
 
@@ -198,6 +204,7 @@ constructor<T>(): JebVM<T>
 - `tracebackStack: LinkedList<StackCount>` — callstack entries
 - `builtinsEnv: Env` — Environment that all builtins live in
 - `protocols: Partial<JEBProtocols<T>>`
+- `error: JEBError | undefined`
 **Methods:**
 - `getState(): any`
 - `restoreState(state: any): void`
@@ -221,7 +228,6 @@ to signal to the running program that it's recursing too much
 - `newDynamicWind(): DynamicWind<T>`
 - `createEnv(parents: Env[]): Env`
 - `cc(extraOps: Command<T>[]): Continuation<T>` — Returns the current continuation at this state.
-- `fatalError(error: JEBError): never`
 
 ## wrapper
 

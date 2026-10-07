@@ -2,6 +2,11 @@
 
 ## parser
 
+### `Grammar`
+```ts
+Readonly<Record<string, GrammarCombinator>>
+```
+
 ### `GrammarCombinator`
 
 ### `GrammarOp`
@@ -22,11 +27,6 @@ Readonly<{ type?: string; ignored?: boolean; tag?: string; text?: string; start:
 ### `Memo`
 ```ts
 Record<MemoLoc, CSTNode | MatchFail | LR>
-```
-
-### `Grammar`
-```ts
-Readonly<Record<string, GrammarCombinator>>
 ```
 
 ## runtime

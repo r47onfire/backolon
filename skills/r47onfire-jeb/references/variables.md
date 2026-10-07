@@ -92,6 +92,21 @@ const B_index: JSFun<JebVM<any>, CallableSignatureFromShorthand<["obj", "name"]>
 const B_set: JSFun<JebVM<any>, CallableSignatureFromShorthand<[readonly [readonly ["ref"], "ref"], readonly [false, "value"], readonly ["old", false]]>>
 ```
 
+### `B_ref`
+```ts
+const B_ref: JSFun<JebVM<any>, CallableSignatureFromShorthand<[readonly [readonly ["ref"], "ref"]]>>
+```
+
+### `B_deref`
+```ts
+const B_deref: JSFun<JebVM<any>, CallableSignatureFromShorthand<["ref"]>>
+```
+
+### `B_always`
+```ts
+const B_always: JSFun<JebVM<any>, CallableSignatureFromShorthand<["derived", readonly [false, "onchange"], readonly [readonly ["ref"], "refs"], true]>>
+```
+
 ### `OP_throw`
 ```ts
 const OP_throw: (vm: JebVM, __namedParameters: [JEBError]) => void

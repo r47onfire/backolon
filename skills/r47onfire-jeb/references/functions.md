@@ -175,9 +175,8 @@ wrapThrowToError<T>(kind: ErrnoCode, f: () => T): T
 - `f: () => T` — The function to catch errors from
 **Returns:** `T`
 ```
-defineBuiltin(vm, "test", null, false, false,
-    (vm, args) => wrapThrowToError(vm, "test:testError",
-        () => doSomethingThatMayThrow(vm, args[0])));
+wrapThrowToError(vm, ErrnoCode.EJAVASCRIPT,
+    () => doSomethingThatMayThrow(vm, args[0]));
 ```
 
 ### `checkNothingOrPush`
