@@ -58,7 +58,6 @@ export const backolonGrammar: Grammar = {
     soft_keyword: alt(
         regex(/\b(in|end|else|catch|finally)\b/),
     ),
-    not_soft_keyword: lookahead(false, rule("soft_keyword")),
 
     simple_expr: rule("pipe"),
 
@@ -80,11 +79,11 @@ export const backolonGrammar: Grammar = {
     implicit_call: alt(ssep(rule("blank_sameline"), rule("kw_arg"), try_(nonempty(rule("implicit_args")))), rule("kw_arg")),
     implicit_args: seq(
         // can't use joined() here since the first and second are different + there are lookahead assertions!
-        rule("not_soft_keyword"),
+        lookahead(false, rule("soft_keyword")),
         rule("implicit_call"),
         rep(false, seq(
             ignored(ssep(rule("blank_sameline"), rule("comma"))),
-            rule("not_soft_keyword"),
+            lookahead(false, rule("soft_keyword")),
             alt(rule("implicit_call"), rule("empty_arg"))
         )),
     ),
