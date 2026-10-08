@@ -59,7 +59,7 @@ export const backolonGrammar: Grammar = {
     soft_keyword: alt(
         regex(/\b(in|end|else|catch|finally)\b/),
     ),
-    not_soft_keyword: lookahead(false, rule("soft_keyword")),
+    not_soft_keyword: ignored(lookahead(false, rule("soft_keyword"))),
 
     simple_expr: rule("pipe"),
 
