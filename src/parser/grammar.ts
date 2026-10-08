@@ -126,7 +126,7 @@ export const backolonGrammar: Grammar = {
         rule("logical_and"),
         rule("logical_or"),
     ),
-    logical_and: alt(tag("operator", lit("%%")), tag("keyword", regex(/\band\b/))),
+    logical_and: alt(tag("operator", lit("&&")), tag("keyword", regex(/\band\b/))),
     logical_or: alt(tag("operator", lit("||")), tag("keyword", regex(/\bor\b/))),
 
     // chain associative
