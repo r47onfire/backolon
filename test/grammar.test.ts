@@ -110,7 +110,7 @@ describe("precedence/associativity", () => {
         // Right associative: a = (b <- 1)
         [`a = b <- 1`, ["exprs", ["assignment", ["name", "a"], ["normal_assign", "="], ["assignment", ["name", "b"], ["old_assign", "<-"], ["number", ["decimal", "1"]]]]]],
         // Augmented assignment
-        [`a += b /= 3`, []],
+        [`a += b /= c`, ["exprs", ["assignment", ["name", "a"], ["aug_assign", ["add", "+"], ["normal_assign", "="]], ["assignment", ["name", "b"], ["aug_assign", ["div", "/"], ["normal_assign", "="]], ["name", "c"]]]]],
     ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
         expect(toAST(parsesFully(text))).toEqual(ast);
     });

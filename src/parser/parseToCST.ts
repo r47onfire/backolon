@@ -363,10 +363,12 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             head.eval = new Set(head.involved);
             consumeCut();
             const ans = callRule(path, g, i);
-            if (ans instanceof MatchFail || ans.end <= (l.seed as CSTNode).end) return l.seed;
+            if (ans instanceof MatchFail || ans.end <= (l.seed as CSTNode).end) break;
             l.seed = ans;
             memo[loc] = ans;
         }
+        heads[i] = undefined;
+        return l.seed;
     }
     const recall = (path: string, g: GrammarCombinator, i: number): CSTNode | LR | MatchFail | undefined => {
         const m = memo[toMemoLoc(path, i)];

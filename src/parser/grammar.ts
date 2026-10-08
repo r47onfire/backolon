@@ -7,8 +7,7 @@ export const backolonGrammar: Grammar = {
     blank_sameline: ignored(sameline(rule("blank_required"))),
 
     comment: ignored(tag("comment", alt(rule("block_comment"), rule("line_comment")))),
-    block_comment: seq(lit("##[["), rule("block_comment_body"), lit("##]]")),
-    block_comment_body: alt(rule("block_comment"), regex(/./m)),
+    block_comment: seq(lit("##[["), rep(false, alt(rule("block_comment"), seq(lookahead(false, lit("##]]")), regex(/./s)))), lit("##]]")),
     line_comment: regex(/##[^\n]*(\n|$)/),
 
     expr_sep: ignored(rep(true, alt(rule("semi"), rule("nl"), rule("comment")))),
@@ -59,7 +58,7 @@ export const backolonGrammar: Grammar = {
     soft_keyword: alt(
         regex(/\b(in|end|else|catch|finally)\b/),
     ),
-    not_soft_keyword: ignored(lookahead(false, rule("soft_keyword"))),
+    not_soft_keyword: lookahead(false, rule("soft_keyword")),
 
     simple_expr: rule("pipe"),
 
@@ -81,11 +80,11 @@ export const backolonGrammar: Grammar = {
     implicit_call: alt(ssep(rule("blank_sameline"), rule("kw_arg"), try_(nonempty(rule("implicit_args")))), rule("kw_arg")),
     implicit_args: seq(
         // can't use joined() here since the first and second are different + there are lookahead assertions!
-        rule("not_soft_keyword"),
+        ignored(rule("not_soft_keyword")),
         rule("implicit_call"),
         rep(false, seq(
             ignored(ssep(rule("blank_sameline"), rule("comma"))),
-            rule("not_soft_keyword"),
+            ignored(rule("not_soft_keyword")),
             alt(rule("implicit_call"), rule("empty_arg"))
         )),
     ),
@@ -122,13 +121,13 @@ export const backolonGrammar: Grammar = {
     ternary: alt(ssep(rule("blank"), rule("logical"), tag("operator", lit("?")), cut(), rule("assignment"), cut(), tag("operator", lit(":")), rule("ternary")), rule("logical")),
 
     // left associative
-    logical: alt(ssep(rule("blank"), rule("logical"), rule("logical_op"), cut(), rule("comparison")), rule("comparison")),
+    logical: alt(ssep(rule("blank"), rule("logical"), rule("logical_op"), lookahead(false, rule("assign_op")), cut(), rule("comparison")), rule("comparison")),
     logical_op: alt(
         rule("logical_and"),
         rule("logical_or"),
     ),
-    logical_and: alt(tag("operator", regex(/&&(?!=)/)), tag("keyword", regex(/\band\b/))),
-    logical_or: alt(tag("operator", regex(/\|\|(?!=)/)), tag("keyword", regex(/\bor\b/))),
+    logical_and: alt(tag("operator", lit("%%")), tag("keyword", regex(/\band\b/))),
+    logical_or: alt(tag("operator", lit("||")), tag("keyword", regex(/\bor\b/))),
 
     // chain associative
     comparison: alt(joined(ssep(rule("blank"), rule("comparison_op")), ssep(rule("blank"), rule("bitwise")), true, false), rule("bitwise")),
@@ -148,51 +147,51 @@ export const backolonGrammar: Grammar = {
     greater: tag("operator", regex(/>(?!>)/)),
 
     // left associative
-    bitwise: alt(ssep(rule("blank"), rule("bitwise"), rule("bitwise_op"), cut(), rule("bitshift")), rule("bitshift")),
+    bitwise: alt(ssep(rule("blank"), rule("bitwise"), rule("bitwise_op"), lookahead(false, rule("assign_op")), cut(), rule("bitshift")), rule("bitshift")),
     bitwise_op: alt(
         rule("bitwise_and"),
         rule("bitwise_or"),
         rule("bitwise_xor"),
     ),
-    bitwise_and: tag("operator", regex(/&(?!=)/)),
-    bitwise_or: tag("operator", regex(/\|(?![?*+>=])/)),
-    bitwise_xor: tag("operator", regex(/\^(?!=)/)),
+    bitwise_and: tag("operator", lit("&")),
+    bitwise_or: tag("operator", regex(/\|(?![?*+>])/)),
+    bitwise_xor: tag("operator", lit("^")),
 
     // left associative
-    bitshift: alt(ssep(rule("blank"), rule("bitshift"), rule("bitshift_op"), cut(), rule("sum")), rule("sum")),
+    bitshift: alt(ssep(rule("blank"), rule("bitshift"), rule("bitshift_op"), lookahead(false, rule("assign_op")), cut(), rule("sum")), rule("sum")),
     bitshift_op: alt(
         rule("shift_left"),
         rule("shift_right"),
     ),
-    shift_left: tag("operator", regex(/<<(?!=)/)),
-    shift_right: tag("operator", regex(/>>(?!=)/)),
+    shift_left: tag("operator", lit("<<")),
+    shift_right: tag("operator", lit(">>")),
 
     // left associative
-    sum: alt(ssep(rule("blank"), rule("sum"), rule("sum_op"), cut(), rule("term")), rule("term")),
+    sum: alt(ssep(rule("blank"), rule("sum"), rule("sum_op"), lookahead(false, rule("assign_op")), cut(), rule("term")), rule("term")),
     sum_op: alt(
         rule("add"),
         rule("sub"),
     ),
-    add: tag("operator", regex(/\+(?!=)/)),
-    sub: tag("operator", regex(/-(?![=>])/)),
+    add: tag("operator", lit("+")),
+    sub: tag("operator", regex(/-(?![>])/)),
 
     // left associative
-    term: alt(ssep(rule("blank"), rule("term"), rule("term_op"), cut(), rule("factor")), rule("factor")),
+    term: alt(ssep(rule("blank"), rule("term"), rule("term_op"), lookahead(false, rule("assign_op")), cut(), rule("factor")), rule("factor")),
     term_op: alt(
         rule("mul"),
         rule("div"),
         rule("mod"),
     ),
-    mul: tag("operator", regex(/\*(?![*=])/)),
-    div: tag("operator", regex(/\/(?!=)/)),
-    mod: tag("operator", regex(/%(?!=)/)),
+    mul: tag("operator", regex(/\*(?!\*)/)),
+    div: tag("operator", lit("/")),
+    mod: tag("operator", lit("%")),
 
     // right associative
-    factor: alt(ssep(rule("blank"), rule("indexing"), rule("factor_op"), cut(), rule("factor")), rule("indexing")),
+    factor: alt(ssep(rule("blank"), rule("indexing"), rule("factor_op"), lookahead(false, rule("assign_op")), cut(), rule("factor")), rule("indexing")),
     factor_op: alt(
         rule("pow"),
     ),
-    pow: tag("operator", regex(/\*\*(?!=)/)),
+    pow: tag("operator", lit("**")),
 
     // left associative
     indexing: alt(ssep(rule("blank"), rule("indexing"), rule("indexing_op"), cut(), rule("primary")), rule("primary")),
