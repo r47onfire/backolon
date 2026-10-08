@@ -7,7 +7,8 @@ export const backolonGrammar: Grammar = {
     blank_sameline: ignored(sameline(rule("blank_required"))),
 
     comment: ignored(tag("comment", alt(rule("block_comment"), rule("line_comment")))),
-    block_comment: seq(lit("##[["), rep(false, alt(rule("block_comment"), regex(/./))), lit("##]]")),
+    block_comment: seq(lit("##[["), rule("block_comment_body"), lit("##]]")),
+    block_comment_body: alt(rule("block_comment"), regex(/./m)),
     line_comment: regex(/##[^\n]*(\n|$)/),
 
     expr_sep: ignored(rep(true, alt(rule("semi"), rule("nl"), rule("comment")))),
