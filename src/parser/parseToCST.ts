@@ -149,7 +149,6 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 const children: CSTNode[] = [];
                 const start = i;
                 const items = g.c!, len = items.length;
-                var committed = false;
                 const sep = () => {
                     if (op !== "ssep") return;
                     const sepThing = applyRule(path + "/s", g.j!, i);
@@ -160,17 +159,18 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                         i = sepThing.end;
                     }
                 }
+                const currentCutFrame = last(cutStack), currentCut = currentCutFrame?.[0];
                 for (var j = 0; j < len; j++) {
                     sep();
                     const child = items[j]!;
-                    if (child.op === "cut") committed = true;
                     const thisMatch = applyRule(path + "/" + j, child, i);
                     if (thisMatch instanceof MatchFail) {
                         if (thisMatch.cut === Infinity) return thisMatch;
-                        if (committed) {
+                        if ((currentCutFrame?.[0] ?? 0) > currentCut) {
+                            // we did another cut inside
                             // resync to the failed child (without breaking the outer grammar node)
                             var depth = 0;
-                            for (const frame of cutStack) if (frame[0] > 0) depth++;
+                            for (var frame of cutStack) if (frame[0] > 0) depth++;
                             if (depth > 1) return thisMatch;
                             const resumed = recoverChild(path + "/" + j, child, i, thisMatch, children);
                             if (resumed === null) return thisMatch;
