@@ -1,0 +1,1 @@
+The parser in here is a modified PEG parser based off of the paper "Packrat Parsers Can Support Left Recursion" by Warth et al. Copy included at [packrat_lr.pdf](./packrat_lr.pdf) (canonical links: <https://web.cs.ucla.edu/~todd/research/pepm08.pdf> or <https://doi.org/10.1145/1328408.1328424>)
