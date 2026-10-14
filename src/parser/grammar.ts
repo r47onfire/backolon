@@ -302,10 +302,10 @@ export const backolonGrammar: Grammar = {
     i_x_escape: seq(lit("x"), cut(), regex(/[0-9a-f]{2}/)),
     i_u_escape: seq(lit("u"), cut(), regex(/[0-9a-f]{4}/)),
     i_U_escape: seq(lit("U"), cut(), regex(/\{[0-9a-f]+\}/)),
-    i_interpolation: seq(tag("escape", lit("\\(")), cut(), rule("exprs"), tag("escape", lit(")"))),
+    i_interpolation: seq(ignored(tag("escape", lit("\\("))), cut(), rule("exprs"), ignored(tag("escape", lit(")")))),
     i_body: tag("string", regex(/[^"\\]+/)),
 
-    regex: tag("regex", seq(lit("/"), rule("regex_body"), lit("/"), rule("regex_flags"))),
+    regex: tag("regex", seq(ignored(lit("/")), rule("regex_body"), ignored(lit("/")), rule("regex_flags"))),
     regex_body: regex(/(\[([^\]]|\\\])+\]|\\.|[^\\/\n])*/),
     regex_flags: regex(/[gimsuvy]*/), // cSpell: ignore gimsuvy
 

@@ -69,6 +69,11 @@ describe("strings", () => {
         const ast = toAST(parsesFully(`"fizzbuzz: \\(n) mississippi"`));
         expect(JSON.stringify(ast)).toContain("i_interpolation");
     });
+    test("interpolation 2", () => {
+        // interpolation contains i_interpolation node
+        const ast = toAST(parsesFully(`"fizzbuzz: \\(\n    print 1\n    1 + 2\n) mississippi"`));
+        expect(JSON.stringify(ast)).toContain("i_interpolation");
+    });
     // escapes
     test("escape normal", () => void parsesFully(`"a\\"b"`));
     test("escape raw", () => void parsesFully(`'it\\'s'`));
