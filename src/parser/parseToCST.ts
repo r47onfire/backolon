@@ -48,6 +48,11 @@ class MatchFail {
     constructor(readonly i: number, readonly cut: number, readonly expected: GrammarCombinator) { }
 }
 
+// Exported as types only, so they can be named in public signatures (and
+// documentation) without exposing their constructors as public API;
+// only the parser itself creates them.
+export type { Head, LR, MatchFail };
+
 /**
  * The memo table for a parse: results (a CST node, a failure, or an
  * in-progress LR) by `MemoLoc`. A caller may pass one in to reuse it across

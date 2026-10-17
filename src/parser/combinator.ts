@@ -37,6 +37,11 @@ export type GrammarCombinator = {
     // /** cached structural hash */
     // hash?: number;
 };
+/**
+ * The operation a {@link GrammarCombinator} performs; determines how the
+ * parser interprets the node's payload (`v`), children (`c`), and
+ * auxiliary combinator (`j`).
+ */
 export type GrammarOp =
     /** consume a token of that type; produces a leaf */
     | "tok"

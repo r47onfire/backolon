@@ -1,3 +1,8 @@
+/**
+ * Strategy for turning an import specifier into candidate file URLs.
+ * Implementations yield candidates in preference order; the importer
+ * uses the first one the finder can actually read.
+ */
 export abstract class Resolver {
     /**
      * Resolves the module specifier to a concrete file or files

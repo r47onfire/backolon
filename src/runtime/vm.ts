@@ -9,14 +9,14 @@ import { Module } from "./module";
  * each cached module's `parent` link (see {@link Module.parent});
  * restoring it makes half-loaded modules look unloaded again.
  */
-interface BackolonVMState {
+export interface BackolonVMState {
     moduleLoad: (Module | null)[];
     parser: Parser | null;
     resetParser: boolean;
 }
 
 /** Everything the VM tracks about one registered module. */
-interface ModuleCacheEntry {
+export interface ModuleCacheEntry {
     mod: Module,
     /** The module's source, once a loader has provided it. */
     src: SourceTracker | undefined,
