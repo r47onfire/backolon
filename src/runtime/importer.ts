@@ -6,6 +6,12 @@ import { Module } from "./module";
 import { Resolver } from "./resolver";
 import { BackolonVM } from "./vm";
 
+/**
+ * Coordinates the whole module-loading pipeline: a {@link Resolver}
+ * expands an import specifier into candidate URLs, {@link Finder}s
+ * fetch the winning candidate's contents, and a {@link Loader} turns
+ * those contents into a running {@link Module} in the VM.
+ */
 export class Importer {
     constructor(
         public resolver: Resolver,
@@ -53,6 +59,10 @@ export class Importer {
         }
         throw new JEBError(ErrnoCode.ENOPROTOOPT, `don't know how to load module from ${path.href}`);
     }
+    /**
+     * Dispatches a fetch operation to the first finder that
+     * {@link Finder.match matches} `path`. Throws if no finder does.
+     */
     #get<T extends "getBytes" | "getText" | "getJSON" | "getImport" | "stat">(path: URL, method: T): ReturnType<Finder[T]> {
         for (var finder of this.finders) {
             const f = finder.match(path);
@@ -60,20 +70,29 @@ export class Importer {
         }
         throw new JEBError(ErrnoCode.ENOPROTOOPT, `don't know how to load file from ${path.href}`);
     }
+    /** The raw bytes of the file at `path`, via the matching finder. */
     getBytes(path: URL): Promise<Uint8Array> {
         return this.#get(path, "getBytes");
     }
+    /** The file at `path` as text, via the matching finder. */
     getText(path: URL): Promise<string> {
         return this.#get(path, "getText");
     }
+    /** The file at `path`, parsed as JSON, via the matching finder. */
     getJSON(path: URL): Promise<JSONModule | JSONSourceMap> {
         return this.#get(path, "getJSON");
     }
+    /** The file at `path`, imported as a JS module, via the matching finder. */
     getImport(path: URL): Promise<JSModule> {
         return this.#get(path, "getImport");
     }
 }
 
+/**
+ * A module's source text, retained after loading so the parser can
+ * report errors against it and tooling can syntax-highlight it.
+ * `tags` maps a character index to the highlight tags for that position.
+ */
 export class SourceTracker {
     constructor(
         readonly src: Readonly<URL>,
@@ -82,6 +101,11 @@ export class SourceTracker {
     ) { }
 }
 
+/**
+ * The `import` opcode: pops an absolute URL off the data stack and loads
+ * that module (running it as the main module if `asMain` is set). The
+ * load is asynchronous, so the VM is suspended until it completes.
+ */
 export const OP_do_import = makeOpcode("import", (vm: BackolonVM, { 0: parent, 1: asMain }: [parent: Module | null, main?: boolean]) => {
     const url = popData(vm);
     if (!(url instanceof URL)) {
@@ -90,6 +114,12 @@ export const OP_do_import = makeOpcode("import", (vm: BackolonVM, { 0: parent, 1
     promisifyVM(vm, vm.importer.loadModule(vm, parent, url, asMain ?? false));
 }, "..");
 
+/**
+ * Pushed by {@link Importer.loadModule} to run once a module's loader
+ * finishes: checks the loader actually left the {@link Module} on the
+ * stack, then clears its `parent` link, marking it fully loaded (so
+ * later imports of it are no longer treated as circular).
+ */
 const OP_cleanup_module = makeOpcode(null, (vm: BackolonVM, { 0: url }: [URL]) => {
     const module = peekData(vm);
     if (!(module instanceof Module)) {

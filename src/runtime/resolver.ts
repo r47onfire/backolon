@@ -7,6 +7,12 @@ export abstract class Resolver {
     abstract resolve(path: URL): Generator<URL, void, void>;
 }
 
+/**
+ * The default resolver: yields the path as-is, then with each known
+ * module-file extension appended, then as a directory containing an
+ * `index` file with each extension. The importer uses the first
+ * candidate that actually exists.
+ */
 export class IndexResolver extends Resolver {
     *resolve(path: URL) {
         yield path;
