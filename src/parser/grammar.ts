@@ -29,10 +29,11 @@ export const backolonGrammar: Grammar = {
     nl: lit("\n"),
     comma: ignored(tag("punctuation", lit(","))),
 
-    exprs: rep(false, ssep(rule("expr_sep"), ssep(rule("blank"), rule("expr")))),
+    exprs: rep(false, ssep(rule("expr_sep"), ssep(rule("blank"), seq(ignored(rule("not_soft_keyword")), rule("expr"))))),
     toplevel_exprs: nonempty(rule("exprs")),
     toplevel_expr: rep(true, ssep(rule("expr_sep"), ssep(rule("blank"), rule("expr")))),
     expr: alt(rule("block_expr"), rule("simple_expr")),
+    expr_sameline: sameline(rule("simple_expr")),
 
     // block_expr: let, if, while, foreach, trycatch, with, fn
     block_expr: alt(
@@ -43,30 +44,62 @@ export const backolonGrammar: Grammar = {
         rule("trycatch"),
         rule("with"),
         rule("fn"),
+        rule("always"),
+        rule("do"),
     ),
 
-    let: ssep(rule("blank"), tag("keyword", regex(/\blet\b/)), rule("let_body")),
-    let_body: seq(
+    let: ssep(rule("blank"), ignored(tag("keyword", regex(/\blet\b/))), rule("let_body")),
+    let_body: alt(
+        rule("let_loop_block"),
+        rule("let_block"),
+        rule("simple_let"),
+    ),
+    simple_let: seq(rule("implicit_args"), lookahead(false, seq(rule("blank"), regex(/\bin\b/)))),
+    let_block: ssep(
+        rule("blank"),
         rule("implicit_args"),
-        opt(rule("body_exprs")),
+        seq(
+            ignored(tag("keyword", regex(/\bin\b/))),
+            // no sep here!
+            rule("body_exprs"),
+        ),
     ),
+    let_loop_block: ssep(
+        rule("blank"),
+        ignored(tag("punctuation", lit("("))),
+        cut(),
+        rule("name"),
+        ignored(tag("punctuation", lit(")"))),
+        rule("let_block"),
+    ),
+    body_exprs: alt(rule("expr_sameline"), ssep(
+        rule("blank"),
+        rule("exprs"),
+        ignored(opt(tag("keyword", regex(/\bend\b/))))
+    )),
 
-    if: ssep(rule("blank"), tag("keyword", regex(/\bif\b/)), rule("if_body")),
+    if: ssep(rule("blank"), ignored(tag("keyword", regex(/\bif\b/))), rule("if_body")),
 
 
-    while: ssep(rule("blank"), tag("keyword", regex(/\bwhile\b/)), rule("while_body")),
+    while: ssep(rule("blank"), ignored(tag("keyword", regex(/\bwhile\b/))), rule("while_body")),
 
 
-    foreach: ssep(rule("blank"), tag("keyword", regex(/\bforeach\b/)), rule("foreach_body")),
+    foreach: ssep(rule("blank"), ignored(tag("keyword", regex(/\bforeach\b/))), rule("foreach_body")),
 
 
-    trycatch: ssep(rule("blank"), tag("keyword", regex(/\btry\b/)), rule("trycatch_body")),
+    trycatch: ssep(rule("blank"), ignored(tag("keyword", regex(/\btry\b/))), rule("trycatch_body")),
 
 
-    with: ssep(rule("blank"), tag("keyword", regex(/\bwith\b/)), rule("with_body")),
+    with: ssep(rule("blank"), ignored(tag("keyword", regex(/\bwith\b/))), rule("with_body")),
 
 
-    fn: ssep(rule("blank"), tag("keyword", regex(/\bfn\b/)), rule("fn_body")),
+    fn: ssep(rule("blank"), ignored(tag("keyword", regex(/\bfn\b/))), rule("fn_body")),
+
+
+    always: ssep(rule("blank"), ignored(tag("keyword", regex(/\balways\b/))), rule("always_body")),
+
+
+    do: ssep(rule("blank"), ignored(tag("keyword", regex(/\bdo\b/))), rule("do_body")),
 
 
     soft_keyword: alt(

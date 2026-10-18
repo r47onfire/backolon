@@ -33,6 +33,18 @@ const parsesFully = (text: string): CSTNode => {
     return cst;
 };
 
+describe("comments", () => {
+    test.each(([
+        "## line comment",
+        "##line comment2",
+        "##[[ block comment ##]]",
+        "##[[block comment2##]]",
+        "##[[nested ##[[block comment##]]##]]",
+    ] satisfies string[]).map(s => [JSON.stringify(s), s]))("%s", (_, str) => {
+        expect(toAST(parsesFully(str))).toEqual(["exprs"]);
+    });
+});
+
 describe("numbers", () => {
     test.each(([
         ["123", "decimal"],
@@ -52,8 +64,6 @@ describe("names", () => {
         "_",
         "foo123",
         "_bar",
-        "in",
-        "end",
         "fn",
     ])("%s", (text) => {
         const ast = toAST(parsesFully(text));
@@ -161,7 +171,7 @@ describe("unary operators", () => {
 
 describe("indexing", () => {
     test.each(([
-        //  a.b.c is left-nested: (a.b).c
+        // a.b.c is left-nested: (a.b).c
         [`a.b.c`, ["exprs", ["indexing", ["indexing", ["name", "a"], ["dot", "."], ["name", "b"]], ["dot", "."], ["name", "c"]]]],
         // test it works with assignment
         [`a.b.c = d.e.f`, ["exprs", ["assignment", ["indexing", ["indexing", ["name", "a"], ["dot", "."], ["name", "b"]], ["dot", "."], ["name", "c"]], ["normal_assign", "="], ["indexing", ["indexing", ["name", "d"], ["dot", "."], ["name", "e"]], ["dot", "."], ["name", "f"]]]]],
@@ -178,7 +188,7 @@ test("pipes", () => {
     // pipes are left-nested: (a |> b it) |> c it
     const ast = toAST(parsesFully(`a |> b it |> c it`));
     expect(ast).toEqual(["exprs", ["pipe", ["pipe", ["name", "a"], ["normal_pipe", "|>"], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "it"]]]], ["normal_pipe", "|>"], ["implicit_call", ["name", "c"], ["implicit_args", ["name", "it"]]]]]);
-    // pipe variants parse (except |+> without brackets, see README test)
+    // pipe variants parse
     parsesFully(`["hello", "world", "!"] |?> it != "!" |*> upper it`);
 });
 
@@ -190,12 +200,18 @@ test("ternary", () => {
     parsesFully(`n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : "\\(n)"`);
 });
 
-test("let", () => {
-    // TODO: let_body is not yet defined in the grammar
-    // Once implemented:
-    // - `let a = 1` should be a simple var (not a call)
-    // - `let x = 1, y = 2 in foo x end` should be a let_block
-    // - `let(loop) x = 1 in foo loop end` should be a let_loop
+describe("let", () => {
+    test.each(([
+        [`let a = b`, ["exprs", ["let", ["simple_let", ["implicit_args", ["assignment", ["name", "a"], ["normal_assign", "="], ["name", "b"]]]]]]],
+        [`let x = a, y = b in foo x end`, ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]], ["assignment", ["name", "y"], ["normal_assign", "="], ["name", "b"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]]]]],
+        [`let(loop) x = a in foo loop end`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
+        [`let(loop) x = a in\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
+        [`let(loop) x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
+        [`let(loop) ##[[ inner comment ##]] x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
+        [`(let x = a in\n    foo loop)`, ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]]],
+    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
+        expect(toAST(parsesFully(text))).toEqual(ast);
+    });
 });
 
 test("foreach", () => {
@@ -251,16 +267,6 @@ test("parens", () => {
     parsesFully(`(a)`);
     parsesFully(`()`);
     parsesFully(`(f)(x)`);
-});
-
-test("soft keywords stay usable as names, never as call args", () => {
-    // soft keywords usable as names
-    expect(toAST(parsesFully(`in`))).toEqual(["exprs", ["name", "in"]]);
-    expect(toAST(parsesFully(`end`))).toEqual(["exprs", ["name", "end"]]);
-    expect(toAST(parsesFully(`do`))).toEqual(["exprs", ["name", "do"]]);
-    // TODO: `f in` currently parses `in` as a call arg; the soft-keyword
-    // exclusion is missing in arg position. Once fixed, `f in` should parse
-    // as just `f` with ` in` unconsumed.
 });
 
 test("README examples", () => {
