@@ -5,12 +5,12 @@ import { alt, cut, eps, Grammar, ignored, joined, lit, lookahead, nonempty, opt,
  * The Backolon grammar, as plain combinator data.
  *
  * The expression rules form a precedence chain from loosest to tightest:
- * expr → pipe → implicit_call → kw_arg → assignment → ternary → logical →
- * comparison → bitwise → bitshift → sum → term → factor → indexing →
+ * expr -> pipe -> implicit_call -> kw_arg -> assignment -> ternary -> logical ->
+ * comparison -> bitwise -> bitshift -> sum -> term -> factor -> indexing ->
  * primary. Binary levels are written left-recursively (the parser grows the
  * recursion), and after matching an operator each level first checks a
- * negative lookahead on `assign_op` — so `a += b` is not misread as a binary
- * `+` followed by an assignment — and then cuts to commit the level.
+ * negative lookahead on `assign_op` -- so `a += b` is not misread as a binary
+ * `+` followed by an assignment -- and then cuts to commit the level.
  *
  * Note: the block statements (let/if/while/foreach/trycatch/with/fn)
  * delegate to `*_body` rules; only `let_body` is defined so far.

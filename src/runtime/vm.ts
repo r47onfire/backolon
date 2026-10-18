@@ -74,8 +74,8 @@ export class BackolonVM extends JebVM<BackolonVM> {
         return this.#modcacheGet(url)[1]?.mod;
     }
     /**
-     * Creates a module for `url` — with a fresh global environment nested
-     * inside the builtins environment — and registers it in the cache.
+     * Creates a module for `url` -- with a fresh global environment nested
+     * inside the builtins environment -- and registers it in the cache.
      * Throws if a module for `url` already exists.
      */
     createModule(url: URL, parent: Module | null): Module {

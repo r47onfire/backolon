@@ -3,8 +3,8 @@ import { GrammarCombinator } from "./combinator";
 /**
  * A node of the concrete syntax tree produced by the parser.
  *
- * Invariant: recursively concatenating the `text` of all leaves — including
- * `ignored` nodes — reproduces the original source exactly. Ignored nodes are
+ * Invariant: recursively concatenating the `text` of all leaves -- including
+ * `ignored` nodes -- reproduces the original source exactly. Ignored nodes are
  * only removed in a later pass, when the CST is lowered to an AST.
  */
 export type CSTNode = Readonly<{

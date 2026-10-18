@@ -97,7 +97,7 @@ export const ssep = (s: GrammarCombinator, ...n: GrammarCombinator[]): GrammarCo
 export const joined = (j: GrammarCombinator, n: GrammarCombinator, r2: boolean, t: boolean): GrammarCombinator => ({ op: "joined", c: [n], j: j, f: (r2 ? "2" : "") + (t ? "t" : "") });
 /** Tries every alternative and keeps the longest match (the first, on ties). */
 export const alt = (...n: GrammarCombinator[]): GrammarCombinator => ({ op: "alt", c: n });
-/** Matches `n` if it succeeds, otherwise succeeds empty — unless `n` failed after a cut, in which case the failure propagates. */
+/** Matches `n` if it succeeds, otherwise succeeds empty -- unless `n` failed after a cut, in which case the failure propagates. */
 export const opt = (n: GrammarCombinator): GrammarCombinator => ({ op: "opt", c: [n] });
 /** Repeats `n` greedily until it fails ordinarily; `r` = true requires at least one match, false allows zero. */
 export const rep = (r: boolean, n: GrammarCombinator): GrammarCombinator => ({ op: "rep", f: r ? "r" : "o", c: [n] });
