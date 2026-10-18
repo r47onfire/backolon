@@ -224,6 +224,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 const options: CSTNode[] = [];
                 var furthestFail: MatchFail | undefined;
                 for (var j = 0; j < len; j++) {
+                    const depthBefore = cutDepth();
                     const thisMatch = applyRule(path + "/" + j, items[j]!, i);
                     if (thisMatch instanceof MatchFail) {
                         const childCut = thisMatch.cut;
@@ -238,6 +239,9 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                         const newCut = childCut > 0 ? childCut : d - 1;
                         return new MatchFail(thisMatch.i, newCut, thisMatch.expected);
                     }
+                    // A cut inside a successful alternative commits the choice:
+                    // return it now instead of letting a later, longer alternative win.
+                    if (cutDepth() > depthBefore) return thisMatch;
                     options.push(thisMatch);
                 }
                 return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, g)) : options.reduce((a, b) => b.end > a.end ? b : a);

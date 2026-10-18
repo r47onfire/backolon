@@ -69,11 +69,16 @@ export const backolonGrammar: Grammar = {
         ignored(tag("punctuation", lit(")"))),
         rule("let_block"),
     ),
-    body_exprs: alt(rule("expr_sameline"), ssep(
-        rule("blank"),
-        rule("exprs"),
-        ignored(opt(tag("keyword", regex(/\bend\b/))))
-    )),
+    body_exprs: alt(
+        seq(
+            rule("expr_sameline"),
+            cut(),
+            ignored(opt(seq(rule("blank"), tag("keyword", regex(/\bend\b/)))))),
+        ssep(
+            rule("blank"),
+            rule("exprs"),
+            ignored(opt(tag("keyword", regex(/\bend\b/))))
+        )),
 
     if: ssep(rule("blank"), ignored(tag("keyword", regex(/\bif\b/))), rule("if_body")),
 
