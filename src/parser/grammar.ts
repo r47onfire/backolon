@@ -22,14 +22,14 @@ export const backolonGrammar: Grammar = {
 
     comment: ignored(tag("comment", alt(rule("block_comment"), rule("line_comment")))),
     block_comment: seq(lit("##[["), rep(false, alt(rule("block_comment"), seq(lookahead(false, lit("##]]")), regex(/./s)))), lit("##]]")),
-    line_comment: regex(/##[^\n]*(\n|$)/),
+    line_comment: regex(/##(?!\[\[)[^\n]*(\n|$)/),
 
     expr_sep: ignored(rep(true, alt(rule("semi"), rule("nl"), rule("comment")))),
     semi: ignored(tag("punctuation", lit(";"))),
     nl: lit("\n"),
     comma: ignored(tag("punctuation", lit(","))),
 
-    exprs: rep(false, ssep(rule("expr_sep"), ssep(rule("blank"), seq(ignored(rule("not_soft_keyword")), rule("expr"))))),
+    exprs: seq(rep(false, ssep(rule("expr_sep"), ssep(rule("blank"), seq(ignored(rule("not_soft_keyword")), rule("expr"))))), ignored(opt(rule("expr_sep")))),
     toplevel_exprs: nonempty(rule("exprs")),
     toplevel_expr: rep(true, ssep(rule("expr_sep"), ssep(rule("blank"), rule("expr")))),
     expr: alt(rule("block_expr"), rule("simple_expr")),

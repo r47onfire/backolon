@@ -89,7 +89,7 @@ describe("strings", () => {
     test("escape raw", () => void parsesFully(`'it\\'s'`));
 });
 
-describe("comments/separators", () => {
+describe("comments + separators", () => {
     test.each(([
         [`## hello\nprint 1`, 1],
         [`print 1; print 2`, 2],

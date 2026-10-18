@@ -291,7 +291,10 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 const require2 = /2/.test(g.f!);
                 const trailing = /t/.test(g.f!);
                 for (; ;) {
-                    if (i >= text.length) break;
+                    if (i >= text.length) {
+                        if (children.length < (require2 ? 3 : 1)) return new MatchFail(i, 0, elemRule);
+                        break;
+                    }
                     const elem = applyRule(path + "/e", elemRule, i);
                     if (elem instanceof MatchFail) {
                         if (elem.cut === Infinity) return elem;
