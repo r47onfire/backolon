@@ -347,11 +347,11 @@ export const backolonGrammar: Grammar = {
     name: tag("name", regex(/[_\p{L}][_\p{L}\p{N}]*/u)),
 };
 
-/** Every highlight tag name used anywhere in `backolonGrammar`, collected by walking all of its combinator trees (e.g. for building a syntax-highlight theme). */
-export const all_tags = new Set(Object.values(backolonGrammar).flatMap(function walk(g: any): string[] {
+/** Every highlight tag name used anywhere in {@link backolonGrammar}, collected by walking all of its combinator trees (e.g. for building a syntax-highlight theme). */
+export const all_tags = new Set(function walk(g: any): string[] {
     if (typeof g !== "object") return [];
     return (g.op === "tag" ? [g.v] : []).concat(Object.values(g).flatMap(walk));
-}));
+}(backolonGrammar));
 // console.log({ all_tags });
 // Object.entries(backolonGrammar).forEach(([rule, g]) => {
 //     console.log(`    ${rule}: ${describe(g)}`);
