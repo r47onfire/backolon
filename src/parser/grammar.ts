@@ -30,7 +30,6 @@ export const backolonGrammar: Grammar = {
     toplevel_exprs: nonempty(rule("exprs")),
     toplevel_expr: rep(true, ssep(rule("expr_sep"), ssep(rule("blank"), rule("expr")))),
     expr: alt(rule("block_expr"), rule("simple_expr")),
-    expr_sameline: sameline(rule("simple_expr")),
 
     // block_expr: let, if, while, foreach, trycatch, with, fn
     block_expr: alt(
@@ -71,14 +70,16 @@ export const backolonGrammar: Grammar = {
     ),
     body_exprs: alt(
         seq(
-            rule("expr_sameline"),
+            lookahead(true, rule("blank_sameline")),
+            rule("expr"),
             cut(),
             ignored(opt(seq(rule("blank"), tag("keyword", regex(/\bend\b/)))))),
         ssep(
             rule("blank"),
             rule("exprs"),
             ignored(opt(tag("keyword", regex(/\bend\b/))))
-        )),
+        )
+    ),
 
     if: ssep(rule("blank"), ignored(tag("keyword", regex(/\bif\b/))), rule("if_body")),
 
@@ -105,7 +106,7 @@ export const backolonGrammar: Grammar = {
 
 
     soft_keyword: alt(
-        regex(/\b(in|end|else|catch|finally)\b/),
+        regex(/\b(in|end|then|else|catch|finally)\b/),
     ),
     not_soft_keyword: lookahead(false, rule("soft_keyword")),
 

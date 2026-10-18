@@ -95,7 +95,7 @@ export const seq = (...n: GrammarCombinator[]): GrammarCombinator => ({ op: "seq
 export const ssep = (s: GrammarCombinator, ...n: GrammarCombinator[]): GrammarCombinator => ({ op: "ssep", c: n, j: s });
 /** Matches `n` separated by `j` (`n`, `n` j `n`, ...), keeping elements and separators in one flat result. `r2` requires at least two elements; `t` permits a trailing separator. */
 export const joined = (j: GrammarCombinator, n: GrammarCombinator, r2: boolean, t: boolean): GrammarCombinator => ({ op: "joined", c: [n], j: j, f: (r2 ? "2" : "") + (t ? "t" : "") });
-/** Tries every alternative and keeps the longest match (the first, on ties). */
+/** Tries every alternative and returns the first alternative that cut (whether or not it succeeded) or if none cut, the longest succeeding match (the first, on ties). */
 export const alt = (...n: GrammarCombinator[]): GrammarCombinator => ({ op: "alt", c: n });
 /** Matches `n` if it succeeds, otherwise succeeds empty -- unless `n` failed after a cut, in which case the failure propagates. */
 export const opt = (n: GrammarCombinator): GrammarCombinator => ({ op: "opt", c: [n] });
