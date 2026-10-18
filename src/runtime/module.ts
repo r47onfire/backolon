@@ -1,5 +1,10 @@
 import { Env, VariableReference } from "@r47onfire/jeb";
 
+/**
+ * A Backolon module: one loaded (or still loading) source file, with its
+ * own global environment, its identity URL, and its named exports.
+ * Modules are created and cached by {@link BackolonVM.createModule}.
+ */
 export class Module {
     // TODO: add parser modifications
     /** The named exports for the module */
@@ -16,6 +21,7 @@ export class Module {
         global.addConst(MODULE_SELF, this);
         global.addConst(MODULE_NAME, id);
     }
+    /** The module's result value, once it has finished evaluating. */
     result: any;
 }
 

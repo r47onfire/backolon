@@ -3,6 +3,11 @@ import { isArray } from "lib0/array";
 import { GrammarCombinator, GrammarOp, lit, rep, seq } from "./combinator";
 import { stringify } from "lib0/json";
 
+/**
+ * Deep-copies a value into a printable form for debugging, replacing JEB
+ * runtime values that cannot be displayed: functions become "__name"
+ * strings, and location-wrapped forms are unwrapped to their payload.
+ */
 export const stripInlinedFunctions = <T>(ast: T): T => {
     if (ast instanceof JSFun) {
         return "__" + ast.name.toString() as T;
@@ -19,6 +24,12 @@ export const stripInlinedFunctions = <T>(ast: T): T => {
     return ast;
 }
 
+/**
+ * Rendering templates for `describe`, one per op. Letters in a template are
+ * substituted: v = payload, r = rule name, c = children (joined by the
+ * optional second element), j = aux combinator, f = flag (translated through
+ * the optional third element).
+ */
 const describe_formats: Record<GrammarOp, [string, join?: string, map?: Record<string, string>]> = {
     tok: ["v"],
     rule: ["r"],
@@ -40,6 +51,7 @@ const describe_formats: Record<GrammarOp, [string, join?: string, map?: Record<s
     die: ["^v"]
 }
 
+/** Renders a combinator in a compact PEG-like notation, for debugging grammars. */
 export const describe = (g: GrammarCombinator): string => {
     const formatcode = describe_formats[g.op];
     return formatcode[0].replaceAll(/[vrcjf]/g, m => { // cSpell: ignore vrcjf

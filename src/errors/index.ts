@@ -1,6 +1,15 @@
+/** Error formatting: renders a message together with the offending source line and a caret span under it. */
 import { max } from "lib0/math";
 
 // what is this
+/**
+ * Formats `message` as `file:line:col: message`, followed by the source line
+ * containing `start` and a row of `^` under the span `start..end` (clipped to
+ * that line, with a "..." suffix if the span runs past it).
+ *
+ * `getSource` supplies the text of a source file by URL; if it returns an
+ * empty string, only the header line is produced.
+ */
 const formatTrace = (file: URL, start: number, end: number, message: string, getSource: (url: URL) => string): string => {
     const src = getSource(file);
     var lineInfo = "", line = -1, col = -1;

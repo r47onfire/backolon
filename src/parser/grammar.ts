@@ -1,6 +1,20 @@
 import { alt, cut, eps, Grammar, ignored, joined, lit, lookahead, nonempty, opt, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
 // import { describe } from "./debug";
 
+/**
+ * The Backolon grammar, as plain combinator data.
+ *
+ * The expression rules form a precedence chain from loosest to tightest:
+ * expr -> pipe -> implicit_call -> kw_arg -> assignment -> ternary -> logical ->
+ * comparison -> bitwise -> bitshift -> sum -> term -> factor -> indexing ->
+ * primary. Binary levels are written left-recursively (the parser grows the
+ * recursion), and after matching an operator each level first checks a
+ * negative lookahead on `assign_op` -- so `a += b` is not misread as a binary
+ * `+` followed by an assignment -- and then cuts to commit the level.
+ *
+ * Note: the block statements (let/if/while/foreach/trycatch/with/fn)
+ * delegate to `*_body` rules; only `let_body` is defined so far.
+ */
 export const backolonGrammar: Grammar = {
     blank: ignored(rep(false, alt(regex(/\s*/), rule("comment")))),
     blank_required: ignored(nonempty(rule("blank"))),
@@ -333,6 +347,7 @@ export const backolonGrammar: Grammar = {
     name: tag("name", regex(/[_\p{L}][_\p{L}\p{N}]*/u)),
 };
 
+/** Every highlight tag name used anywhere in `backolonGrammar`, collected by walking all of its combinator trees (e.g. for building a syntax-highlight theme). */
 export const all_tags = new Set(Object.values(backolonGrammar).flatMap(function walk(g: any): string[] {
     if (typeof g !== "object") return [];
     return (g.op === "tag" ? [g.v] : []).concat(Object.values(g).flatMap(walk));
