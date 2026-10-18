@@ -10,10 +10,7 @@ import { alt, cut, eps, Grammar, ignored, joined, lit, lookahead, nonempty, opt,
  * primary. Binary levels are written left-recursively (the parser grows the
  * recursion), and after matching an operator each level first checks a
  * negative lookahead on `assign_op` -- so `a += b` is not misread as a binary
- * `+` followed by an assignment -- and then cuts to commit the level.
- *
- * Note: the block statements (let/if/while/foreach/trycatch/with/fn)
- * delegate to `*_body` rules; only `let_body` is defined so far.
+ * `+` followed by a prefix `=` assignment -- and then cuts to commit the level.
  */
 export const backolonGrammar: Grammar = {
     blank: ignored(rep(false, alt(regex(/\s*/), rule("comment")))),
