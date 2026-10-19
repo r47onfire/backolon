@@ -9,11 +9,12 @@ export type GrammarCombinator = {
     readonly op: GrammarOp;
     /**
      * Leaf payload:
-     * - string: rule name, tag name, literal pattern, fail message
+     * - string: rule name, literal pattern, fail message
      * - [string, string]: regex [source, flags]
+     * - string[]: keywords options
      * - number: cut depth
      */
-    readonly v?: string | [string, string] | number;
+    readonly v?: string | string[] | number;
     /**
      * All sub-combinators. Positional for multi-role ops:
      * - if: [cond, trueBranch, falseBranch]
@@ -32,6 +33,7 @@ export type GrammarCombinator = {
      * - rep: "o" or "r" for optional/required
      * - lookahead: "+" or "-" for positive or negative assertion
      * - joined: require2 is "2", trailing is "t"; presence
+     * - tag/kw: tag
      */
     readonly f?: string;
     // /** cached structural hash */
@@ -45,6 +47,8 @@ export type GrammarCombinator = {
 export type GrammarOp =
     /** consume a token of that type; produces a leaf */
     | "tok"
+    /** consume a text keyword between regex \b separators */
+    | "kw"
     /** node is trivial / no useful value */
     | "ign"
     /** call the rule and return a node with the results */
@@ -85,6 +89,8 @@ export type GrammarOp =
 export const lit = (p: string): GrammarCombinator => ({ op: "tok", v: p });
 /** Matches the regex `p` anchored at the current position (the engine adds the sticky flag); produces a leaf holding the matched text. The pattern is stored as `[source, flags]` to keep combinators plain data. */
 export const regex = (p: RegExp): GrammarCombinator => ({ op: "tok", v: [p.source, p.flags] });
+/** Matches any one of the given options between regex \b combinators */
+export const kw = (t: string, ...o: string[]): GrammarCombinator => ({ op: "kw", v: o, f: t });
 /** Parses `n` but flags the result `ignored`: its text stays in the CST (so concatenating all leaves still reproduces the source) and it is dropped later, when the CST is lowered to an AST. */
 export const ignored = (n: GrammarCombinator): GrammarCombinator => ({ op: "ign", c: [n] });
 /** Invokes the named rule `r` from the grammar; the result is wrapped in a node typed `r`, unless the rule only delegated to another named rule. */
@@ -104,7 +110,7 @@ export const rep = (r: boolean, n: GrammarCombinator): GrammarCombinator => ({ o
 /** Conditional: evaluates `c` as a lookahead (consuming no input); matches `t` if it succeeds, `f` otherwise. */
 export const if_ = (c: GrammarCombinator, t: GrammarCombinator, f: GrammarCombinator): GrammarCombinator => ({ op: "if", c: [t, f], j: c });
 /** Parses `n` and tags the result with `t` (the visual kind used for syntax highlighting). */
-export const tag = (t: string, n: GrammarCombinator): GrammarCombinator => ({ op: "tag", v: t, c: [n] });
+export const tag = (t: string, n: GrammarCombinator): GrammarCombinator => ({ op: "tag", f: t, c: [n] });
 /** Cut: once matched, a later failure no longer falls back to sibling alternatives; `d` is how many enclosing choice levels the commitment spans. Produces an empty ignored node. */
 export const cut = (d = 1): GrammarCombinator => ({ op: "cut", v: d });
 /** Asserts that `n` matches (`p` = true) or does not match (`p` = false) at the current position, consuming no input. */

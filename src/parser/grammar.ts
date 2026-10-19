@@ -1,4 +1,4 @@
-import { alt, cut, eps, Grammar, ignored, joined, lit, lookahead, nonempty, opt, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
+import { alt, cut, eps, Grammar, ignored, joined, kw, lit, lookahead, nonempty, opt, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
 // import { describe } from "./debug";
 
 /**
@@ -36,7 +36,7 @@ export const backolonGrammar: Grammar = {
         rule("let"),
         rule("if"),
         rule("while"),
-        rule("foreach"),
+        rule("for"),
         rule("trycatch"),
         rule("with"),
         rule("fn"),
@@ -44,7 +44,7 @@ export const backolonGrammar: Grammar = {
         rule("do"),
     ),
 
-    let: ssep(rule("blank"), ignored(tag("keyword", regex(/\blet\b/))), rule("let_body")),
+    let: ssep(rule("blank"), kw("keyword", "let"), rule("let_body")),
     let_body: alt(
         rule("let_loop_block"),
         rule("let_block"),
@@ -55,7 +55,7 @@ export const backolonGrammar: Grammar = {
         rule("blank"),
         rule("implicit_args"),
         seq(
-            ignored(tag("keyword", regex(/\bin\b/))),
+            kw("keyword", "in"),
             // no sep here!
             rule("body_exprs"),
         ),
@@ -68,45 +68,77 @@ export const backolonGrammar: Grammar = {
         ignored(tag("punctuation", lit(")"))),
         rule("let_block"),
     ),
+
+    if: ssep(rule("blank"), kw("keyword", "if"), rule("if_body")),
+
+
+    while: ssep(rule("blank"), kw("keyword", "while"), rule("while_body")),
+    while_body: seq(
+        ignored(rule("blank")),
+        rule("expr"),
+        rule("body_exprs"),
+    ),
+
+    for: ssep(rule("blank"), kw("keyword", "for"), rule("for_body")),
+    for_body: seq(
+        ignored(rule("blank")),
+        rule("expr"),
+        rule("body_exprs"),
+    ),
+
+
+    trycatch: ssep(rule("blank"), kw("keyword", "try"), rule("trycatch_body")),
+
+
+    with: ssep(rule("blank"), kw("keyword", "with"), rule("with_body")),
+    with_body: seq(
+        ignored(rule("blank")),
+        rule("expr"),
+        rule("body_exprs"),
+    ),
+
+    fn: ssep(rule("blank"), kw("keyword", "fn"), rule("fn_body")),
+
+
+    always: ssep(rule("blank"), kw("keyword", "always"), rule("always_body")),
+    always_body: seq(
+        ignored(rule("blank")),
+        rule("expr"),
+        rule("body_exprs"),
+    ),
+
+    do: ssep(rule("blank"), kw("keyword", "do"), rule("do_body")),
+
+
     body_exprs: alt(
         seq(
             lookahead(true, rule("blank_sameline")),
             rule("expr"),
             cut(),
-            ignored(opt(seq(rule("blank"), tag("keyword", regex(/\bend\b/)))))),
+            ignored(opt(seq(rule("blank"), kw("keyword", "end"))))),
         ssep(
             rule("blank"),
             rule("exprs"),
-            ignored(opt(tag("keyword", regex(/\bend\b/))))
+            ignored(opt(kw("keyword", "end")))
         )
     ),
-
-    if: ssep(rule("blank"), ignored(tag("keyword", regex(/\bif\b/))), rule("if_body")),
-
-
-    while: ssep(rule("blank"), ignored(tag("keyword", regex(/\bwhile\b/))), rule("while_body")),
-
-
-    foreach: ssep(rule("blank"), ignored(tag("keyword", regex(/\bforeach\b/))), rule("foreach_body")),
-
-
-    trycatch: ssep(rule("blank"), ignored(tag("keyword", regex(/\btry\b/))), rule("trycatch_body")),
-
-
-    with: ssep(rule("blank"), ignored(tag("keyword", regex(/\bwith\b/))), rule("with_body")),
-
-
-    fn: ssep(rule("blank"), ignored(tag("keyword", regex(/\bfn\b/))), rule("fn_body")),
-
-
-    always: ssep(rule("blank"), ignored(tag("keyword", regex(/\balways\b/))), rule("always_body")),
-
-
-    do: ssep(rule("blank"), ignored(tag("keyword", regex(/\bdo\b/))), rule("do_body")),
-
-
+    body_start_keyword: alt(
+        kw("keyword", "in"),
+        kw("keyword", "do"),
+        kw("keyword", "then"),
+        kw("keyword", "else"),
+        kw("keyword", "catch"),
+        kw("keyword", "finally"),
+    ),
+    body_end_keyword: alt(
+        kw("keyword", "end"),
+        kw("keyword", "else"),
+        kw("keyword", "catch"),
+        kw("keyword", "finally"),
+    ),
     soft_keyword: alt(
-        regex(/\b(in|end|then|else|catch|finally)\b/),
+        rule("body_start_keyword"),
+        rule("body_end_keyword"),
     ),
     not_soft_keyword: lookahead(false, rule("soft_keyword")),
 
@@ -176,8 +208,8 @@ export const backolonGrammar: Grammar = {
         rule("logical_and"),
         rule("logical_or"),
     ),
-    logical_and: alt(tag("operator", lit("&&")), tag("keyword", regex(/\band\b/))),
-    logical_or: alt(tag("operator", lit("||")), tag("keyword", regex(/\bor\b/))),
+    logical_and: alt(tag("operator", lit("&&")), tag("operator", regex(/\band\b/))),
+    logical_or: alt(tag("operator", lit("||")), tag("operator", regex(/\bor\b/))),
 
     // chain associative
     comparison: alt(joined(ssep(rule("blank"), rule("comparison_op")), ssep(rule("blank"), rule("bitwise")), true, false), rule("bitwise")),
@@ -386,7 +418,7 @@ export const backolonGrammar: Grammar = {
 /** Every highlight tag name used anywhere in {@link backolonGrammar}, collected by walking all of its combinator trees (e.g. for building a syntax-highlight theme). */
 export const all_tags = new Set(function walk(g: any): string[] {
     if (typeof g !== "object") return [];
-    return (g.op === "tag" ? [g.v] : []).concat(Object.values(g).flatMap(walk));
+    return (g.op === "tag" || g.op === "kw" ? [g.f] : []).concat(Object.values(g).flatMap(walk));
 }(backolonGrammar));
 // console.log({ all_tags });
 // Object.entries(backolonGrammar).forEach(([rule, g]) => {

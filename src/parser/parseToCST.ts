@@ -155,6 +155,13 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                     return text.startsWith(p, i) ? { text: p, start: i, end: i + p.length } : new MatchFail(i, 0, g);
                 }
             }
+            case "kw": {
+                const p = g.v as string[];
+                const re = new RegExp("\\b(" + p.map(RegExp.escape).join("|") + ")\\b", "y");
+                re.lastIndex = i;
+                const match = re.exec(text);
+                return match ? { text: match[0], tag: g.f, start: i, end: i + match[0].length, ignored: true } : new MatchFail(i, 0, g);
+            }
             case "ign": {
                 const cst = applyRule(path + "/", g.c![0]!, i);
                 return cst instanceof MatchFail ? cst : { ignored: true, start: cst.start, end: cst.end, children: [cst] };
@@ -176,7 +183,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             }
             case "tag": {
                 const cst = applyRule(path + "/", g.c![0]!, i);
-                return cst instanceof MatchFail ? cst : { tag: g.v as string, start: cst.start, end: cst.end, children: [cst] };
+                return cst instanceof MatchFail ? cst : { tag: g.f, start: cst.start, end: cst.end, children: [cst] };
             }
             case "seq":
             case "ssep": {
