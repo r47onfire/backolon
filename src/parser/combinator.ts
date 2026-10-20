@@ -1,3 +1,7 @@
+import { javaHash } from "@r47onfire/game-math";
+import { isArray } from "lib0/array";
+import { imul } from "lib0/math";
+
 /** A grammar: rule names mapped to their definitions. */
 export type Grammar = Readonly<Record<string, GrammarCombinator | ParameterizedRule>>;
 
@@ -18,7 +22,7 @@ export type GrammarCombinator = {
      * Leaf payload:
      * - string: rule name, literal pattern, fail message
      * - [string, string]: regex [source, flags]
-     * - string[]: keywords options
+     * - string[]: keywords options, rule parameters
      * - number: cut depth
      */
     readonly v?: string | string[] | number;
@@ -137,16 +141,6 @@ export const die = (m: string): GrammarCombinator => ({ op: "die", v: m });
 /** Parses `n` speculatively: if `n` fails, any cut inside it is hidden, so the failure looks ordinary and enclosing alternatives can still fall back. */
 export const try_ = (n: GrammarCombinator): GrammarCombinator => ({ op: "try", c: [n] });
 
-/** FNV-1a string hash, for {@link hashCombinator}. */
-const hashString = (s: string): number => {
-    var h = 0x811c9dc5;
-    for (var k = 0; k < s.length; k++) {
-        h ^= s.charCodeAt(k);
-        h = Math.imul(h, 0x01000193);
-    }
-    return h >>> 0;
-};
-
 /**
  * A structural hash of a combinator tree: two trees with the same shape and
  * payloads hash alike. The result is cached on the node itself, so hashing a
@@ -156,14 +150,14 @@ const hashString = (s: string): number => {
  */
 export const hashCombinator = (g: GrammarCombinator): number => {
     if (g.hash !== undefined) return g.hash;
-    var h = hashString(g.op);
-    const mix = (x: number, prime: number) => { h = (Math.imul(h, prime) + x) >>> 0; };
+    var h = javaHash(g.op);
+    const mix = (x: number, prime: number) => { h = (imul(h, prime) + x) >>> 0; };
     const v = g.v;
-    if (typeof v === "string") mix(hashString(v), 31);
+    if (typeof v === "string") mix(javaHash(v), 31);
     else if (typeof v === "number") mix(v, 31);
-    else if (Array.isArray(v)) for (const s of v) mix(hashString(s), 31);
-    if (g.f !== undefined) mix(hashString(g.f), 31);
-    if (g.c) for (const child of g.c) mix(hashCombinator(child), 31);
+    else if (isArray(v)) for (var s of v) mix(javaHash(s), 31);
+    if (g.f !== undefined) mix(javaHash(g.f), 31);
+    if (g.c) for (var child of g.c) mix(hashCombinator(child), 31);
     if (g.j) mix(hashCombinator(g.j), 37);
     return g.hash = h;
 };

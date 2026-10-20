@@ -1,6 +1,7 @@
+import { javaHash } from "@r47onfire/game-math";
 import { isArray, last } from "lib0/array";
 import { isString } from "lib0/function";
-import { max } from "lib0/math";
+import { imul, max } from "lib0/math";
 import { Grammar, GrammarCombinator, hashCombinator, rule } from "./combinator";
 import { CSTNode } from "./cst";
 
@@ -98,21 +99,14 @@ const instancePath = (name: string, args: readonly GrammarCombinator[], locals: 
         }
         if (g.op !== "rule" && !g.c && !g.j) return hashCombinator(g);
         var h = 0x811c9dc5;
-        const mixString = (s: string, prime: number) => {
-            for (var k = 0; k < s.length; k++) {
-                h ^= s.charCodeAt(k);
-                h = Math.imul(h, 0x01000193);
-            }
-            h = (Math.imul(h, prime) + 0) >>> 0;
-        };
-        mixString(g.op, 31);
+        const mixString = (s: string, p: number) => h = imul(h + javaHash(s), p);
         const v = g.v;
         if (typeof v === "string") mixString(v, 31);
-        else if (typeof v === "number") h = (Math.imul(h, 31) + v) >>> 0;
-        else if (isArray(v)) for (const s of v) mixString(s, 31);
+        else if (typeof v === "number") h = (imul(h, 31) + v) >>> 0;
+        else if (isArray(v)) for (var s of v) mixString(s, 31);
         if (g.f !== undefined) mixString(g.f, 31);
-        if (g.c) for (const child of g.c) h = (Math.imul(h, 31) + hashResolved(child, scope)) >>> 0;
-        if (g.j) h = (Math.imul(h, 37) + hashResolved(g.j, scope)) >>> 0;
+        if (g.c) for (var child of g.c) h = (imul(h, 31) + hashResolved(child, scope)) >>> 0;
+        if (g.j) h = (imul(h, 37) + hashResolved(g.j, scope)) >>> 0;
         return h >>> 0;
     };
     return name + "(" + args.map(a => hashResolved(a, locals).toString(36)).join(",") + ")";
@@ -244,7 +238,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                     // names the instance (the rule name plus the hashes of its
                     // argument combinators), so that different instances of
                     // the same rule memoize separately.
-                    const [params, ruleBody] = entry;
+                    const { 0: params, 1: ruleBody } = entry;
                     if (args.length !== params.length) throw new Error("rule " + name + " takes " + params.length + " argument(s) but got " + args.length + " at " + path);
                     const bindings: Record<string, ParamBinding> = {};
                     for (var k = 0; k < params.length; k++) bindings[params[k]!] = { g: args[k]!, locals };
