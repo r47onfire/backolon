@@ -78,39 +78,89 @@ interface ParamFrame {
 type Locals = ParamFrame | undefined;
 
 /**
- * The memo path of a parameterized rule invocation names the instance by the
- * rule name plus a hash of its arguments -- with parameters resolved through
- * the call site's scope first. Resolving matters: `rule("e", param("op"))`
- * inside a rule where `op` is bound to `lit("+")` is the *same* instance as
+ * One dynamic (ambient) binding: the combinator bound by a `bind`, the
+ * lexical scope in effect where that bind was written (for any rule
+ * parameters the value mentions), and the dynamic scope outside the bind
+ * (what `ambient` references inside the value see -- in particular, the
+ * binding this one shadows is still visible to the value itself, so a new
+ * value can extend the one it replaces).
+ */
+interface DynBinding {
+    readonly g: GrammarCombinator,
+    readonly locals: Locals,
+    readonly dynamics: Dynamics
+}
+
+/**
+ * The dynamic scope: a chain of {@link DynBinding}s, innermost first. Like
+ * the lexical scope it is threaded through the parse as an immutable value,
+ * so speculative branches cannot disturb each other's bindings. `key`
+ * identifies this exact chain; while a chain is in effect its key is part of
+ * every memo identity, so a result that depends on ambient context is never
+ * reused under a different context.
+ */
+interface DynFrame {
+    readonly name: string,
+    readonly binding: DynBinding,
+    readonly next: Dynamics,
+    readonly key: string
+}
+type Dynamics = DynFrame | undefined;
+
+/**
+ * A hash of a combinator tree with its parameter references resolved:
+ * `param` nodes contribute the hash of the argument they name (resolved in
+ * the lexical scope), `ambient` nodes the hash of the dynamic binding they
+ * name (resolved in the dynamic scope captured by that binding, so a
+ * binding's value never depends on itself), and `bind` nodes hash their
+ * body under the dynamic scope the bind creates. Nothing is cached: the
+ * result depends on the scopes, not just the tree.
+ */
+const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dynamics, path: string): number => {
+    if (g.op === "param") {
+        for (var frame = locals; frame; frame = frame.next) {
+            const binding = frame.bindings[g.v as string];
+            if (binding) return hashResolved(binding.g, binding.locals, dynamics, path);
+        }
+        throw new Error("unbound rule parameter " + g.v + " at " + path);
+    }
+    if (g.op === "ambient") {
+        for (var dyn = dynamics; dyn; dyn = dyn.next) {
+            if (dyn.name === g.v) return hashResolved(dyn.binding.g, dyn.binding.locals, dyn.binding.dynamics, path);
+        }
+        throw new Error("unbound dynamic parameter " + g.v + " at " + path);
+    }
+    if (g.op !== "rule" && g.op !== "bind" && !g.c && !g.j) return hashCombinator(g);
+    var h = 0x811c9dc5;
+    const mixString = (s: string, p: number) => h = imul(h + javaHash(s), p);
+    mixString(g.op, 31);
+    const v = g.v;
+    if (typeof v === "string") mixString(v, 31);
+    else if (typeof v === "number") h = (imul(h, 31) + v) >>> 0;
+    else if (isArray(v)) for (var s of v) mixString(s, 31);
+    if (g.f !== undefined) mixString(g.f, 31);
+    if (g.op === "bind") {
+        const inner: Dynamics = { name: v as string, binding: { g: g.c![0]!, locals, dynamics }, next: dynamics, key: "" };
+        h = (imul(h, 31) + hashResolved(g.c![0]!, locals, dynamics, path)) >>> 0;
+        h = (imul(h, 31) + hashResolved(g.c![1]!, locals, inner, path)) >>> 0;
+    } else {
+        if (g.c) for (var child of g.c) h = (imul(h, 31) + hashResolved(child, locals, dynamics, path)) >>> 0;
+        if (g.j) h = (imul(h, 37) + hashResolved(g.j, locals, dynamics, path)) >>> 0;
+    }
+    return h >>> 0;
+};
+
+/**
+ * The memo path of a parameterized rule invocation names the instance by
+ * the rule name plus the resolved hashes of its arguments (see
+ * {@link hashResolved}), so different instances of the same rule memoize
+ * separately. Resolving matters: `rule("e", param("op"))` inside a rule
+ * where `op` is bound to `lit("+")` is the *same* instance as
  * `rule("e", lit("+"))` (in particular, a rule recursing on its own
  * parameters recurses on itself, so left recursion still engages).
  */
-const instancePath = (name: string, args: readonly GrammarCombinator[], locals: Locals, path: string): string => {
-    // Same mixing as hashCombinator, except that param nodes contribute the
-    // hash of what they resolve to instead of their own shape. Nothing is
-    // cached: the result depends on the scope, not just the tree.
-    const hashResolved = (g: GrammarCombinator, scope: Locals): number => {
-        if (g.op === "param") {
-            for (var frame = scope; frame; frame = frame.next) {
-                const binding = frame.bindings[g.v as string];
-                if (binding) return hashResolved(binding.g, binding.locals);
-            }
-            throw new Error("unbound rule parameter " + g.v + " at " + path);
-        }
-        if (g.op !== "rule" && !g.c && !g.j) return hashCombinator(g);
-        var h = 0x811c9dc5;
-        const mixString = (s: string, p: number) => h = imul(h + javaHash(s), p);
-        const v = g.v;
-        if (typeof v === "string") mixString(v, 31);
-        else if (typeof v === "number") h = (imul(h, 31) + v) >>> 0;
-        else if (isArray(v)) for (var s of v) mixString(s, 31);
-        if (g.f !== undefined) mixString(g.f, 31);
-        if (g.c) for (var child of g.c) h = (imul(h, 31) + hashResolved(child, scope)) >>> 0;
-        if (g.j) h = (imul(h, 37) + hashResolved(g.j, scope)) >>> 0;
-        return h >>> 0;
-    };
-    return name + "(" + args.map(a => hashResolved(a, locals).toString(36)).join(",") + ")";
-};
+const instancePath = (name: string, args: readonly GrammarCombinator[], locals: Locals, dynamics: Dynamics, path: string): string =>
+    name + "(" + args.map(a => hashResolved(a, locals, dynamics, path).toString(36)).join(",") + ")";
 
 /**
  * The memo table for a parse: results (a CST node, a failure, or an
@@ -140,10 +190,10 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * Probe `node` at index `j`, restoring cut/LR state afterwards (probes are
      * speculative and don't log commits). Null if no progress was made
      */
-    const probeAt = (path: string, node: GrammarCombinator, j: number, locals: Locals): CSTNode | null => {
+    const probeAt = (path: string, node: GrammarCombinator, j: number, locals: Locals, dynamics: Dynamics): CSTNode | null => {
         const savedCuts = cutStack.map(frame => frame[0]);
         const savedLR = lrStack;
-        const probe = applyRule(path, node, j, locals);
+        const probe = applyRule(path, node, j, locals, dynamics);
         // restore cuts and LR stack
         for (var k = 0; k < savedCuts.length; k++) cutStack[k]![0] = savedCuts[k]!;
         cutStack.length = savedCuts.length;
@@ -161,10 +211,10 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * construct owns resynchronization (seq_sep rescans for its failed child;
      * repeats emit a minimal error), so no bracket guessing is needed.
      */
-    const recover = (path: string, item: GrammarCombinator, i: number, fail: MatchFail, children: CSTNode[], locals: Locals): number => {
+    const recover = (path: string, item: GrammarCombinator, i: number, fail: MatchFail, children: CSTNode[], locals: Locals, dynamics: Dynamics): number => {
         if (i >= text.length) return i;
         for (var j = max(fail.i, i + 1); j <= text.length; j++) {
-            const probe = probeAt(path, item, j, locals);
+            const probe = probeAt(path, item, j, locals, dynamics);
             if (!probe) continue;
             children.push(errorNode(i, j, fail.expected), probe);
             return probe.end;
@@ -180,9 +230,9 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * The skipped text becomes a BAD node that carries the recovered child in its `recovered` field.
      * This keeps the sequence's fixed arity while still allowing the parse to recover later
      */
-    const recoverChild = (path: string, child: GrammarCombinator, i: number, fail: MatchFail, children: CSTNode[], locals: Locals): number | null => {
+    const recoverChild = (path: string, child: GrammarCombinator, i: number, fail: MatchFail, children: CSTNode[], locals: Locals, dynamics: Dynamics): number | null => {
         for (var j = i + 1; j <= text.length; j++) {
-            const probe = probeAt(path, child, j, locals);
+            const probe = probeAt(path, child, j, locals, dynamics);
             if (!probe) continue;
             children.push({
                 type: recoverNodeType,
@@ -197,7 +247,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
     /**
      * Do the actual logic for the grammar node's operation.
      */
-    const callRule = (path: string, g: GrammarCombinator, i: number, locals: Locals): CSTNode | MatchFail => {
+    const callRule = (path: string, g: GrammarCombinator, i: number, locals: Locals, dynamics: Dynamics): CSTNode | MatchFail => {
         const badflag = (): never => {
             throw new Error("bad flag for " + op + ": " + g.f);
         };
@@ -222,7 +272,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 return match ? { text: match[0], tag: g.f, start: i, end: i + match[0].length, ignored: true } : new MatchFail(i, 0, g);
             }
             case "ign": {
-                const cst = applyRule(path + "/", g.c![0]!, i, locals);
+                const cst = applyRule(path + "/", g.c![0]!, i, locals, dynamics);
                 return cst instanceof MatchFail ? cst : { ignored: true, start: cst.start, end: cst.end, children: [cst] };
             }
             case "rule": {
@@ -243,14 +293,14 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                     const bindings: Record<string, ParamBinding> = {};
                     for (var k = 0; k < params.length; k++) bindings[params[k]!] = { g: args[k]!, locals };
                     body = ruleBody;
-                    bodyPath = instancePath(name, args, locals, path);
+                    bodyPath = instancePath(name, args, locals, dynamics, path);
                     bodyLocals = { bindings, next: locals };
                 } else {
                     if (args.length) throw new Error("rule " + name + " takes no arguments at " + path);
                     body = entry as GrammarCombinator;
                 }
                 cutStack.push([0]);
-                const cst = applyRule(bodyPath, body, i, bodyLocals);
+                const cst = applyRule(bodyPath, body, i, bodyLocals, dynamics);
                 const frameDepth = cutDepth();
                 cutStack.pop();
                 if (cst instanceof MatchFail) {
@@ -268,12 +318,39 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                     // Evaluate the argument under its own memo path: the memo
                     // is keyed by path alone, so reusing this reference's path
                     // would collide with the param op's own in-progress entry.
-                    if (binding) return applyRule(path + "$" + name, binding.g, i, binding.locals);
+                    // The argument's own parameters resolve in the scope it
+                    // captured, but any dynamic parameters it mentions resolve
+                    // in the ambient context in effect here, at its use.
+                    if (binding) return applyRule(path + "$" + name, binding.g, i, binding.locals, dynamics);
                 }
                 throw new Error("unbound rule parameter " + name + " at " + path);
             }
+            case "ambient": {
+                const name = g.v as string;
+                for (var dyn = dynamics; dyn; dyn = dyn.next) {
+                    // As with param, the value gets its own memo path -- and
+                    // the path names the binding's frame key, because the
+                    // same reference under different bindings must not share
+                    // a memo entry even though the value is evaluated in the
+                    // scope outside the bind. It is evaluated with the
+                    // lexical scope of the bind that supplied it, and the
+                    // dynamic scope outside that bind.
+                    if (dyn.name === name) return applyRule(path + "$@" + name + "#" + dyn.key, dyn.binding.g, i, dyn.binding.locals, dyn.binding.dynamics);
+                }
+                throw new Error("unbound dynamic parameter " + name + " at " + path);
+            }
+            case "bind": {
+                const name = g.v as string;
+                const frame: DynFrame = {
+                    name,
+                    binding: { g: g.c![0]!, locals, dynamics },
+                    next: dynamics,
+                    key: (dynamics ? dynamics.key + "/" : "") + name + "#" + hashResolved(g.c![0]!, locals, dynamics, path).toString(36),
+                };
+                return applyRule(path + "/b", g.c![1]!, i, locals, frame);
+            }
             case "tag": {
-                const cst = applyRule(path + "/", g.c![0]!, i, locals);
+                const cst = applyRule(path + "/", g.c![0]!, i, locals, dynamics);
                 return cst instanceof MatchFail ? cst : { tag: g.f, start: cst.start, end: cst.end, children: [cst] };
             }
             case "seq":
@@ -283,7 +360,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 const items = g.c!, len = items.length;
                 const sep = () => {
                     if (op !== "ssep") return;
-                    const sepThing = applyRule(path + "/s", g.j!, i, locals);
+                    const sepThing = applyRule(path + "/s", g.j!, i, locals, dynamics);
                     if (sepThing instanceof MatchFail) {
                         children.push({ ignored: true, start: i, end: i });
                     } else {
@@ -295,7 +372,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 for (var j = 0; j < len; j++) {
                     sep();
                     const child = items[j]!;
-                    const thisMatch = applyRule(path + "/" + j, child, i, locals);
+                    const thisMatch = applyRule(path + "/" + j, child, i, locals, dynamics);
                     if (thisMatch instanceof MatchFail) {
                         if (thisMatch.cut === Infinity) return thisMatch;
                         if ((currentCutFrame?.[0] ?? 0) > currentCut) {
@@ -304,7 +381,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                             var depth = 0;
                             for (var frame of cutStack) if (frame[0] > 0) depth++;
                             if (depth > 1) return thisMatch;
-                            const resumed = recoverChild(path + "/" + j, child, i, thisMatch, children, locals);
+                            const resumed = recoverChild(path + "/" + j, child, i, thisMatch, children, locals, dynamics);
                             if (resumed === null) return thisMatch;
                             i = resumed;
                             continue;
@@ -323,7 +400,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 var furthestFail: MatchFail | undefined;
                 for (var j = 0; j < len; j++) {
                     const depthBefore = cutDepth();
-                    const thisMatch = applyRule(path + "/" + j, items[j]!, i, locals);
+                    const thisMatch = applyRule(path + "/" + j, items[j]!, i, locals, dynamics);
                     if (thisMatch instanceof MatchFail) {
                         const childCut = thisMatch.cut;
                         const d = max(thisMatch.cut, cutDepth());
@@ -345,7 +422,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, g)) : options.reduce((a, b) => b.end > a.end ? b : a);
             }
             case "opt": {
-                const cst = applyRule(path + "/", g.c![0]!, i, locals);
+                const cst = applyRule(path + "/", g.c![0]!, i, locals, dynamics);
                 // don't swallow a cut fail
                 return cst instanceof MatchFail ? (cst.cut > 0 ? cst : { start: i, end: i }) : cst;
             }
@@ -358,7 +435,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                     for (var count = 0; ; count++) {
                         if (i >= text.length) break;
                         const item = nodes[count % len]!;
-                        const thisMatch = applyRule(path + "/*", item, i, locals);
+                        const thisMatch = applyRule(path + "/*", item, i, locals, dynamics);
                         if (thisMatch instanceof MatchFail) {
                             if (thisMatch.cut === Infinity) return thisMatch;
                             if (thisMatch.cut > 0) {
@@ -370,7 +447,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                                     continue;
                                 }
                                 // Not committed: panic-mode resync to next match.
-                                const next = recover(path + "/*", item, i, thisMatch, children, locals);
+                                const next = recover(path + "/*", item, i, thisMatch, children, locals, dynamics);
                                 if (next <= i) break; // nowhere left to go
                                 i = next;
                                 continue;
@@ -397,7 +474,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                         if (children.length < (require2 ? 3 : 1)) return new MatchFail(i, 0, elemRule);
                         break;
                     }
-                    const elem = applyRule(path + "/e", elemRule, i, locals);
+                    const elem = applyRule(path + "/e", elemRule, i, locals, dynamics);
                     if (elem instanceof MatchFail) {
                         if (elem.cut === Infinity) return elem;
                         if (elem.cut > 0) {
@@ -408,7 +485,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                                 i = end;
                                 continue;
                             }
-                            const next = recover(path + "/e", elemRule, i, elem, children, locals);
+                            const next = recover(path + "/e", elemRule, i, elem, children, locals, dynamics);
                             if (next <= i) break;
                             i = next;
                             continue;
@@ -420,7 +497,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                     }
                     children.push(elem);
                     i = elem.end;
-                    const s = applyRule(path + "/s", sepRule, i, locals);
+                    const s = applyRule(path + "/s", sepRule, i, locals, dynamics);
                     if (s instanceof MatchFail) {
                         if (s.cut === Infinity) return s;
                         if (s.cut > 0) {
@@ -430,7 +507,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                                 i = end;
                                 continue;
                             }
-                            const next = recover(path + "/s", sepRule, i, s, children, locals);
+                            const next = recover(path + "/s", sepRule, i, s, children, locals, dynamics);
                             if (next <= i) break;
                             i = next;
                             continue;
@@ -445,7 +522,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 return { start, end: i, children };
             }
             case "if": {
-                return applyRule(path + "/c", g.j!, i, locals) instanceof MatchFail ? applyRule(path + "/f", g.c![1]!, i, locals) : applyRule(path + "/t", g.c![0]!, i, locals);
+                return applyRule(path + "/c", g.j!, i, locals, dynamics) instanceof MatchFail ? applyRule(path + "/f", g.c![1]!, i, locals, dynamics) : applyRule(path + "/t", g.c![0]!, i, locals, dynamics);
             }
             case "cut": {
                 const f = last(cutStack);
@@ -453,14 +530,14 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 return { ignored: true, start: i, end: i };
             }
             case "lookahead": {
-                const cst = applyRule(path + "/?", g.c![0]!, i, locals);
+                const cst = applyRule(path + "/?", g.c![0]!, i, locals, dynamics);
                 const neg = g.f === "-";
                 if (!neg && g.f !== "+") badflag();
                 return cst instanceof MatchFail === neg ? { ignored: true, start: i, end: i } : new MatchFail(i, 0, g);
             }
             case "sameline":
             case "nonempty": {
-                const cst = applyRule(path + "/", g.c![0]!, i, locals);
+                const cst = applyRule(path + "/", g.c![0]!, i, locals, dynamics);
                 return cst instanceof MatchFail ? cst : (op === "nonempty" ? cst.end === i : text.slice(cst.start, cst.end).indexOf("\n") >= 0) ? new MatchFail(i, 0, g) : cst;
             }
             case "eps":
@@ -468,7 +545,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             case "try": {
                 // Speculative parse: if node fails, hide the cuts
                 const savedCuts = cutStack.map(frame => frame[0]);
-                const cst = applyRule(path + "/", g.c![0]!, i, locals);
+                const cst = applyRule(path + "/", g.c![0]!, i, locals, dynamics);
                 if (cst instanceof MatchFail) {
                     for (var k = 0; k < savedCuts.length; k++) cutStack[k]![0] = savedCuts[k]!;
                     cutStack.length = savedCuts.length;
@@ -499,9 +576,9 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * the current seed in the memo until a pass produces nothing longer,
      * memoizing each improvement.
      */
-    const leftRecurse = (path: string, g: GrammarCombinator, i: number, l: LR, locals: Locals): CSTNode | MatchFail => {
-        if (l.head?.path !== path) return l.seed;
-        const loc = toMemoLoc(path, i);
+    const leftRecurse = (mpath: string, path: string, g: GrammarCombinator, i: number, l: LR, locals: Locals, dynamics: Dynamics): CSTNode | MatchFail => {
+        if (l.head?.path !== mpath) return l.seed;
+        const loc = toMemoLoc(mpath, i);
         memo[loc] = l.seed;
         if (l.seed instanceof MatchFail) return l.seed;
         // grow left recursion
@@ -510,7 +587,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
         for (; ;) {
             head.eval = new Set(head.involved);
             consumeCut();
-            const ans = callRule(path, g, i, locals);
+            const ans = callRule(path, g, i, locals, dynamics);
             if (ans instanceof MatchFail || ans.end <= (l.seed as CSTNode).end) break;
             l.seed = ans;
             memo[loc] = ans;
@@ -523,15 +600,15 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * this index, rules that are not part of its cycle fail synthetically,
      * and rules in its `eval` set are re-evaluated once instead of recalled.
      */
-    const recall = (path: string, g: GrammarCombinator, i: number, locals: Locals): CSTNode | LR | MatchFail | undefined => {
-        const m = memo[toMemoLoc(path, i)];
+    const recall = (mpath: string, path: string, g: GrammarCombinator, i: number, locals: Locals, dynamics: Dynamics): CSTNode | LR | MatchFail | undefined => {
+        const m = memo[toMemoLoc(mpath, i)];
         const h = heads[i];
         if (!h) return m as any;
-        if (!m && path !== h.path && !h.involved.has(path)) return new MatchFail(i, 0, g);
-        if (h.eval.has(path)) {
-            h.eval.delete(path);
-            const ans = callRule(path, g, i, locals);
-            memo[toMemoLoc(path, i)] = ans;
+        if (!m && mpath !== h.path && !h.involved.has(mpath)) return new MatchFail(i, 0, g);
+        if (h.eval.has(mpath)) {
+            h.eval.delete(mpath);
+            const ans = callRule(path, g, i, locals, dynamics);
+            memo[toMemoLoc(mpath, i)] = ans;
             return ans;
         } else return m;
     }
@@ -540,33 +617,38 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * memoized result if there is one; otherwise evaluates `g` with a fresh
      * LR on the stack so that a recursive cycle, if any, is detected.
      */
-    const applyRule = (path: string, g: GrammarCombinator, i: number, locals: Locals): CSTNode | MatchFail => {
-        const m = recall(path, g, i, locals);
+    const applyRule = (path: string, g: GrammarCombinator, i: number, locals: Locals, dynamics: Dynamics): CSTNode | MatchFail => {
+        // While dynamic bindings are in effect, their chain's key is part of
+        // this call's identity: a result computed under one ambient context
+        // must never be reused under another. With no bindings in effect the
+        // identity is the plain path, exactly as before.
+        const mpath = dynamics ? path + "@" + dynamics.key : path;
+        const m = recall(mpath, path, g, i, locals, dynamics);
         if (m) {
             if (m instanceof LR) {
-                setupLeftRecursion(path, m);
+                setupLeftRecursion(mpath, m);
                 return m.seed;
             } else {
                 return m;
             }
         }
-        const lr = lrStack = new LR(path, new MatchFail(i, 0, g), undefined, lrStack);
-        memo[toMemoLoc(path, i)] = lr;
-        const ans = callRule(path, g, i, locals);
+        const lr = lrStack = new LR(mpath, new MatchFail(i, 0, g), undefined, lrStack);
+        memo[toMemoLoc(mpath, i)] = lr;
+        const ans = callRule(path, g, i, locals, dynamics);
         lrStack = lrStack.next;
-        memo[toMemoLoc(path, i)] = ans;
+        memo[toMemoLoc(mpath, i)] = ans;
         if (lr.head) {
             lr.seed = ans;
-            return leftRecurse(path, g, i, lr, locals);
+            return leftRecurse(mpath, path, g, i, lr, locals, dynamics);
         } else {
             return ans;
         }
     }
-    const ans = applyRule("", rule(startRule), startIndex, undefined);
+    const ans = applyRule("", rule(startRule), startIndex, undefined, undefined);
     if (ans instanceof MatchFail) {
         // The start rule didn't match at all: resync past any leading garbage.
         const children: CSTNode[] = [];
-        const end = recover("", rule(startRule), startIndex, ans, children, undefined);
+        const end = recover("", rule(startRule), startIndex, ans, children, undefined, undefined);
         if (children.length < 1) {
             // give up entirely
             children.push(errorNode(startIndex, end, ans.expected));

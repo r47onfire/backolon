@@ -34,6 +34,8 @@ const describe_formats: Record<GrammarOp, [string, join?: string, map?: Record<s
     tok: ["v"],
     rule: ["r"],
     param: ["$r"],
+    ambient: ["@r"],
+    bind: ["(bind r c)", " "],
     tag: ["#r=c"],
     ign: [",c"],
     opt: ["[c]"],

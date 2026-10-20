@@ -1,5 +1,5 @@
 import { expect, test, describe } from "bun:test";
-import { alt, backolonGrammar, CSTNode, Grammar, kw, lit, opt, param, parseToCST, regex, rule, seq } from "../src";
+import { alt, ambient, backolonGrammar, bind, CSTNode, eps, Grammar, kw, lit, opt, param, parseToCST, regex, rule, seq } from "../src";
 
 /** Parse with a synthetic grammar and require a full, error-free parse. */
 const parsesFully = (grammar: Grammar, start: string, text: string): CSTNode => {
@@ -103,5 +103,75 @@ describe("parameterized body_exprs", () => {
         // the body parsed "a b" and stopped before "else" (only the
         // separator blank after it was consumed)
         expect(cst.end).toBe("if a b ".length);
+    });
+});
+
+describe("dynamic (ambient) parameters", () => {
+    test("a binding is visible through intermediate rules that neither declare nor forward it", () => {
+        const grammar: Grammar = {
+            main: bind("term", lit("!"), rule("a")),
+            a: rule("b"),
+            b: seq(lit("x"), ambient("term")),
+        };
+        parsesFully(grammar, "main", "x!");
+    });
+
+    test("an inner binding shadows the outer one for its extent only", () => {
+        const grammar: Grammar = {
+            main: bind("t", lit("a"), seq(rule("inner"), ambient("t"))),
+            inner: bind("t", lit("b"), ambient("t")),
+        };
+        // inner sees "b"; the outer binding is in effect again afterwards
+        parsesFully(grammar, "main", "ba");
+    });
+
+    test("a binding's value sees the binding it shadows, so it can extend it", () => {
+        const grammar: Grammar = {
+            main: bind("t", lit("a"), bind("t", seq(ambient("t"), lit("b")), ambient("t"))),
+        };
+        parsesFully(grammar, "main", "ab");
+    });
+
+    test("a context can be reset for a subtree by rebinding it", () => {
+        const grammar: Grammar = {
+            main: bind("t", lit("z"), seq(bind("t", eps(), ambient("t")), ambient("t"))),
+        };
+        // inside the inner bind the parameter matches nothing; outside, "z" again
+        parsesFully(grammar, "main", "z");
+    });
+
+    test("the same rule at the same index memoizes separately per ambient context", () => {
+        const grammar: Grammar = {
+            main: alt(bind("t", lit("a"), rule("h")), bind("t", lit("b"), rule("h"))),
+            h: seq(ambient("t"), lit("!")),
+        };
+        // h fails under t="a" on this input; under t="b" it must be tried fresh
+        parsesFully(grammar, "main", "b!");
+    });
+
+    test("lexical and dynamic parameters coexist, even under the same name", () => {
+        const grammar: Grammar = {
+            main: bind("x", lit("D"), rule("outer", lit("L"))),
+            outer: [["x"], seq(param("x"), rule("inner", param("x")))],
+            inner: [["y"], seq(param("y"), ambient("x"))],
+        };
+        // param("x") is outer's lexical argument "L" (the dynamic binding
+        // does not capture it), it passes onward as inner's "y" unchanged,
+        // and ambient("x") is the dynamic binding "D"
+        parsesFully(grammar, "main", "LLD");
+    });
+
+    test("a rule that consults ambient context can still be left-recursive", () => {
+        const grammar: Grammar = {
+            main: bind("op", lit("+"), rule("e")),
+            e: alt(seq(rule("e"), ambient("op"), rule("num")), rule("num")),
+            num: regex(/[0-9]+/),
+        };
+        parsesFully(grammar, "main", "1+2");
+    });
+
+    test("reading an unbound dynamic parameter is an error", () => {
+        const grammar: Grammar = { main: ambient("nope") };
+        expect(() => parseToCST("a", 0, "main", grammar, "exprs")).toThrow("unbound dynamic parameter nope");
     });
 });

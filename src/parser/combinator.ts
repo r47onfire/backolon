@@ -20,7 +20,7 @@ export type GrammarCombinator = {
     readonly op: GrammarOp;
     /**
      * Leaf payload:
-     * - string: rule name, literal pattern, fail message
+     * - string: rule name, literal pattern, fail message, parameter name
      * - [string, string]: regex [source, flags]
      * - string[]: keywords options, rule parameters
      * - number: cut depth
@@ -66,6 +66,10 @@ export type GrammarOp =
     | "rule"
     /** evaluate the combinator passed for the named rule parameter, in the scope of the call site that supplied it */
     | "param"
+    /** evaluate the combinator bound to the named dynamic (ambient) parameter by the nearest enclosing bind, in the scope of that bind */
+    | "ambient"
+    /** bind a dynamic (ambient) parameter for the dynamic extent of a body: children are [value, body] */
+    | "bind"
     /** return all results in an array */
     | "seq"
     /** sequencing, but with optional sep surrounding them; sep is ignored */
@@ -110,6 +114,10 @@ export const ignored = (n: GrammarCombinator): GrammarCombinator => ({ op: "ign"
 export const rule = (r: string, ...args: GrammarCombinator[]): GrammarCombinator => args.length ? { op: "rule", v: r, c: args } : { op: "rule", v: r };
 /** Evaluates the argument combinator bound to the parameter `p` of the enclosing parameterized rule, in the scope where that argument was written. */
 export const param = (p: string): GrammarCombinator => ({ op: "param", v: p });
+/** Evaluates the combinator bound to the dynamic parameter `p` by the nearest enclosing {@link bind}. Dynamic parameters are ambient context: any rule parsed within the bind's extent can read them without receiving them as arguments. Unbound dynamic parameters are an error. */
+export const ambient = (p: string): GrammarCombinator => ({ op: "ambient", v: p });
+/** Parses `body` with the dynamic parameter `p` bound to `value` for the body's dynamic extent (including any rules it calls, however deep). Inside `value`, `ambient(p)` still refers to the binding this one shadows, so a new value can extend the old one. */
+export const bind = (p: string, value: GrammarCombinator, body: GrammarCombinator): GrammarCombinator => ({ op: "bind", v: p, c: [value, body] });
 /** Matches all of `n` in order; the result is a flat node holding every child's result. */
 export const seq = (...n: GrammarCombinator[]): GrammarCombinator => ({ op: "seq", c: n });
 /** Like `seq`, but the separator `s` is attempted before, between, and after the items; separator results are marked ignored. */
