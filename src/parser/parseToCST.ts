@@ -140,9 +140,9 @@ const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dynamics, 
     else if (isArray(v)) for (var s of v) mixString(s, 31);
     if (g.f !== undefined) mixString(g.f, 31);
     if (g.op === "bind") {
-        const inner: Dynamics = { name: v as string, binding: { g: g.c![0]!, locals, dynamics }, next: dynamics, key: "" };
-        h = (imul(h, 31) + hashResolved(g.c![0]!, locals, dynamics, path)) >>> 0;
-        h = (imul(h, 31) + hashResolved(g.c![1]!, locals, inner, path)) >>> 0;
+        const inner: Dynamics = { name: v as string, binding: { g: g.j!, locals, dynamics }, next: dynamics, key: "" };
+        h = (imul(h, 31) + hashResolved(g.j!, locals, dynamics, path)) >>> 0;
+        h = (imul(h, 31) + hashResolved(g.c![0]!, locals, inner, path)) >>> 0;
     } else {
         if (g.c) for (var child of g.c) h = (imul(h, 31) + hashResolved(child, locals, dynamics, path)) >>> 0;
         if (g.j) h = (imul(h, 37) + hashResolved(g.j, locals, dynamics, path)) >>> 0;
@@ -343,11 +343,11 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
                 const name = g.v as string;
                 const frame: DynFrame = {
                     name,
-                    binding: { g: g.c![0]!, locals, dynamics },
+                    binding: { g: g.j!, locals, dynamics },
                     next: dynamics,
-                    key: (dynamics ? dynamics.key + "/" : "") + name + "#" + hashResolved(g.c![0]!, locals, dynamics, path).toString(36),
+                    key: (dynamics ? dynamics.key + "/" : "") + name + "#" + hashResolved(g.j!, locals, dynamics, path).toString(36),
                 };
-                return applyRule(path + "/b", g.c![1]!, i, locals, frame);
+                return applyRule(path + "/b", g.c![0]!, i, locals, frame);
             }
             case "tag": {
                 const cst = applyRule(path + "/", g.c![0]!, i, locals, dynamics);
@@ -621,25 +621,25 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
         // While dynamic bindings are in effect, their chain's key is part of
         // this call's identity: a result computed under one ambient context
         // must never be reused under another. With no bindings in effect the
-        // identity is the plain path, exactly as before.
-        const mpath = dynamics ? path + "@" + dynamics.key : path;
-        const m = recall(mpath, path, g, i, locals, dynamics);
+        // identity is the normal path.
+        const dPath = dynamics ? path + "@" + dynamics.key : path;
+        const m = recall(dPath, path, g, i, locals, dynamics);
         if (m) {
             if (m instanceof LR) {
-                setupLeftRecursion(mpath, m);
+                setupLeftRecursion(dPath, m);
                 return m.seed;
             } else {
                 return m;
             }
         }
-        const lr = lrStack = new LR(mpath, new MatchFail(i, 0, g), undefined, lrStack);
-        memo[toMemoLoc(mpath, i)] = lr;
+        const lr = lrStack = new LR(dPath, new MatchFail(i, 0, g), undefined, lrStack);
+        memo[toMemoLoc(dPath, i)] = lr;
         const ans = callRule(path, g, i, locals, dynamics);
         lrStack = lrStack.next;
-        memo[toMemoLoc(mpath, i)] = ans;
+        memo[toMemoLoc(dPath, i)] = ans;
         if (lr.head) {
             lr.seed = ans;
-            return leftRecurse(mpath, path, g, i, lr, locals, dynamics);
+            return leftRecurse(dPath, path, g, i, lr, locals, dynamics);
         } else {
             return ans;
         }

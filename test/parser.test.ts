@@ -10,7 +10,7 @@ const parsesFully = (grammar: Grammar, start: string, text: string): CSTNode => 
 };
 
 describe("parameterized rules", () => {
-    test("an argument combinator is matched where the body says param", () => {
+    test("param matches the given argument", () => {
         const grammar: Grammar = {
             main: rule("wrap", lit("("), lit(")")),
             wrap: [["open", "close"], seq(param("open"), rule("word"), param("close"))],
@@ -22,7 +22,7 @@ describe("parameterized rules", () => {
         parsesFully(grammar2, "main", "[abc]");
     });
 
-    test("instances memoize separately: a failed instance does not poison a later one at the same index", () => {
+    test("parameters change the memo key", () => {
         const grammar: Grammar = {
             main: alt(rule("w", lit("a")), rule("w", lit("b"))),
             w: [["t"], seq(param("t"), lit("!"))],
@@ -31,7 +31,7 @@ describe("parameterized rules", () => {
         parsesFully(grammar, "main", "b!");
     });
 
-    test("arguments are evaluated in the call site's scope (call by name)", () => {
+    test("call by name on parameters", () => {
         const grammar: Grammar = {
             main: rule("outer", lit("go")),
             // outer passes its own parameter on to inner; inner's parameter
@@ -42,7 +42,7 @@ describe("parameterized rules", () => {
         parsesFully(grammar, "main", "go;");
     });
 
-    test("an inner binding shadows an outer parameter of the same name", () => {
+    test("shadowing by name", () => {
         const grammar: Grammar = {
             main: rule("outer", lit("A")),
             outer: [["x"], seq(rule("inner", lit("B")), param("x"))],
@@ -52,7 +52,7 @@ describe("parameterized rules", () => {
         parsesFully(grammar, "main", "BA");
     });
 
-    test("a parameterized rule can be left-recursive, per instance", () => {
+    test("parameterized rule left-recursive per instance", () => {
         const grammar: Grammar = {
             main: seq(rule("e", lit("+")), lit(" "), rule("e", lit("-"))),
             e: [["op"], alt(
@@ -61,10 +61,10 @@ describe("parameterized rules", () => {
             )],
             num: regex(/[0-9]+/),
         };
-        parsesFully(grammar, "main", "1+2 3-4");
+        parsesFully(grammar, "main", "1+2+3 4-5-6");
     });
 
-    test("arguments are required and checked", () => {
+    test("check arguments", () => {
         const needsOne: Grammar = {
             main: rule("w"),
             w: [["t"], param("t")],
@@ -83,7 +83,7 @@ describe("parameterized rules", () => {
     });
 });
 
-describe("parameterized body_exprs", () => {
+describe("Backolon parameterized body_exprs", () => {
     // body_exprs takes the keyword(s) that may end the block as an argument,
     // so each block construct can declare its own terminators.
     const withTerminators = (...terminators: string[]): Grammar => ({
@@ -106,8 +106,8 @@ describe("parameterized body_exprs", () => {
     });
 });
 
-describe("dynamic (ambient) parameters", () => {
-    test("a binding is visible through intermediate rules that neither declare nor forward it", () => {
+describe("dynamic parameters", () => {
+    test("visible across rule boundaries", () => {
         const grammar: Grammar = {
             main: bind("term", lit("!"), rule("a")),
             a: rule("b"),
@@ -116,7 +116,7 @@ describe("dynamic (ambient) parameters", () => {
         parsesFully(grammar, "main", "x!");
     });
 
-    test("an inner binding shadows the outer one for its extent only", () => {
+    test("extent of shadowing", () => {
         const grammar: Grammar = {
             main: bind("t", lit("a"), seq(rule("inner"), ambient("t"))),
             inner: bind("t", lit("b"), ambient("t")),
@@ -125,14 +125,14 @@ describe("dynamic (ambient) parameters", () => {
         parsesFully(grammar, "main", "ba");
     });
 
-    test("a binding's value sees the binding it shadows, so it can extend it", () => {
+    test("can reference the parent value in their own definition", () => {
         const grammar: Grammar = {
             main: bind("t", lit("a"), bind("t", seq(ambient("t"), lit("b")), ambient("t"))),
         };
         parsesFully(grammar, "main", "ab");
     });
 
-    test("a context can be reset for a subtree by rebinding it", () => {
+    test("clear binding by setting it to eps", () => {
         const grammar: Grammar = {
             main: bind("t", lit("z"), seq(bind("t", eps(), ambient("t")), ambient("t"))),
         };
@@ -140,7 +140,7 @@ describe("dynamic (ambient) parameters", () => {
         parsesFully(grammar, "main", "z");
     });
 
-    test("the same rule at the same index memoizes separately per ambient context", () => {
+    test("memoization keys on ambient context too", () => {
         const grammar: Grammar = {
             main: alt(bind("t", lit("a"), rule("h")), bind("t", lit("b"), rule("h"))),
             h: seq(ambient("t"), lit("!")),
@@ -149,7 +149,7 @@ describe("dynamic (ambient) parameters", () => {
         parsesFully(grammar, "main", "b!");
     });
 
-    test("lexical and dynamic parameters coexist, even under the same name", () => {
+    test("can work with lexical parameters", () => {
         const grammar: Grammar = {
             main: bind("x", lit("D"), rule("outer", lit("L"))),
             outer: [["x"], seq(param("x"), rule("inner", param("x")))],
@@ -161,7 +161,7 @@ describe("dynamic (ambient) parameters", () => {
         parsesFully(grammar, "main", "LLD");
     });
 
-    test("a rule that consults ambient context can still be left-recursive", () => {
+    test("can still be left-recursive", () => {
         const grammar: Grammar = {
             main: bind("op", lit("+"), rule("e")),
             e: alt(seq(rule("e"), ambient("op"), rule("num")), rule("num")),
@@ -170,7 +170,7 @@ describe("dynamic (ambient) parameters", () => {
         parsesFully(grammar, "main", "1+2");
     });
 
-    test("reading an unbound dynamic parameter is an error", () => {
+    test("unbound dynamic parameter", () => {
         const grammar: Grammar = { main: ambient("nope") };
         expect(() => parseToCST("a", 0, "main", grammar, "exprs")).toThrow("unbound dynamic parameter nope");
     });

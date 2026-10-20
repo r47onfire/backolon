@@ -422,5 +422,5 @@ export const all_tags = new Set(function walk(g: any): string[] {
 }(backolonGrammar));
 // console.log({ all_tags });
 // Object.entries(backolonGrammar).forEach(([rule, g]) => {
-//     console.log(`    ${rule}: ${describe(g)}`);
+//     console.log(`${rule}: ${describe(Array.isArray(g) ? g[1] : g)}`);
 // });

@@ -117,7 +117,7 @@ export const param = (p: string): GrammarCombinator => ({ op: "param", v: p });
 /** Evaluates the combinator bound to the dynamic parameter `p` by the nearest enclosing {@link bind}. Dynamic parameters are ambient context: any rule parsed within the bind's extent can read them without receiving them as arguments. Unbound dynamic parameters are an error. */
 export const ambient = (p: string): GrammarCombinator => ({ op: "ambient", v: p });
 /** Parses `body` with the dynamic parameter `p` bound to `value` for the body's dynamic extent (including any rules it calls, however deep). Inside `value`, `ambient(p)` still refers to the binding this one shadows, so a new value can extend the old one. */
-export const bind = (p: string, value: GrammarCombinator, body: GrammarCombinator): GrammarCombinator => ({ op: "bind", v: p, c: [value, body] });
+export const bind = (p: string, value: GrammarCombinator, body: GrammarCombinator): GrammarCombinator => ({ op: "bind", v: p, j: value, c: [body] });
 /** Matches all of `n` in order; the result is a flat node holding every child's result. */
 export const seq = (...n: GrammarCombinator[]): GrammarCombinator => ({ op: "seq", c: n });
 /** Like `seq`, but the separator `s` is attempted before, between, and after the items; separator results are marked ignored. */
