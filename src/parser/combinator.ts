@@ -1,5 +1,12 @@
 /** A grammar: rule names mapped to their definitions. */
-export type Grammar = Readonly<Record<string, GrammarCombinator>>;
+export type Grammar = Readonly<Record<string, GrammarCombinator | ParameterizedRule>>;
+
+/**
+ * A parameterized rule definition: the parameter names, and the rule body.
+ * Inside the body, `param(name)` evaluates the combinator that was passed
+ * for that parameter at the call site (in the call site's scope).
+ */
+export type ParameterizedRule = readonly [params: readonly string[], body: GrammarCombinator];
 
 /**
  * A single grammar node. Combinators are plain serializable data (no functions),
@@ -36,8 +43,8 @@ export type GrammarCombinator = {
      * - tag/kw: tag
      */
     readonly f?: string;
-    // /** cached structural hash */
-    // hash?: number;
+    /** cached structural hash (see {@link hashCombinator}); filled in lazily */
+    hash?: number;
 };
 /**
  * The operation a {@link GrammarCombinator} performs; determines how the
@@ -51,8 +58,10 @@ export type GrammarOp =
     | "kw"
     /** node is trivial / no useful value */
     | "ign"
-    /** call the rule and return a node with the results */
+    /** call the rule and return a node with the results; children, if any, are the arguments passed to a parameterized rule */
     | "rule"
+    /** evaluate the combinator passed for the named rule parameter, in the scope of the call site that supplied it */
+    | "param"
     /** return all results in an array */
     | "seq"
     /** sequencing, but with optional sep surrounding them; sep is ignored */
@@ -93,8 +102,10 @@ export const regex = (p: RegExp): GrammarCombinator => ({ op: "tok", v: [p.sourc
 export const kw = (t: string, ...o: string[]): GrammarCombinator => ({ op: "kw", v: o, f: t });
 /** Parses `n` but flags the result `ignored`: its text stays in the CST (so concatenating all leaves still reproduces the source) and it is dropped later, when the CST is lowered to an AST. */
 export const ignored = (n: GrammarCombinator): GrammarCombinator => ({ op: "ign", c: [n] });
-/** Invokes the named rule `r` from the grammar; the result is wrapped in a node typed `r`, unless the rule only delegated to another named rule. */
-export const rule = (r: string): GrammarCombinator => ({ op: "rule", v: r });
+/** Invokes the named rule `r` from the grammar; the result is wrapped in a node typed `r`, unless the rule only delegated to another named rule. Extra combinators are arguments, for calling a parameterized rule. */
+export const rule = (r: string, ...args: GrammarCombinator[]): GrammarCombinator => args.length ? { op: "rule", v: r, c: args } : { op: "rule", v: r };
+/** Evaluates the argument combinator bound to the parameter `p` of the enclosing parameterized rule, in the scope where that argument was written. */
+export const param = (p: string): GrammarCombinator => ({ op: "param", v: p });
 /** Matches all of `n` in order; the result is a flat node holding every child's result. */
 export const seq = (...n: GrammarCombinator[]): GrammarCombinator => ({ op: "seq", c: n });
 /** Like `seq`, but the separator `s` is attempted before, between, and after the items; separator results are marked ignored. */
@@ -125,3 +136,34 @@ export const eps = (): GrammarCombinator => ({ op: "eps" });
 export const die = (m: string): GrammarCombinator => ({ op: "die", v: m });
 /** Parses `n` speculatively: if `n` fails, any cut inside it is hidden, so the failure looks ordinary and enclosing alternatives can still fall back. */
 export const try_ = (n: GrammarCombinator): GrammarCombinator => ({ op: "try", c: [n] });
+
+/** FNV-1a string hash, for {@link hashCombinator}. */
+const hashString = (s: string): number => {
+    var h = 0x811c9dc5;
+    for (var k = 0; k < s.length; k++) {
+        h ^= s.charCodeAt(k);
+        h = Math.imul(h, 0x01000193);
+    }
+    return h >>> 0;
+};
+
+/**
+ * A structural hash of a combinator tree: two trees with the same shape and
+ * payloads hash alike. The result is cached on the node itself, so hashing a
+ * tree costs one walk, ever. Used to tell parameterized rule instances apart
+ * in the parser's memo table (the instance is identified by the rule name
+ * plus the hashes of its argument combinators).
+ */
+export const hashCombinator = (g: GrammarCombinator): number => {
+    if (g.hash !== undefined) return g.hash;
+    var h = hashString(g.op);
+    const mix = (x: number, prime: number) => { h = (Math.imul(h, prime) + x) >>> 0; };
+    const v = g.v;
+    if (typeof v === "string") mix(hashString(v), 31);
+    else if (typeof v === "number") mix(v, 31);
+    else if (Array.isArray(v)) for (const s of v) mix(hashString(s), 31);
+    if (g.f !== undefined) mix(hashString(g.f), 31);
+    if (g.c) for (const child of g.c) mix(hashCombinator(child), 31);
+    if (g.j) mix(hashCombinator(g.j), 37);
+    return g.hash = h;
+};

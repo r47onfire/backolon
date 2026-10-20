@@ -33,6 +33,7 @@ export const stripInlinedFunctions = <T>(ast: T): T => {
 const describe_formats: Record<GrammarOp, [string, join?: string, map?: Record<string, string>]> = {
     tok: ["v"],
     rule: ["r"],
+    param: ["$r"],
     tag: ["#r=c"],
     ign: [",c"],
     opt: ["[c]"],
