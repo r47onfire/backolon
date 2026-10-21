@@ -83,29 +83,6 @@ describe("parameterized rules", () => {
     });
 });
 
-describe("Backolon parameterized body_exprs", () => {
-    // body_exprs takes the keyword(s) that may end the block as an argument,
-    // so each block construct can declare its own terminators.
-    const withTerminators = (...terminators: string[]): Grammar => ({
-        ...backolonGrammar,
-        main: seq(lit("if "), rule("body_exprs", kw("keyword", ...terminators))),
-    });
-
-    test("the body stops at, and consumes, a terminator from the argument list", () => {
-        parsesFully(withTerminators("else", "end"), "main", "if a b else");
-        parsesFully(withTerminators("else", "end"), "main", "if a\nb\nelse");
-        parsesFully(withTerminators("else", "end"), "main", "if a b end");
-    });
-
-    test("a keyword not in the argument list does not end the body", () => {
-        const cst = parseToCST("if a b else", 0, "main", withTerminators("end"), "exprs");
-        expect(JSON.stringify(cst)).not.toContain('"errorExpected"');
-        // the body parsed "a b" and stopped before "else" (only the
-        // separator blank after it was consumed)
-        expect(cst.end).toBe("if a b ".length);
-    });
-});
-
 describe("dynamic parameters", () => {
     test("visible across rule boundaries", () => {
         const grammar: Grammar = {
@@ -173,5 +150,51 @@ describe("dynamic parameters", () => {
     test("unbound dynamic parameter", () => {
         const grammar: Grammar = { main: ambient("nope") };
         expect(() => parseToCST("a", 0, "main", grammar, "exprs")).toThrow("unbound dynamic parameter nope");
+    });
+});
+
+describe("parameter defaults", () => {
+    test("evaluated when the parameter is unbound", () => {
+        const grammar: Grammar = {
+            main: seq(lit("hello "), param("notdefined", lit("world"))),
+        };
+        parsesFully(grammar, "main", "hello world");
+    });
+
+    test("bound parameter wins", () => {
+        const grammar: Grammar = {
+            main: rule("w", lit("rulevalue")),
+            w: [["x"], param("x", lit("default"))],
+        };
+        parsesFully(grammar, "main", "rulevalue");
+        const cst = parseToCST("default", 0, "main", grammar, "exprs");
+        expect(JSON.stringify(cst)).toContain('"errorExpected"');
+    });
+
+    test("works inside rule arguments", () => {
+        const grammar: Grammar = {
+            main: rule("w", param("missing", lit("abc"))),
+            w: [["a"], param("a")],
+        };
+        parsesFully(grammar, "main", "abc");
+    });
+
+    test("ambient default still evaluated when no bind is in effect", () => {
+        const grammar: Grammar = {
+            main: seq(lit("a"), ambient("sep", lit("b"))),
+        };
+        parsesFully(grammar, "main", "ab");
+    });
+
+    test("binding wins over an ambient default, resolves in the reference site's context", () => {
+        const bound: Grammar = {
+            main: bind("sep", lit("good"), ambient("sep", lit("bad"))),
+        };
+        parsesFully(bound, "main", "good");
+        // the default itself can read other ambient values in effect at the reference
+        const nested: Grammar = {
+            main: bind("a", lit("abc"), ambient("notdefined", ambient("a"))),
+        };
+        parsesFully(nested, "main", "abc");
     });
 });

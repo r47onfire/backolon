@@ -204,6 +204,7 @@ describe("let", () => {
     test.each(([
         [`let a = b`, ["exprs", ["let", ["simple_let", ["implicit_args", ["assignment", ["name", "a"], ["normal_assign", "="], ["name", "b"]]]]]]],
         [`let x = a, y = b in foo x end`, ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]], ["assignment", ["name", "y"], ["normal_assign", "="], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]]]],
+        [`let x = a, y = b in foo x end a b`, ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]], ["assignment", ["name", "y"], ["normal_assign", "="], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]], ["implicit_call", ["name", "a"], ["implicit_args", ["name", "b"]]]]],
         [`let(loop) x = a in foo loop end`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]],
         [`let(loop) x = a in\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
         [`let(loop) x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
@@ -342,5 +343,21 @@ describe("error nodes", () => {
         checkSource(cst, text);
         const errors = errorNodes(cst);
         expect(errors).toHaveLength(1);
+    });
+});
+
+describe("contextual soft keywords", () => {
+    // Inside brackets nothing can end an enclosing block, so the guard is
+    // reset and soft keywords are usable as ordinary names. These first
+    // cases were errors (or truncated parses) with the old global guard.
+    test.each(([
+        ["(else)", ["exprs", ["par_exp", ["exprs", ["name", "else"]]]]],
+        ["(in)", ["exprs", ["par_exp", ["exprs", ["name", "in"]]]]],
+        ["(end)", ["exprs", ["par_exp", ["exprs", ["name", "end"]]]]],
+        ["(let x = a in x end)", ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["name", "x"]]]]]]]]],
+        ["(let else = a in else end)", ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "else"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["name", "else"]]]]]]]]],
+        ["let x = (else) in x end", ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["par_exp", ["exprs", ["name", "else"]]]]], ["body_exprs", ["exprs", ["name", "x"]]]]]]],
+    ] satisfies [string, ASTNode][]).map(([s, n]) => [JSON.stringify(s), s, n]))("%s", (_, str, n) => {
+        expect(toAST(parsesFully(str))).toEqual(n);
     });
 });

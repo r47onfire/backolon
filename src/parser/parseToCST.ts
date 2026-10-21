@@ -1,8 +1,7 @@
 import { javaHash } from "@r47onfire/game-math";
-import { isArray, last } from "lib0/array";
-import { isString } from "lib0/function";
+import { last } from "lib0/array";
 import { imul, max } from "lib0/math";
-import { Grammar, GrammarCombinator, hashCombinator, rule } from "./combinator";
+import { Dynamics, Grammar, GrammarCombinator, GrammarOpDef, hashCombinator, Locals, MatchFail, MixAction, OpContext, opDefs, ReferenceResolver, rule } from "./combinator";
 import { CSTNode } from "./cst";
 
 /**
@@ -40,72 +39,11 @@ class LR {
     ) { }
 }
 
-/**
- * A failed match. `i` is the index where the failure occurred (used for
- * error reporting), `cut` is the remaining cut depth (Infinity for `die`),
- * and `expected` is the combinator that failed to match.
- */
-class MatchFail {
-    constructor(readonly i: number, readonly cut: number, readonly expected: GrammarCombinator) { }
-}
-
 // Exported as types only, so they can be named in public signatures (and
 // documentation) without exposing their constructors as public API;
 // only the parser itself creates them.
-export type { Head, LR, MatchFail };
-
-/**
- * One argument binding of a parameterized rule invocation: the argument
- * combinator, plus the parameter scope in effect where the argument was
- * written, so that evaluating it later (via the `param` op) resolves any
- * parameters it mentions in the call site's scope, not the callee's.
- */
-interface ParamBinding {
-    readonly g: GrammarCombinator,
-    readonly locals: Locals
-}
-
-/**
- * A parameter scope: the bindings of one parameterized rule invocation,
- * chained to the enclosing scope. Scopes are threaded through the parse as
- * immutable values, so speculative branches (alternatives, lookaheads,
- * recovery probes) can never disturb each other's bindings.
- */
-interface ParamFrame {
-    readonly bindings: Readonly<Record<string, ParamBinding>>,
-    readonly next: Locals
-}
-type Locals = ParamFrame | undefined;
-
-/**
- * One dynamic (ambient) binding: the combinator bound by a `bind`, the
- * lexical scope in effect where that bind was written (for any rule
- * parameters the value mentions), and the dynamic scope outside the bind
- * (what `ambient` references inside the value see -- in particular, the
- * binding this one shadows is still visible to the value itself, so a new
- * value can extend the one it replaces).
- */
-interface DynBinding {
-    readonly g: GrammarCombinator,
-    readonly locals: Locals,
-    readonly dynamics: Dynamics
-}
-
-/**
- * The dynamic scope: a chain of {@link DynBinding}s, innermost first. Like
- * the lexical scope it is threaded through the parse as an immutable value,
- * so speculative branches cannot disturb each other's bindings. `key`
- * identifies this exact chain; while a chain is in effect its key is part of
- * every memo identity, so a result that depends on ambient context is never
- * reused under a different context.
- */
-interface DynFrame {
-    readonly name: string,
-    readonly binding: DynBinding,
-    readonly next: Dynamics,
-    readonly key: string
-}
-type Dynamics = DynFrame | undefined;
+export type { MatchFail } from "./combinator";
+export type { Head, LR };
 
 /**
  * A hash of a combinator tree with its parameter references resolved:
@@ -113,41 +51,47 @@ type Dynamics = DynFrame | undefined;
  * the lexical scope), `ambient` nodes the hash of the dynamic binding they
  * name (resolved in the dynamic scope captured by that binding, so a
  * binding's value never depends on itself), and `bind` nodes hash their
- * body under the dynamic scope the bind creates. Nothing is cached: the
- * result depends on the scopes, not just the tree.
+ * body under the dynamic scope the bind creates. An unbound reference with
+ * a default contributes the default's hash. This is the one hash function,
+ * {@link hashCombinator}, driven by a resolver; nothing is cached, since
+ * the result depends on the scopes, not just the tree.
  */
 const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dynamics, path: string): number => {
-    if (g.op === "param") {
-        for (var frame = locals; frame; frame = frame.next) {
-            const binding = frame.bindings[g.v as string];
-            if (binding) return hashResolved(binding.g, binding.locals, dynamics, path);
+    const resolveWith = (scopeLocals: Locals, scopeDynamics: Dynamics): ReferenceResolver => (node, hashChild) => {
+        if (node.op === "param") {
+            for (var frame = scopeLocals; frame; frame = frame.next) {
+                const binding = frame.bindings[node.name];
+                if (binding) return hashCombinator(binding.node, resolveWith(binding.locals, scopeDynamics));
+            }
+            if (node.default) return hashChild(node.default);
+            throw new Error("unbound rule parameter " + node.name + " at " + path);
         }
-        throw new Error("unbound rule parameter " + g.v + " at " + path);
-    }
-    if (g.op === "ambient") {
-        for (var dyn = dynamics; dyn; dyn = dyn.next) {
-            if (dyn.name === g.v) return hashResolved(dyn.binding.g, dyn.binding.locals, dyn.binding.dynamics, path);
+        if (node.op === "ambient") {
+            for (var dyn = scopeDynamics; dyn; dyn = dyn.next) {
+                if (dyn.name === node.name) return hashCombinator(dyn.binding.node, resolveWith(dyn.binding.locals, dyn.binding.dynamics));
+            }
+            if (node.default) return hashChild(node.default);
+            throw new Error("unbound dynamic parameter " + node.name + " at " + path);
         }
-        throw new Error("unbound dynamic parameter " + g.v + " at " + path);
-    }
-    if (g.op !== "rule" && g.op !== "bind" && !g.c && !g.j) return hashCombinator(g);
-    var h = 0x811c9dc5;
-    const mixString = (s: string, p: number) => h = imul(h + javaHash(s), p);
-    mixString(g.op, 31);
-    const v = g.v;
-    if (typeof v === "string") mixString(v, 31);
-    else if (typeof v === "number") h = (imul(h, 31) + v) >>> 0;
-    else if (isArray(v)) for (var s of v) mixString(s, 31);
-    if (g.f !== undefined) mixString(g.f, 31);
-    if (g.op === "bind") {
-        const inner: Dynamics = { name: v as string, binding: { g: g.j!, locals, dynamics }, next: dynamics, key: "" };
-        h = (imul(h, 31) + hashResolved(g.j!, locals, dynamics, path)) >>> 0;
-        h = (imul(h, 31) + hashResolved(g.c![0]!, locals, inner, path)) >>> 0;
-    } else {
-        if (g.c) for (var child of g.c) h = (imul(h, 31) + hashResolved(child, locals, dynamics, path)) >>> 0;
-        if (g.j) h = (imul(h, 37) + hashResolved(g.j, locals, dynamics, path)) >>> 0;
-    }
-    return h >>> 0;
+        if (node.op === "bind") {
+            // The body is hashed under the dynamic scope the bind creates:
+            // its own binding is visible to ambient references inside it.
+            const { name, value, body } = node;
+            const inner: Dynamics = { name, binding: { node: value, locals: scopeLocals, dynamics: scopeDynamics }, next: scopeDynamics, key: "" };
+            const childHashes: Record<string, number> = {
+                value: hashCombinator(value, resolveWith(scopeLocals, scopeDynamics)),
+                body: hashCombinator(body, resolveWith(scopeLocals, inner)),
+            };
+            var h = javaHash(node.op);
+            for (const [field, action] of opDefs.bind.hashFields) {
+                if (action === MixAction.Child) h = (imul(h, 31) + childHashes[field]!) >>> 0;
+                else if (action === MixAction.String) h = (imul(h, 31) + javaHash((node as any)[field] as string)) >>> 0;
+            }
+            return h;
+        }
+        return undefined;
+    };
+    return hashCombinator(g, resolveWith(locals, dynamics));
 };
 
 /**
@@ -180,6 +124,13 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
     const cutDepth = () => last(cutStack)?.[0] ?? 0;
     /** Marks the innermost frame's cut as consumed by the current alternative. */
     const consumeCut = () => { if (cutStack.length) last(cutStack)![0] = 0; };
+    /** A snapshot of the cut stack's depths, for speculative parses. */
+    const snapshotCuts = (): number[] => cutStack.map(frame => frame[0]);
+    /** Restores a snapshot taken with {@link snapshotCuts}. */
+    const restoreCuts = (saved: readonly number[]) => {
+        for (var k = 0; k < saved.length; k++) cutStack[k]![0] = saved[k]!;
+        cutStack.length = saved.length;
+    };
     const errorNode = (start: number, end: number, expected: GrammarCombinator): CSTNode => ({ type: errorType, start, end, text: text.slice(start, end), errorExpected: expected });
     /**
      * True if an enclosing construct has committed (cut) without finishing yet.
@@ -191,12 +142,11 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * speculative and don't log commits). Null if no progress was made
      */
     const probeAt = (path: string, node: GrammarCombinator, j: number, locals: Locals, dynamics: Dynamics): CSTNode | null => {
-        const savedCuts = cutStack.map(frame => frame[0]);
+        const savedCuts = snapshotCuts();
         const savedLR = lrStack;
         const probe = applyRule(path, node, j, locals, dynamics);
         // restore cuts and LR stack
-        for (var k = 0; k < savedCuts.length; k++) cutStack[k]![0] = savedCuts[k]!;
-        cutStack.length = savedCuts.length;
+        restoreCuts(savedCuts);
         lrStack = savedLR;
         if (probe instanceof MatchFail) return null;
         if (probe.end <= j) return null;
@@ -244,322 +194,32 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
         }
         return null;
     };
+    /** The services the operation definitions run against (see {@link OpContext}). */
+    const ctx: OpContext = {
+        text,
+        grammar,
+        applyRule: (path, node, i, locals, dynamics) => applyRule(path, node, i, locals, dynamics),
+        errorNode,
+        recover,
+        recoverChild,
+        cutDepth,
+        consumeCut,
+        committedDepth: () => cutStack.reduce((n, f) => n + (f[0] > 0 ? 1 : 0), 0),
+        snapshotCuts,
+        restoreCuts,
+        pushCutFrame: () => cutStack.push([0]),
+        popCutFrame: () => cutStack.pop()?.[0] ?? 0,
+        applyCut: depth => { const f = last(cutStack); if (f) f[0] = max(f[0], depth); },
+        inCommittedScope,
+        hashResolved,
+        instancePath,
+    };
     /**
-     * Do the actual logic for the grammar node's operation.
+     * Do the actual logic for the grammar node's operation, by dispatching
+     * to its definition in the op table.
      */
-    const callRule = (path: string, g: GrammarCombinator, i: number, locals: Locals, dynamics: Dynamics): CSTNode | MatchFail => {
-        const badflag = (): never => {
-            throw new Error("bad flag for " + op + ": " + g.f);
-        };
-        const op = g?.op;
-        switch (op) {
-            case "tok": {
-                const p = g.v as string | [string, string];
-                if (isArray(p)) {
-                    const re = new RegExp(p[0], p[1] + "y");
-                    re.lastIndex = i;
-                    const match = re.exec(text);
-                    return match ? { text: match[0], start: i, end: i + match[0].length } : new MatchFail(i, 0, g);
-                } else {
-                    return text.startsWith(p, i) ? { text: p, start: i, end: i + p.length } : new MatchFail(i, 0, g);
-                }
-            }
-            case "kw": {
-                const p = g.v as string[];
-                const re = new RegExp("\\b(" + p.map(RegExp.escape).join("|") + ")\\b", "y");
-                re.lastIndex = i;
-                const match = re.exec(text);
-                return match ? { text: match[0], tag: g.f, start: i, end: i + match[0].length, ignored: true } : new MatchFail(i, 0, g);
-            }
-            case "ign": {
-                const cst = applyRule(path + "/", g.c![0]!, i, locals, dynamics);
-                return cst instanceof MatchFail ? cst : { ignored: true, start: cst.start, end: cst.end, children: [cst] };
-            }
-            case "rule": {
-                const name = g.v as string;
-                const entry = grammar[name];
-                if (!entry) throw new Error("unknown named rule " + name + " at " + path);
-                const args = g.c ?? [];
-                var body: GrammarCombinator, bodyPath = name, bodyLocals = locals;
-                if (isArray(entry)) {
-                    // Parameterized rule: bind the arguments (all required, no
-                    // defaults), each capturing the scope in effect at this
-                    // call site, and evaluate the body under a memo path that
-                    // names the instance (the rule name plus the hashes of its
-                    // argument combinators), so that different instances of
-                    // the same rule memoize separately.
-                    const { 0: params, 1: ruleBody } = entry;
-                    if (args.length !== params.length) throw new Error("rule " + name + " takes " + params.length + " argument(s) but got " + args.length + " at " + path);
-                    const bindings: Record<string, ParamBinding> = {};
-                    for (var k = 0; k < params.length; k++) bindings[params[k]!] = { g: args[k]!, locals };
-                    body = ruleBody;
-                    bodyPath = instancePath(name, args, locals, dynamics, path);
-                    bodyLocals = { bindings, next: locals };
-                } else {
-                    if (args.length) throw new Error("rule " + name + " takes no arguments at " + path);
-                    body = entry as GrammarCombinator;
-                }
-                cutStack.push([0]);
-                const cst = applyRule(bodyPath, body, i, bodyLocals, dynamics);
-                const frameDepth = cutDepth();
-                cutStack.pop();
-                if (cst instanceof MatchFail) {
-                    const d = max(cst.cut, frameDepth);
-                    return d === cst.cut ? cst : new MatchFail(cst.i, d, cst.expected);
-                }
-                // Don't nest when the rule only delegated to another named rule
-                if (cst.text === undefined && isString(cst.type)) return cst;
-                return { type: name, start: cst.start, end: cst.end, children: [cst] };
-            }
-            case "param": {
-                const name = g.v as string;
-                for (var scope = locals; scope; scope = scope.next) {
-                    const binding = scope.bindings[name];
-                    // Evaluate the argument under its own memo path: the memo
-                    // is keyed by path alone, so reusing this reference's path
-                    // would collide with the param op's own in-progress entry.
-                    // The argument's own parameters resolve in the scope it
-                    // captured, but any dynamic parameters it mentions resolve
-                    // in the ambient context in effect here, at its use.
-                    if (binding) return applyRule(path + "$" + name, binding.g, i, binding.locals, dynamics);
-                }
-                throw new Error("unbound rule parameter " + name + " at " + path);
-            }
-            case "ambient": {
-                const name = g.v as string;
-                for (var dyn = dynamics; dyn; dyn = dyn.next) {
-                    // As with param, the value gets its own memo path -- and
-                    // the path names the binding's frame key, because the
-                    // same reference under different bindings must not share
-                    // a memo entry even though the value is evaluated in the
-                    // scope outside the bind. It is evaluated with the
-                    // lexical scope of the bind that supplied it, and the
-                    // dynamic scope outside that bind.
-                    if (dyn.name === name) return applyRule(path + "$@" + name + "#" + dyn.key, dyn.binding.g, i, dyn.binding.locals, dyn.binding.dynamics);
-                }
-                throw new Error("unbound dynamic parameter " + name + " at " + path);
-            }
-            case "bind": {
-                const name = g.v as string;
-                const frame: DynFrame = {
-                    name,
-                    binding: { g: g.j!, locals, dynamics },
-                    next: dynamics,
-                    key: (dynamics ? dynamics.key + "/" : "") + name + "#" + hashResolved(g.j!, locals, dynamics, path).toString(36),
-                };
-                return applyRule(path + "/b", g.c![0]!, i, locals, frame);
-            }
-            case "tag": {
-                const cst = applyRule(path + "/", g.c![0]!, i, locals, dynamics);
-                return cst instanceof MatchFail ? cst : { tag: g.f, start: cst.start, end: cst.end, children: [cst] };
-            }
-            case "seq":
-            case "ssep": {
-                const children: CSTNode[] = [];
-                const start = i;
-                const items = g.c!, len = items.length;
-                const sep = () => {
-                    if (op !== "ssep") return;
-                    const sepThing = applyRule(path + "/s", g.j!, i, locals, dynamics);
-                    if (sepThing instanceof MatchFail) {
-                        children.push({ ignored: true, start: i, end: i });
-                    } else {
-                        children.push({ ignored: true, start: sepThing.start, end: sepThing.end, children: [sepThing] });
-                        i = sepThing.end;
-                    }
-                }
-                const currentCutFrame = last(cutStack), currentCut = currentCutFrame?.[0];
-                for (var j = 0; j < len; j++) {
-                    sep();
-                    const child = items[j]!;
-                    const thisMatch = applyRule(path + "/" + j, child, i, locals, dynamics);
-                    if (thisMatch instanceof MatchFail) {
-                        if (thisMatch.cut === Infinity) return thisMatch;
-                        if ((currentCutFrame?.[0] ?? 0) > currentCut) {
-                            // we did another cut inside
-                            // resync to the failed child (without breaking the outer grammar node)
-                            var depth = 0;
-                            for (var frame of cutStack) if (frame[0] > 0) depth++;
-                            if (depth > 1) return thisMatch;
-                            const resumed = recoverChild(path + "/" + j, child, i, thisMatch, children, locals, dynamics);
-                            if (resumed === null) return thisMatch;
-                            i = resumed;
-                            continue;
-                        }
-                        return thisMatch;
-                    }
-                    children.push(thisMatch);
-                    i = thisMatch.end;
-                }
-                sep();
-                return { start, end: i, children };
-            }
-            case "alt": {
-                const items = g.c!, len = items.length;
-                const options: CSTNode[] = [];
-                var furthestFail: MatchFail | undefined;
-                for (var j = 0; j < len; j++) {
-                    const depthBefore = cutDepth();
-                    const thisMatch = applyRule(path + "/" + j, items[j]!, i, locals, dynamics);
-                    if (thisMatch instanceof MatchFail) {
-                        const childCut = thisMatch.cut;
-                        const d = max(thisMatch.cut, cutDepth());
-                        if (d === 0) {
-                            // track the furthest failure for better error messages
-                            if (!furthestFail || thisMatch.i > furthestFail.i) furthestFail = thisMatch;
-                            continue;
-                        }
-                        consumeCut();
-                        // propagate the child's cut depth unchanged; only decrement if the cut was from this level
-                        const newCut = childCut > 0 ? childCut : d - 1;
-                        return new MatchFail(thisMatch.i, newCut, thisMatch.expected);
-                    }
-                    // A cut inside a successful alternative commits the choice:
-                    // return it now instead of letting a later, longer alternative win.
-                    if (cutDepth() > depthBefore) return thisMatch;
-                    options.push(thisMatch);
-                }
-                return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, g)) : options.reduce((a, b) => b.end > a.end ? b : a);
-            }
-            case "opt": {
-                const cst = applyRule(path + "/", g.c![0]!, i, locals, dynamics);
-                // don't swallow a cut fail
-                return cst instanceof MatchFail ? (cst.cut > 0 ? cst : { start: i, end: i }) : cst;
-            }
-            case "rep": {
-                const start = i;
-                const children: CSTNode[] = [];
-                if (g.f !== "r" && g.f !== "o") badflag();
-                const nodes = g.c!, len = nodes.length;
-                if (len > 0) {
-                    for (var count = 0; ; count++) {
-                        if (i >= text.length) break;
-                        const item = nodes[count % len]!;
-                        const thisMatch = applyRule(path + "/*", item, i, locals, dynamics);
-                        if (thisMatch instanceof MatchFail) {
-                            if (thisMatch.cut === Infinity) return thisMatch;
-                            if (thisMatch.cut > 0) {
-                                if (inCommittedScope()) {
-                                    // don't leak cuts, to allow resync
-                                    const end = max(thisMatch.i, i + 1);
-                                    children.push(errorNode(i, end, thisMatch.expected));
-                                    i = end;
-                                    continue;
-                                }
-                                // Not committed: panic-mode resync to next match.
-                                const next = recover(path + "/*", item, i, thisMatch, children, locals, dynamics);
-                                if (next <= i) break; // nowhere left to go
-                                i = next;
-                                continue;
-                            }
-                            if (g.f === "r" && count < 1) return thisMatch;
-                            // normal failure
-                            break;
-                        }
-                        if (thisMatch.end === i) break; // no progress = stop
-                        children.push(thisMatch);
-                        i = thisMatch.end;
-                    }
-                }
-                return { start, end: i, children };
-            }
-            case "joined": {
-                const start = i;
-                const children: CSTNode[] = [];
-                const elemRule = g.c![0]!, sepRule = g.j!;
-                const require2 = /2/.test(g.f!);
-                const trailing = /t/.test(g.f!);
-                for (; ;) {
-                    if (i >= text.length) {
-                        if (children.length < (require2 ? 3 : 1)) return new MatchFail(i, 0, elemRule);
-                        break;
-                    }
-                    const elem = applyRule(path + "/e", elemRule, i, locals, dynamics);
-                    if (elem instanceof MatchFail) {
-                        if (elem.cut === Infinity) return elem;
-                        if (elem.cut > 0) {
-                            if (inCommittedScope()) {
-                                // Inside a committed construct: keep it local.
-                                const end = max(elem.i, i + 1);
-                                children.push(errorNode(i, end, elem.expected));
-                                i = end;
-                                continue;
-                            }
-                            const next = recover(path + "/e", elemRule, i, elem, children, locals, dynamics);
-                            if (next <= i) break;
-                            i = next;
-                            continue;
-                        }
-                        if (children.length < (require2 ? 3 : 1)) return elem; // need at least one or two elements
-                        // trailing sep is cut-fail
-                        if (trailing) break;
-                        return new MatchFail(elem.i, 1, elem.expected);
-                    }
-                    children.push(elem);
-                    i = elem.end;
-                    const s = applyRule(path + "/s", sepRule, i, locals, dynamics);
-                    if (s instanceof MatchFail) {
-                        if (s.cut === Infinity) return s;
-                        if (s.cut > 0) {
-                            if (inCommittedScope()) {
-                                const end = max(s.i, i + 1);
-                                children.push(errorNode(i, end, s.expected));
-                                i = end;
-                                continue;
-                            }
-                            const next = recover(path + "/s", sepRule, i, s, children, locals, dynamics);
-                            if (next <= i) break;
-                            i = next;
-                            continue;
-                        }
-                        if (children.length < (require2 ? 3 : 1)) return s; // need at least one or two elements
-                        break; // no separator: done
-                    }
-                    if (s.end === i) break; // empty separator ?!?
-                    children.push(s);
-                    i = s.end;
-                }
-                return { start, end: i, children };
-            }
-            case "if": {
-                return applyRule(path + "/c", g.j!, i, locals, dynamics) instanceof MatchFail ? applyRule(path + "/f", g.c![1]!, i, locals, dynamics) : applyRule(path + "/t", g.c![0]!, i, locals, dynamics);
-            }
-            case "cut": {
-                const f = last(cutStack);
-                if (f) f[0] = max(f[0], g.v as number);
-                return { ignored: true, start: i, end: i };
-            }
-            case "lookahead": {
-                const cst = applyRule(path + "/?", g.c![0]!, i, locals, dynamics);
-                const neg = g.f === "-";
-                if (!neg && g.f !== "+") badflag();
-                return cst instanceof MatchFail === neg ? { ignored: true, start: i, end: i } : new MatchFail(i, 0, g);
-            }
-            case "sameline":
-            case "nonempty": {
-                const cst = applyRule(path + "/", g.c![0]!, i, locals, dynamics);
-                return cst instanceof MatchFail ? cst : (op === "nonempty" ? cst.end === i : text.slice(cst.start, cst.end).indexOf("\n") >= 0) ? new MatchFail(i, 0, g) : cst;
-            }
-            case "eps":
-                return { start: i, end: i };
-            case "try": {
-                // Speculative parse: if node fails, hide the cuts
-                const savedCuts = cutStack.map(frame => frame[0]);
-                const cst = applyRule(path + "/", g.c![0]!, i, locals, dynamics);
-                if (cst instanceof MatchFail) {
-                    for (var k = 0; k < savedCuts.length; k++) cutStack[k]![0] = savedCuts[k]!;
-                    cutStack.length = savedCuts.length;
-                    return new MatchFail(cst.i, 0, cst.expected);
-                }
-                return cst;
-            }
-            case "die":
-                return new MatchFail(i, Infinity, g);
-            default:
-                op satisfies never;
-        }
-        throw new Error("unknown grammar rule type " + (op ?? g) + " at " + path);
-    }
+    const callRule = (path: string, g: GrammarCombinator, i: number, locals: Locals, dynamics: Dynamics): CSTNode | MatchFail =>
+        (opDefs[g.op] as GrammarOpDef).call(ctx, g, path, i, locals, dynamics);
     /**
      * Links `l` and every LR above it on the stack into a single head,
      * recording their rules as involved in the recursive cycle.
