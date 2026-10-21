@@ -1,4 +1,4 @@
-import { alt, ambient, bind, cut, eps, Grammar, GrammarCombinator, ignored, joined, kw, lit, lookahead, nonempty, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
+import { alt, altFirst, ambient, bind, cut, eps, Grammar, GrammarCombinator, ignored, joined, kw, lit, lookahead, nonempty, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
 
 /**
  * The soft-keyword guard, as a dynamic parameter. At the places an
@@ -8,11 +8,13 @@ import { alt, ambient, bind, cut, eps, Grammar, GrammarCombinator, ignored, join
  * their own parts (so their parts cannot swallow those keywords), and
  * bracketed contexts reset it (nothing inside brackets can end an
  * enclosing block, so every soft keyword is usable as a plain name there).
- * With no binding in effect, the reference-site default blocks just the
- * block-end keywords (see `not_body_end_keyword`): even at top level a
- * block construct must be able to claim its closing keyword, or the
- * name/implicit-call reading of the same text would swallow it -- and,
- * being the longer match, win.
+ * With no binding in effect, the reference-site default blocks nothing:
+ * any word may start an expression or an argument at top level. A block
+ * construct still claims its delimiting keywords -- not through the
+ * guard, but because `expr` tries block expressions before simple ones
+ * and takes the first match (see `altFirst`): the name/implicit-call
+ * reading of the same text never gets to swallow a block's parts, even
+ * where it would match longer.
  */
 const guardName = "guard";
 const guardHere = (): GrammarCombinator => ambient(guardName, eps());
@@ -48,7 +50,7 @@ export const backolonGrammar: Grammar = {
     exprs: seq(rep(false, ssep(rule("expr_sep"), ssep(rule("blank"), seq(ignored(guardHere()), rule("expr"))))), ignored(opt(rule("expr_sep")))),
     toplevel_exprs: nonempty(rule("exprs")),
     toplevel_expr: rep(true, ssep(rule("expr_sep"), ssep(rule("blank"), rule("expr")))),
-    expr: alt(rule("block_expr"), rule("simple_expr")),
+    expr: altFirst(rule("block_expr"), rule("simple_expr")),
 
     // block_expr: let, if, while, foreach, trycatch, with, fn
     block_expr: alt(

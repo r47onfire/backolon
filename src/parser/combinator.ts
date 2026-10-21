@@ -503,7 +503,7 @@ export const opDefs: OpDefs = {
             }
             return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, node as GrammarCombinator)) : options.reduce((a, b) => b.end > a.end ? b : a);
         },
-        hashFields: [["options", MixAction.Children]],
+        hashFields: [["options", MixAction.Children], ["first", MixAction.Boolean]],
         describe: ({ options }) => "(" + options.map(c => describeCombinator(c)).join(" | ") + ")",
     },
 
@@ -783,7 +783,7 @@ export const seq = (...n: GrammarCombinator[]) => createCombinator("sequence", u
 export const ssep = (s: GrammarCombinator, ...n: GrammarCombinator[]) => createCombinator("sequence", s, ...n);
 /** Tries every alternative and returns the first alternative that cut (whether or not it succeeded) or if none cut, the longest succeeding match (the first, on ties). */
 export const alt = (...n: GrammarCombinator[]) => createCombinator("alternatives", false, ...n);
-/** Tries every alternative and returns the first alternative that cut (whether or not it succeeded) or if none cut, the longest succeeding match (the first, on ties). */
+/** Ordered choice: returns the first succeeding alternative, without trying later ones (a later alternative is tried only if every earlier one fails without cutting). */
 export const altFirst = (...n: GrammarCombinator[]) => createCombinator("alternatives", true, ...n);
 /** Matches `n` if it succeeds, otherwise succeeds empty -- unless `n` failed after a cut, in which case the failure propagates. */
 export const opt = createCombinatorMaker("optional");
