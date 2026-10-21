@@ -3,6 +3,11 @@
 ## auditHookTypes
 
 ### `JEBAuditEvents`
+Map of the audit events a JebVM can emit through its event
+dispatcher, from event name to payload type. These events mark operations
+that are potentially unsafe or reach outside the sandbox (host-language
+interop), so an embedding application can hook, log, or veto them.
+Additional events may be registered by index signature.
 **Properties:**
 - `jeb:add_audit_hook: void`
 - `jeb:ffi/call_function: [f: Function, args: any[]]`
@@ -21,10 +26,15 @@ Data holding a dynamic wind enter/exit handler pair
 ## errors
 
 ### `JEBErrorContext`
+Arbitrary extra data attached to a JEBError. The `return` key is
+special: it holds the restart continuation that error handlers (see `with`)
+can invoke to resume execution at the expression that caused the error.
 **Properties:**
 - `return: Continuation<any>` (optional)
 
 ### `Location`
+A source location, as an `[id, file]` pair; either entry may be
+`undefined` if it is not known.
 ```ts
 [id: number | undefined, file: number | undefined]
 ```
@@ -62,68 +72,96 @@ Thing that can be used to match a type of an object. `true` = any
 ((args: any[]) => any) | keyof TypeMap | true
 ```
 
+### `TypeMap`
+Maps the string type specifiers of Type to the Typescript types they match.
+
 ### `TypeValue`
+The Typescript type of the values matched by the Type specifier `T`.
 ```ts
 T extends true ? any : T extends keyof TypeMap ? TypeMap[T] : T extends (args: any[]) => infer U ? U : never
 ```
 
 ### `TypeArrayValue`
+Maps a list of per-argument Type unions to the tuple type of the
+argument values. `D` may override the value type of individual positions
+(keyed by argument index) for arguments whose value differs from the type
+they were checked against.
 ```ts
 number extends T["length"] ? TypeValue<T[number][number]> : T extends [...(infer Head extends Type[][]), infer Tail extends Type[]] ? [...TypeArrayValue<Head, D>, Head["length"] extends keyof D ? D[Head["length"]] : TypeValue<Tail[number]>] : []
 ```
 
 ### `BaseProtocolObj`
+A single implementation of a protocol: the argument type specialization it
+handles, the code to run for it, and its documentation string.
 **Properties:**
 - `type: T` — The type specialization that this protocol works with.
 - `doc: string` — Documentation string for this protocol implementation.
 
 ### `DescribedProtocolObj`
+A BaseProtocolObj that can also describe its first argument,
+yielding metadata (`I`) about it, such as a callable's signature.
 **Properties:**
 - `type: T` — The type specialization that this protocol works with.
 - `doc: string` — Documentation string for this protocol implementation.
 
 ### `ProtocolObj`
+A protocol implementation object: a DescribedProtocolObj if the
+protocol has a metadata type `I`, otherwise a plain BaseProtocolObj.
 ```ts
 I extends void ? BaseProtocolObj<V, R, T, D, F> : DescribedProtocolObj<V, R, T, D, I, F>
 ```
 
 ### `ProtocolsList`
+All registered implementations of one protocol. When the protocol is
+invoked, the best-matching implementation is chosen (see
+getProtocolHandler).
 ```ts
 ProtocolObj<V, R, T, D, I, F>[]
 ```
 
 ### `BinaryProtocolToResult`
+A protocol taking two arguments and returning a `Result` (the binary math protocols).
 ```ts
 ProtocolsList<V, Result<any, string>, [Type[], Type[]], {}, void, void>
 ```
 
 ### `UnaryProtocolToResult`
+A protocol taking one argument and returning a `Result` (the unary math protocols).
 ```ts
 ProtocolsList<V, Result<any, string>, [Type[]], {}, void, void>
 ```
 
 ### `ApplyMetadata`
+Metadata describing a callable, returned by the `apply` protocol's `describe`.
 **Properties:**
 - `name: Identifier | undefined` — The name of the function to appear in tracebacks, if undefined it means it's a hidden callframe and won't show.
-- `signature: CallableSignature`
+- `signature: CallableSignature` — The callable's parameter signature, used to process its arguments.
 - `closureEnv: Env` (optional) — The environment(s) that this function closes over on order to allow default value expressions to be evaluated in that environment.
 
 ### `ApplyFlags`
+Flags passed to an `apply` protocol implementation for a single call.
 **Properties:**
-- `tail: boolean`
-- `location: Location | undefined`
+- `tail: boolean` — Whether the call is in tail position.
+- `location: Location | undefined` — Source location of the call site, for tracebacks.
 
 ### `EvalFlags`
+Flags passed to an `eval` protocol implementation for a single evaluation.
 **Properties:**
-- `tail: boolean`
-- `location: Location | undefined`
+- `tail: boolean` — Whether the evaluation is in tail position.
+- `location: Location | undefined` — Source location of the expression being evaluated, for tracebacks.
 
 ### `AccessFlags`
+Flags passed to an `access` protocol implementation: which field of the
+object to access, and in what capacity.
 **Properties:**
-- `field: PropertyKey`
-- `type: AccessType`
+- `field: PropertyKey` — The field (variable name, property key, ...) being accessed.
+- `type: AccessType` — The capacity in which the field is accessed.
 
 ### `JEBProtocols`
+The protocol registry of a VM: maps each protocol name to the list of its
+registered implementations. The runtime protocols (`apply`, `eval`,
+`access`, `unwrap`, `name`) drive evaluation; the rest implement the
+overloadable math operations.
 **Properties:**
 - `apply: ProtocolsList<V, void, [Type[]], {}, ApplyMetadata, ApplyFlags>`
 - `eval: ProtocolsList<V, void, [Type[]], {}, void, EvalFlags>`
@@ -147,31 +185,37 @@ ProtocolsList<V, Result<any, string>, [Type[]], {}, void, void>
 - `bitNot: ProtocolsList<V, Result<any, string>>`
 
 ### `ArgcForName`
+The number of arguments the protocol `N` takes.
 ```ts
 JEBProtocols<V>[N] extends ProtocolsList<V, any, infer N, any, any> ? N["length"] : number
 ```
 
 ### `ResultForName`
+The result type of the protocol `N`.
 ```ts
 JEBProtocols<V>[N] extends ProtocolsList<V, infer N, any, any, any> ? N : unknown
 ```
 
 ### `FlagsForName`
+The flags type passed to implementations of the protocol `N`.
 ```ts
 JEBProtocols<V>[N] extends ProtocolsList<V, any, any, any, any, infer N> ? N : []
 ```
 
 ### `InfoForName`
+The metadata type (`describe` result) of the protocol `N`.
 ```ts
 JEBProtocols<V>[N] extends ProtocolsList<V, any, any, any, any, infer N> ? N : never
 ```
 
 ### `FnTypeForName`
+The `run` function type of implementations of the protocol `N`.
 ```ts
 JEBProtocols<V>[N][number]["run"]
 ```
 
 ### `AccessType`
+The capacity in which a Reference is accessed.
 - `VARIABLE` = `0`
 - `FUNCTION` = `1`
 - `PROPERTY` = `2`
@@ -179,62 +223,90 @@ JEBProtocols<V>[N][number]["run"]
 ## signature
 
 ### `ShorthandArgument`
+Compact form of one parameter in a callable signature. Each union member is
+a different parameter flavour (the members are documented individually);
+createSignature converts an array of these into the
+LonghandArgument form used at runtime. A bare `true`/`false` is not
+a parameter itself: it marks the preceding parameter as a rest parameter.
 ```ts
 N | readonly [name: N, defaultExpr: any] | readonly [lazy: false, name: N] | readonly [macro: true, name: N] | readonly [flags: F, name: N] | readonly [flags: F, name: N, defaultExpr: any] | readonly [flags: F, lazy: false, name: N] | true | false
 ```
 
 ### `LonghandArgument`
+One parameter of a callable signature, in the expanded form produced by
+createSignature and consumed by the argument-processing machinery.
 **Properties:**
-- `name: N`
-- `required: boolean`
-- `defaultExpr: any`
-- `lazy: Laziness`
-- `flags: F`
+- `name: N` — The parameter's name.
+- `required: boolean` — Whether the caller must supply the argument.
+- `defaultExpr: any` — Expression evaluated to produce the value when the argument is not supplied; only meaningful if the parameter is not `required`.
+- `lazy: Laziness` — Whether (and how) the argument expression is deferred; see Laziness.
+- `flags: F` — Names of wrappers that are *not* unwrapped from this parameter's value, so the body can operate on the wrapper itself.
 
 ### `ShorthandToLonghand`
+Type-level expansion of a shorthand signature's parameters into
+LonghandArguments, dropping the `true`/`false` rest markers.
 ```ts
 S extends readonly [ShorthandArgument<any, any>, boolean, ...(infer T extends readonly any[])] ? ShorthandToLonghand<T> : S extends readonly [ShorthandArgument<infer N, infer F>, ...(infer T extends readonly any[])] ? [LonghandArgument<N, F>, ...ShorthandToLonghand<T>] : readonly []
 ```
 
 ### `ExtractRest`
+Type-level extraction of a rest parameter (the parameter followed by `B`:
+`true` for the positional rest parameter, `false` for the keyword one)
+from a shorthand signature, or `undefined` if there is none.
 ```ts
 S extends readonly [ShorthandArgument<infer N, infer F>, B, ...readonly any[]] ? LonghandArgument<N, F> : S extends readonly [any, ...(infer R extends readonly ShorthandArgument<any, any>[])] ? ExtractRest<R, B> : undefined
 ```
 
 ### `CallableSignature`
+The full signature of a callable: its positional parameters plus its
+optional rest parameters.
 **Properties:**
-- `params: P`
-- `rest: R`
-- `kwRest: K`
+- `params: P` — The positional parameters, in order.
+- `rest: R` — The parameter receiving all remaining positional arguments, if any.
+- `kwRest: K` — The parameter receiving all remaining keyword arguments, if any.
 
 ### `CallableSignatureFromShorthand`
+The CallableSignature that createSignature produces for the
+shorthand signature `S`, computed at the type level.
 ```ts
 CallableSignature<ShorthandToLonghand<S>, ExtractRest<S, true>, ExtractRest<S, false>>
 ```
 
 ### `Laziness`
-- `NONE` = `0`
-- `LAZY` = `1`
-- `QUOTED` = `2`
+How a parameter's argument expression is treated when the callable is invoked.
+- `NONE` = `0` — The argument is evaluated (and unwrapped) before the body runs.
+- `LAZY` = `1` — The argument is wrapped in a block without being evaluated.
+- `QUOTED` = `2` — The argument is passed as the raw, unevaluated expression.
 
 ## utils
 
 ### `Tuple`
+A tuple of exactly `N` elements of type `T` (or a plain `T[]` when `N` is
+a general `number`).
 ```ts
 N extends N ? number extends N ? T[] : _TupleOf<T, N, []> : never
 ```
 
+### `_TupleOf`
+Recursive builder for Tuple: prepends `T` until `R` has `N` elements.
+```ts
+R["length"] extends N ? R : _TupleOf<T, N, [T, ...R]>
+```
+
 ### `Writable`
+`T` with all `readonly` modifiers removed.
 ```ts
 { -readonly [P in keyof T]: T[P] }
 ```
 
 ### `DropFirst`
+A tuple/array type with its first element removed.
 ```ts
 T extends [any, ...(infer Rest)] ? Rest : []
 ```
 
 ### `Identifier`
+A variable name: either a string, or a symbol (as produced by `gensym`).
 ```ts
 string | symbol
 ```
@@ -248,11 +320,13 @@ Data for the command
 ```
 
 ### `StackCount`
+One compressed run of call-stack frames: `count` consecutive calls of the
+same function at the same call site, collapsed into a single traceback entry.
 **Properties:**
-- `name: Identifier | undefined`
-- `location: Location | undefined`
-- `count: number`
-- `tail: boolean`
+- `name: Identifier | undefined` — Name of the function called, if known
+- `location: Location | undefined` — Location of the call site
+- `count: number` — Number of frames collapsed into this entry
+- `tail: boolean` — Whether these frames were entered by tail calls
 
 ### `OpcodeFunction`
 Function that implements an opcode for the VM by pushing instructions or pushing and popping data.
@@ -261,9 +335,18 @@ Function that implements an opcode for the VM by pushing instructions or pushing
 ```
 
 ### `GetArgParams`
+Extracts the type of an opcode function's immediate arguments (everything
+after the VM parameter), for typing calls to JebVM.pushCommand.
 ```ts
 Parameters<T>[1] extends infer T extends any[] ? T : [void]
 ```
+
+## doc
+
+### `HasDocstring`
+interface for a thing that has a docstring.
+**Properties:**
+- `doc: string`
 
 ## errno
 
@@ -345,52 +428,5 @@ Errno database mapping E-code to value
 - `EISCONN` = `56` — Socket is already connected
 - `ENOTCONN` = `57` — Socket is not connected
 - `ESHUTDOWN` = `58` — Can't send after socket shutdown
-- `ETOOMANYREFS` = `59` — Too many references: can't splice
-- `ETIMEDOUT` = `60` — Operation timed out
-- `ECONNREFUSED` = `61` — Connection refused
-- `ELOOP` = `62` — Too many levels of symbolic links
-- `ENAMETOOLONG` = `63` — File name too long
-- `EHOSTDOWN` = `64` — Host is down
-- `EHOSTUNREACH` = `65` — No route to host
-- `ENOTEMPTY` = `66` — Directory not empty
-- `EPROCLIM` = `67` — Too many processes
-- `EUSERS` = `68` — Too many users
-- `EDQUOT` = `69` — Disc quota exceeded
-- `ESTALE` = `70` — Stale NFS file handle
-- `EREMOTE` = `71` — Too many levels of remote in path
-- `EBADRPC` = `72` — RPC struct is bad
-- `ERPCMISMATCH` = `73` — RPC version wrong
-- `EPROGUNAVAIL` = `74` — RPC prog. not avail
-- `EPROGMISMATCH` = `75` — Program version wrong
-- `EPROCUNAVAIL` = `76` — Bad procedure for program
-- `ENOLCK` = `77` — No locks available
-- `ENOSYS` = `78` — Function not implemented
-- `EFTYPE` = `79` — Inappropriate file type or format
-- `EAUTH` = `80` — Authentication error
-- `ENEEDAUTH` = `81` — Need authenticator
-- `EPWROFF` = `82` — Device power is off
-- `EDEVERR` = `83` — Device error, e.g. paper out
-- `EOVERFLOW` = `84` — Value too large to be stored in data type
-- `EBADEXEC` = `85` — Bad executable
-- `EBADARCH` = `86` — Bad CPU type in executable
-- `ESHLIBVERS` = `87` — Shared library version mismatch
-- `EBADMACHO` = `88` — Malformed Macho file
-- `ECANCELED` = `89` — Operation canceled
-- `EIDRM` = `90` — Identifier removed
-- `ENOMSG` = `91` — No message of desired type
-- `EILSEQ` = `92` — Illegal byte sequence
-- `ENOATTR` = `93` — Attribute not found
-- `EBADMSG` = `94` — Bad message
-- `EMULTIHOP` = `95` — Reserved
-- `ENODATA` = `96` — No message available on STREAM
-- `ENOLINK` = `97` — Reserved
-- `ENOSR` = `98` — No STREAM resources
-- `ENOSTR` = `99` — Not a STREAM
-- `EPROTO` = `100` — Protocol error
-- `ETIME` = `101` — STREAM ioctl timeout
-- `EOPNOTSUPP` = `102` — Operation not supported on socket
-- `ENOPOLICY` = `103` — No such policy registered
-- `ENOTRECOVERABLE` = `104` — State not recoverable
-- `EOWNERDEAD` = `105` — Previous owner died
-- `EQFULL` = `106` — Interface output queue is full
-- `ENOTCAPABLE` = `107` — Capabilities insufficient
+
+<!-- truncated -->

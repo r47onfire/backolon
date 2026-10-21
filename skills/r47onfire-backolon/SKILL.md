@@ -10,7 +10,7 @@ homoiconic scripting language
 
 ## Quick Reference
 
-49 exports (22 functions, 11 classes, 9 types, 7 constants) — see references/ for full API.
+77 exports (12 functions, 12 classes, 26 types, 1 enums, 26 constants) — see references/ for full API.
 
 ## References
 

@@ -10,11 +10,11 @@ simple JSON evaluation virtual machine with first-class continuations
 
 ## Configuration
 
-**JEBErrorOptions** (1 options — see references/config.md)
+**JEBErrorOptions** — Extra options accepted when constructing a JEBError. (1 options — see references/config.md)
 
 ## Quick Reference
 
-164 exports (33 functions, 17 classes, 39 types, 4 enums, 71 constants) — see references/ for full API.
+167 exports (33 functions, 17 classes, 42 types, 4 enums, 71 constants) — see references/ for full API.
 
 ## References
 

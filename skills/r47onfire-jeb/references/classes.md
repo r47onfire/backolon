@@ -34,7 +34,8 @@ constructor<T, S>(name: Identifier, signature: S, impl: (args: Record<S["params"
 ```
 **Properties:**
 - `name: Identifier` — The name of the function as it should appear in a traceback.
-- `signature: S`
+- `signature: S` — The declared parameter signature the runtime binds call arguments
+against (see `doargs`).
 - `impl: (args: Record<S["params"][number]["name"], unknown> & (S["rest"] extends { name: N } ? { [x in PropertyKey]: unknown[] } : {}) & (S["kwRest"] extends { name: N } ? { [x in PropertyKey]: Record<PropertyKey, unknown> } : {}), vm: T, location: Location | undefined) => any` — The javascript function implementation.
 
 If the function returns the special value NOTHING, no
@@ -54,7 +55,8 @@ constructor<S>(isImplicit: boolean, name: Identifier | undefined, signature: S, 
 **Properties:**
 - `isImplicit: boolean` — Whether the function should be hidden from stack traces.
 - `name: Identifier | undefined` — The name of the function as it should appear in a traceback. Ignored if isImplicit=true
-- `signature: S`
+- `signature: S` — The declared parameter signature the runtime binds call arguments
+against (see `doargs`).
 - `body: Block` — The body code that will be evaluated in the new scope with the argument values bound.
 - `doc: string` — The docstring given - should define the allowable syntax(es) of the function
 or macro and give a description of its behavior.
@@ -85,9 +87,9 @@ Node in a dynamic wind tree
 constructor<T>(vm: T): DynamicWind<T>
 ```
 **Properties:**
-- `handler: Windable | null`
+- `handler: Windable | null` — The enter/exit handler pair for this node; null until setHandler is called
 - `envHere: Env` — current env at the point of the dynamic wind start
-- `parent: DynamicWind<T> | null`
+- `parent: DynamicWind<T> | null` — The enclosing dynamic-wind node, forming the tree that jumps are resolved against
 - `commandsHere: LinkedList<Command<T>>` — closed-over command stack
 - `dataHere: LinkedList<any>` — closed-over data stack
 - `stateHere: ReturnType<T["getState"]>` — Other saved state
@@ -104,13 +106,17 @@ Key-value store for managing an environment, with inheritance from parent enviro
 constructor(bindings: Record<Identifier, any>, parents: readonly Env[]): Env
 ```
 **Properties:**
-- `constants: Record<Identifier, true>`
-- `watchers: Record<Identifier, RemovableSet<Block>>`
-- `bindings: Record<Identifier, any>`
-- `parents: readonly Env[]`
+- `constants: Record<Identifier, true>` — Names defined as constants in this scope; set refuses to change them
+- `watchers: Record<Identifier, RemovableSet<Block>>` — Handler blocks registered with watch, by variable name. The
+handlers run (in the environment where the variable lives) whenever the
+variable is assigned.
+- `bindings: Record<Identifier, any>` — The bindings defined directly in this scope
+- `parents: readonly Env[]` — Parent environments searched after this one, in order
 **Methods:**
 - `scopeFor(name: Identifier): Result<Env, void>` — Returns the Env in which the given variable is defined.
-- `watch(name: Identifier, handler: Block): () => void`
+- `watch(name: Identifier, handler: Block): () => void` — Registers a handler block to be run whenever the named variable is
+assigned in this environment (reactive `always`-style watchers).
+Returns a handle that removes the watcher when called.
 - `get(name: Identifier): Result<any, void>` — Look up the value, and return its value (in an ok result)
 or an err result if not found
 - `add(name: Identifier, value: any): void` — Defines the value in this scope (always succeeds).
@@ -155,7 +161,9 @@ or throws an error if it's readonly. The stack should not be modified either way
 ## reference
 
 ### `ObjectPropertyReference`
-Represents a slot that can be assigned to
+A reference to a property of a plain JavaScript object (host-language
+interop). Reads and writes also emit audit events, since they reach
+outside the JEB runtime.
 *extends `Reference`*
 ```ts
 constructor(type: AccessType, obj: any, name: PropertyKey): ObjectPropertyReference
@@ -165,26 +173,35 @@ constructor(type: AccessType, obj: any, name: PropertyKey): ObjectPropertyRefere
 - `name: PropertyKey`
 *Inherits 1 properties from `Reference` — see [`Reference`](../reference.md)*
 **Methods:**
-- `get(vm: JebVM, shouldBind: boolean): any` — Returns the current value, or returns `NOTHING` and throws an error (in the VM, not Javascript) if it's not readable.
-- `set(vm: JebVM, value: any): void` — Set the value of the slot to the provided value,
-or throws an error if it's readonly. The stack should not be modified either way.
+- `get(vm: JebVM, shouldBind: boolean): any` — Reads the property. If `shouldBind` is set and the value is a function,
+it is bound to the object, so host methods keep their receiver.
+- `set(vm: JebVM, value: any): void` — Writes the property, converting any JavaScript exception thrown by a
+setter into a JEB error.
 
 ### `VariableReference`
-Represents a slot that can be assigned to
+A reference to a variable in an Env. The access type decides both
+how the reference behaves and the wording of the error reported when the
+variable does not exist (variable, function call target, or module
+property).
 *extends `Reference`*
 ```ts
 constructor(type: AccessType, env: Env, name: Identifier): VariableReference
 ```
 **Properties:**
-- `notFoundMessage: string`
+- `notFoundMessage: string` — Message of the error thrown when the variable cannot be found
 - `env: Env`
 - `name: Identifier`
 *Inherits 1 properties from `Reference` — see [`Reference`](../reference.md)*
 **Methods:**
-- `get(): any` — Returns the current value, or returns `NOTHING` and throws an error (in the VM, not Javascript) if it's not readable.
-- `set(vm: JebVM, value: any, create: boolean, readonly: boolean): void` — Set the value of the slot to the provided value,
-or throws an error if it's readonly. The stack should not be modified either way.
-- `referenceError(): never`
+- `get(): any` — Returns the variable's current value, or throws if it is not defined
+in the environment or any of its parents.
+- `set(vm: JebVM, value: any, create: boolean, readonly: boolean): void` — Assigns the variable. With `create`, the binding is defined directly in
+this reference's environment (as a constant if `readonly`); otherwise
+the assignment lands in whichever environment defines the variable,
+throwing if there is none or it is a constant, and runs that variable's
+watchers. Either way, a successful assignment invokes the `name`
+protocol on the new value.
+- `referenceError(): never` — Throws the "not found" error for this reference.
 
 ## vm
 
@@ -203,19 +220,30 @@ constructor<T>(): JebVM<T>
 - `awaiting: Promise<void> | null` — the Promise that the VM is currently waiting on
 - `tracebackStack: LinkedList<StackCount>` — callstack entries
 - `builtinsEnv: Env` — Environment that all builtins live in
-- `protocols: Partial<JEBProtocols<T>>`
-- `error: JEBError | undefined`
+- `protocols: Partial<JEBProtocols<T>>` — Protocol implementations registered on this VM, by protocol name
+- `error: JEBError | undefined` — The error that stopped the VM, if any; step rethrows it while set
 **Methods:**
-- `getState(): any`
-- `restoreState(state: any): void`
-- `addProtocol<N>(name: N, impl: JEBProtocols<T>[N][number]): void`
-- `getProtocol<N, A>(fast: boolean, assert: A, name: N, args: Tuple<any, ArgcForName<T, N>>): JEBProtocols<T>[N][number] | (A extends true ? never : undefined)`
-- `pushData(value: any): void`
-- `popNData(n: number): any[]`
-- `popData(): any`
-- `peekData(): any`
-- `pushCommand<TOpcode>(f: TOpcode, args: GetArgParams<TOpcode>): void`
-- `popCommand(): Command<T>`
+- `getState(): any` — Hook for VM subclasses with extra state beyond the base stacks: returns a
+snapshot of that state, so continuations and dynamic-wind can save and
+restore it. The base VM has no extra state.
+- `restoreState(state: any): void` — Counterpart to getState: restores a snapshot it returned earlier.
+- `addProtocol<N>(name: N, impl: JEBProtocols<T>[N][number]): void` — Registers an implementation of the named protocol. Several
+implementations may be registered for one protocol; getProtocol
+dispatches between them based on the argument types.
+- `getProtocol<N, A>(fast: boolean, assert: A, name: N, args: Tuple<any, ArgcForName<T, N>>): JEBProtocols<T>[N][number] | (A extends true ? never : undefined)` — Finds the implementation of the named protocol to run for the given
+arguments: the registered overload whose declared types best match the
+arguments' types. With `fast`, the first matching overload (searching
+from the most recently registered) wins instead of the best-scoring one.
+If `assert` is true, throws when no overload matches.
+- `pushData(value: any): void` — Pushes a value onto the data stack.
+- `popNData(n: number): any[]` — Pops the top `n` values off the data stack, returned in the order they
+were pushed (deepest first).
+- `popData(): any` — Pops and returns the top value of the data stack.
+- `peekData(): any` — Returns the top value of the data stack without removing it.
+- `pushCommand<TOpcode>(f: TOpcode, args: GetArgParams<TOpcode>): void` — Pushes a command (an opcode function plus its immediate arguments) onto
+the command stack, to be run by a later step.
+- `popCommand(): Command<T>` — Pops and returns the next command to run. Throws if the command stack
+is empty.
 - `step(): boolean` — Runs one opcode.
 - `start(code: any): void` — Starts running the code
 - `reset(): void` — Silently stops running the code, by resetting all stacks state back to the initial empty state.
@@ -225,8 +253,8 @@ to signal to the running program that it's recursing too much
 - `tracebackArray(numToDrop: number): StackTreeNode[]` — Returns the names of the functions in the call stack, with innermost first
 - `pushTraceback(func: Identifier | undefined, tailcallHint: boolean, callsiteLocation: Location | undefined): void` — Adds a function call entry to the traceback stack
 - `popTraceback(dropTail: boolean): void` — Drops all the tail-call entries off the stack, and then one more
-- `newDynamicWind(): DynamicWind<T>`
-- `createEnv(parents: Env[]): Env`
+- `newDynamicWind(): DynamicWind<T>` — Creates a fresh dynamic-wind node whose parent is the VM's current node.
+- `createEnv(parents: Env[]): Env` — Creates a new environment inheriting from the given parent environments.
 - `cc(extraOps: Command<T>[]): Continuation<T>` — Returns the current continuation at this state.
 
 ## wrapper
@@ -237,8 +265,9 @@ Represents a wrapped value that only appears as a directly-usable value under ce
 constructor(obj: any): Wrapper
 ```
 **Properties:**
-- `flag: string`
-- `obj: any`
+- `flag: string` — Tag identifying the kind of wrapper. `OP_unwrap` refuses to unwrap a
+wrapper whose flag appears in its `dontUnwrap` list.
+- `obj: any` — The wrapped value
 
 ### `KeywordArg`
 Wrapper for a keyword argument that will redirect to the

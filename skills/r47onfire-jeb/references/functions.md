@@ -110,6 +110,8 @@ gensym(s: string): symbol
 ## errnoInheritance
 
 ### `errnoIsSubclass`
+Whether `sub` is the same code as `super_` or inherits from it, directly or
+transitively, following the ErrnoParent links.
 ```ts
 errnoIsSubclass(sub: ErrnoCode, super_: ErrnoCode): boolean
 ```
@@ -121,6 +123,9 @@ errnoIsSubclass(sub: ErrnoCode, super_: ErrnoCode): boolean
 ## errors
 
 ### `createStackLeafNode`
+Creates a leaf stack tree node for a single call frame. The node's hash is
+precomputed from the frame name and location so that equal frames can be
+recognized (and folded together) by compressStackTree.
 ```ts
 createStackLeafNode(name: Identifier | undefined, location: Location | undefined): StackTreeNode
 ```
@@ -130,6 +135,8 @@ createStackLeafNode(name: Identifier | undefined, location: Location | undefined
 **Returns:** `StackTreeNode`
 
 ### `createStackInnerNode`
+Creates an inner stack tree node representing `count` repetitions of the
+given child frames, with its hash precomputed from the children's hashes.
 ```ts
 createStackInnerNode(count: number, children: StackTreeNode[]): StackTreeNode
 ```
@@ -139,6 +146,9 @@ createStackInnerNode(count: number, children: StackTreeNode[]): StackTreeNode
 **Returns:** `StackTreeNode`
 
 ### `compressStackTree`
+Compresses a list of stack frames by folding each run of consecutively
+repeating frame patterns into a single inner node (see StackTreeNode),
+recursively, so that tracebacks of deeply recursive programs stay readable.
 ```ts
 compressStackTree(nodes: StackTreeNode[]): StackTreeNode[]
 ```
@@ -147,6 +157,7 @@ compressStackTree(nodes: StackTreeNode[]): StackTreeNode[]
 **Returns:** `StackTreeNode[]`
 
 ### `locationsEqual`
+Whether two (possibly undefined) Locations denote the same place.
 ```ts
 locationsEqual(location1: Location | undefined, location2: Location | undefined): boolean
 ```
@@ -236,6 +247,7 @@ typeMatches(obj: any, type: Type): number
 **Returns:** `number` — Score of the match, higher is a closer match, 0 is no match
 
 ### `theTypeName`
+Human-readable name of a Type specifier, for error messages.
 ```ts
 theTypeName(type: Type): string
 ```
@@ -244,6 +256,8 @@ theTypeName(type: Type): string
 **Returns:** `string`
 
 ### `typeOf`
+The Type specifier describing a value: its constructor, for objects
+with a non-plain prototype, and its `typeof` string otherwise.
 ```ts
 typeOf(x: any): Type
 ```
@@ -252,6 +266,7 @@ typeOf(x: any): Type
 **Returns:** `Type`
 
 ### `withType`
+Like typecheck, but returns `x` (typed as the matched type) on success.
 ```ts
 withType<T>(x: unknown, t: T, paramName?: string): TypeValue<T[number]>
 ```
@@ -262,6 +277,12 @@ withType<T>(x: unknown, t: T, paramName?: string): TypeValue<T[number]>
 **Returns:** `TypeValue<T[number]>`
 
 ### `getProtocolHandler`
+Selects the implementation of the protocol `name` to use for the given
+arguments. Each registered implementation is scored by how specifically its
+argument types match (see typeMatches); the highest score wins,
+with later registrations preferred over earlier ones with the same score.
+If `fast` is set, the first (most recently registered) implementation that
+matches at all is used instead of searching for the best-scoring one.
 ```ts
 getProtocolHandler<V>(protocols: Partial<JEBProtocols<V>>, fast: boolean, name: PropertyKey, args: any[]): BaseProtocolObj<V, any, any[], {}, any> | DescribedProtocolObj<V, any, any[], {}, any, any> | undefined
 ```
@@ -270,21 +291,28 @@ getProtocolHandler<V>(protocols: Partial<JEBProtocols<V>>, fast: boolean, name: 
 - `fast: boolean`
 - `name: PropertyKey`
 - `args: any[]`
-**Returns:** `BaseProtocolObj<V, any, any[], {}, any> | DescribedProtocolObj<V, any, any[], {}, any, any> | undefined`
+**Returns:** `BaseProtocolObj<V, any, any[], {}, any> | DescribedProtocolObj<V, any, any[], {}, any, any> | undefined` — the chosen implementation, or `undefined` if none of them matches
+**Throws:** A JEBError (`ENOSYS`) if the protocol itself doesn't exist
 
 ## signature
 
 ### `createSignature`
+Converts a shorthand signature into its CallableSignature longhand
+form, validating it in the process.
 ```ts
 createSignature<S>(signature: S): CallableSignatureFromShorthand<S>
 ```
 **Parameters:**
 - `signature: S`
 **Returns:** `CallableSignatureFromShorthand<S>`
+**Throws:** A JEBError (`ESYNTAX`) if the signature is malformed, e.g.
+a required parameter follows an optional one, a rest parameter has a
+default, is duplicated, or is followed by further parameters.
 
 ## utils
 
 ### `isIdentifier`
+Type guard for Identifier.
 ```ts
 isIdentifier(x: unknown): x is Identifier
 ```
@@ -295,6 +323,8 @@ isIdentifier(x: unknown): x is Identifier
 ## vm
 
 ### `pushData`
+Standalone form of JebVM.pushData, for opcodes (which receive the
+VM and their arguments separately rather than as a method receiver).
 ```ts
 pushData<T>(vm: T, data: any): void
 ```
@@ -303,6 +333,7 @@ pushData<T>(vm: T, data: any): void
 - `data: any`
 
 ### `pushCommand`
+Standalone form of JebVM.pushCommand; see pushData.
 ```ts
 pushCommand<T, U>(vm: U, cmd: T, args: GetArgParams<T>): void
 ```
@@ -312,6 +343,7 @@ pushCommand<T, U>(vm: U, cmd: T, args: GetArgParams<T>): void
 - `args: GetArgParams<T>`
 
 ### `popData`
+Standalone form of JebVM.popData; see pushData.
 ```ts
 popData<T>(vm: T): any
 ```
@@ -320,6 +352,7 @@ popData<T>(vm: T): any
 **Returns:** `any`
 
 ### `popNData`
+Standalone form of JebVM.popNData; see pushData.
 ```ts
 popNData<T>(vm: T, n: number): any[]
 ```
@@ -329,6 +362,7 @@ popNData<T>(vm: T, n: number): any[]
 **Returns:** `any[]`
 
 ### `peekData`
+Standalone form of JebVM.peekData; see pushData.
 ```ts
 peekData<T>(vm: T): any
 ```
@@ -339,6 +373,8 @@ peekData<T>(vm: T): any
 ## initializers
 
 ### `__initializer`
+Registers a callback to be run for every VM created from now on
+(see __initializers).
 ```ts
 __initializer(f: (x: JebVM) => void): void
 ```
