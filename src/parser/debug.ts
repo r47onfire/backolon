@@ -1,6 +1,6 @@
 import { B_atLocation, JSFun } from "@r47onfire/jeb";
 import { isArray } from "lib0/array";
-import { GrammarCombinator, GrammarOp, lit, rep, seq } from "./combinator";
+import { GrammarCombinator, GrammarOp } from "./combinator";
 import { stringify } from "lib0/json";
 
 /**
@@ -24,49 +24,31 @@ export const stripInlinedFunctions = <T>(ast: T): T => {
     return ast;
 }
 
-/**
- * Rendering templates for `describe`, one per op. Letters in a template are
- * substituted: v = payload, r = rule name, c = children (joined by the
- * optional second element), j = aux combinator, f = flag (translated through
- * the optional third element).
- */
-const describe_formats: Record<GrammarOp, [string, join?: string, map?: Record<string, string>]> = {
-    tok: ["v"],
-    kw: ["('u')", "' | '"],
-    rule: ["r"],
-    param: ["$r"],
-    ambient: ["@r"],
-    bind: ["&r=c", " "],
-    tag: ["#g=c"],
-    ign: [",c"],
-    opt: ["[c]"],
-    seq: ["(c)", " "],
-    ssep: ["j.@(c)", " "],
-    alt: ["(c)", " | "],
-    joined: ["j.c+"],
-    rep: ["cf", , { r: "+", o: "*" }],
-    lookahead: ["(?fc)", , { "+": "=", "-": "!" }],
-    nonempty: ["(=c)"],
-    sameline: ["($c)"],
-    if: ["(?(j)c)", " | "],
-    eps: ["\u03B5"],
-    try: ["(??c)"],
-    cut: ["!"],
-    die: ["^v"]
-}
+/** Renderers for {@link describe}, one per op, each producing that op's compact PEG-like notation from its explicitly named fields. */
+const describe_formats: Record<GrammarOp, (node: any) => string> = {
+    tok: node => isArray(node.pattern) ? "/" + node.pattern[0] + "/" + node.pattern[1] : stringify(node.pattern),
+    kw: node => "('" + (node.options as string[]).join("' | '") + "')",
+    rule: node => node.name,
+    param: node => "$" + node.name,
+    ambient: node => "@" + node.name,
+    bind: node => "&" + node.name + " " + describe(node.value) + " = " + describe(node.body),
+    tag: node => "#" + node.tag + "=" + describe(node.child),
+    ign: node => "," + describe(node.child),
+    opt: node => "[" + describe(node.child) + "]",
+    seq: node => "(" + (node.items as GrammarCombinator[]).map(c => describe(c)).join(" ") + ")",
+    ssep: node => describe(node.separator) + ".@(" + (node.items as GrammarCombinator[]).map(c => describe(c)).join(" ") + ")",
+    alt: node => "(" + (node.options as GrammarCombinator[]).map(c => describe(c)).join(" | ") + ")",
+    joined: node => describe(node.joiner) + "." + describe(node.element) + "+",
+    rep: node => (node.items as GrammarCombinator[]).map(c => describe(c)).join("") + (node.required ? "+" : "*"),
+    lookahead: node => "(?" + (node.positive ? "=" : "!") + describe(node.child) + ")",
+    nonempty: node => "(=" + describe(node.child) + ")",
+    sameline: node => "($" + describe(node.child) + ")",
+    if: node => "(?(" + describe(node.condition) + ")" + describe(node.if_true) + " | " + describe(node.if_false) + ")",
+    eps: () => "\u03B5",
+    try: node => "(??" + describe(node.child) + ")",
+    cut: () => "!",
+    die: node => "^" + stringify(node.message),
+};
 
 /** Renders a combinator in a compact PEG-like notation, for debugging grammars. */
-export const describe = (g: GrammarCombinator): string => {
-    const formatcode = describe_formats[g.op];
-    return formatcode[0].replaceAll(/[vurcjfg]/g, m => { // cSpell: ignore vurcjfg
-        switch (m as "v" | "u" | "r" | "c" | "j" | "f" | "g") {
-            case "v": return isArray(g.v) ? "/" + g.v[0] + "/" + g.v[1] : stringify(g.v);
-            case "u": return (g.v! as string[]).join(formatcode[1] ?? "");
-            case "r": return g.v as string;
-            case "c": return g.c!.map(c => describe(c)).join(formatcode[1] ?? "");
-            case "j": return describe(g.j!);
-            case "f": return formatcode[2]![g.f!] ?? "\uFFEF";
-            case "g": return g.f!;
-        }
-    });
-}
+export const describe = (g: GrammarCombinator): string => describe_formats[g.op](g);

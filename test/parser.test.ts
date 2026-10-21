@@ -175,3 +175,49 @@ describe("dynamic parameters", () => {
         expect(() => parseToCST("a", 0, "main", grammar, "exprs")).toThrow("unbound dynamic parameter nope");
     });
 });
+
+describe("parameter defaults", () => {
+    test("a param default is evaluated when the parameter is unbound", () => {
+        const grammar: Grammar = {
+            main: seq(lit(">"), param("who", lit("world"))),
+        };
+        parsesFully(grammar, "main", ">world");
+    });
+
+    test("a bound parameter wins over its reference-site default", () => {
+        const grammar: Grammar = {
+            main: rule("w", lit("B")),
+            w: [["x"], param("x", lit("D"))],
+        };
+        parsesFully(grammar, "main", "B");
+        const cst = parseToCST("D", 0, "main", grammar, "exprs");
+        expect(JSON.stringify(cst)).toContain('"errorExpected"');
+    });
+
+    test("a param default works inside rule arguments (instance identity resolves it too)", () => {
+        const grammar: Grammar = {
+            main: rule("w", param("missing", lit("m"))),
+            w: [["a"], param("a")],
+        };
+        parsesFully(grammar, "main", "m");
+    });
+
+    test("an ambient default is evaluated when no bind is in effect", () => {
+        const grammar: Grammar = {
+            main: seq(lit(">"), ambient("sep", lit("-"))),
+        };
+        parsesFully(grammar, "main", ">-");
+    });
+
+    test("a binding wins over the ambient default, and the default resolves in the reference site's context", () => {
+        const bound: Grammar = {
+            main: bind("sep", lit("+"), ambient("sep", lit("-"))),
+        };
+        parsesFully(bound, "main", "+");
+        // the default itself can read other ambient values in effect at the reference
+        const nested: Grammar = {
+            main: bind("a", lit("A"), ambient("b", ambient("a"))),
+        };
+        parsesFully(nested, "main", "A");
+    });
+});

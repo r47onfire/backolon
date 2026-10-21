@@ -344,3 +344,29 @@ describe("error nodes", () => {
         expect(errors).toHaveLength(1);
     });
 });
+
+describe("contextual soft keywords", () => {
+    // Inside brackets nothing can end an enclosing block, so the guard is
+    // reset and soft keywords are usable as ordinary names. These first
+    // cases were errors (or truncated parses) with the old global guard.
+    test.each(([
+        "(else)",
+        "(in)",
+        "(end)",
+        "(let x = a in x end)",
+        "(let else = a in else end)",
+        "let x = (else) in x end",
+    ]))("parses fully: %s", text => {
+        parsesFully(text);
+    });
+    // At the top level the global guard still applies: a soft keyword is
+    // not swallowed as an expression or as an implicit argument.
+    test.each(([
+        ["a else", 2],
+        ["foo a else", 6],
+    ]))("stops before the keyword: %s", (text, end) => {
+        const cst = parse(text);
+        expect(JSON.stringify(cst)).not.toContain('"errorExpected"');
+        expect(cst.end).toBe(end);
+    });
+});
