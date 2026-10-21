@@ -9,12 +9,14 @@ import { alt, ambient, bind, cut, eps, Grammar, GrammarCombinator, ignored, join
  * their own parts (so their parts cannot swallow those keywords), and
  * bracketed contexts reset it (nothing inside brackets can end an
  * enclosing block, so every soft keyword is usable as a plain name there).
- * With no binding in effect, the reference-site default is the global
- * soft-keyword set, which is the behavior the guard had before it was
- * contextual.
+ * With no binding in effect, the reference-site default blocks just the
+ * block-end keywords (see `not_body_end_keyword`): even at top level a
+ * block construct must be able to claim its closing keyword, or the
+ * name/implicit-call reading of the same text would swallow it -- and,
+ * being the longer match, win.
  */
 const guardName = "guard";
-const guardHere = (): GrammarCombinator => ambient(guardName, eps());
+const guardHere = (): GrammarCombinator => ambient(guardName, rule("not_body_end_keyword"));
 const guardExtendedBy = (extra: GrammarCombinator, body: GrammarCombinator): GrammarCombinator =>
     bind(guardName, seq(guardHere(), lookahead(false, extra)), body);
 const guardReset = (body: GrammarCombinator): GrammarCombinator => bind(guardName, eps(), body);
@@ -141,6 +143,17 @@ exprs: seq(rep(false, ssep(rule("expr_sep"), ssep(rule("blank"), seq(ignored(gua
             ignored(opt(param("end"))),
         ),
     ))],
+
+    // The keywords that can end a block. Block *starters* (in, do, then)
+    // are not in this set: nothing at top level needs to claim them, so
+    // they are ordinary names there.
+    body_end_keyword: alt(
+        kw("keyword", "end"),
+        kw("keyword", "else"),
+        kw("keyword", "catch"),
+        kw("keyword", "finally"),
+    ),
+    not_body_end_keyword: lookahead(false, rule("body_end_keyword")),
 
     simple_expr: rule("pipe"),
 
