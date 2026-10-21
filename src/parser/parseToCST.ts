@@ -77,10 +77,11 @@ const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dynamics, 
         if (node.op === "bind") {
             // The body is hashed under the dynamic scope the bind creates:
             // its own binding is visible to ambient references inside it.
-            const inner: Dynamics = { name: node.name, binding: { node: node.value, locals: scopeLocals, dynamics: scopeDynamics }, next: scopeDynamics, key: "" };
+            const { name, value, body } = node;
+            const inner: Dynamics = { name, binding: { node: value, locals: scopeLocals, dynamics: scopeDynamics }, next: scopeDynamics, key: "" };
             const childHashes: Record<string, number> = {
-                value: hashCombinator(node.value, resolveWith(scopeLocals, scopeDynamics)),
-                body: hashCombinator(node.body, resolveWith(scopeLocals, inner)),
+                value: hashCombinator(value, resolveWith(scopeLocals, scopeDynamics)),
+                body: hashCombinator(body, resolveWith(scopeLocals, inner)),
             };
             var h = javaHash(node.op);
             for (const [field, action] of opDefs.bind.hashFields) {

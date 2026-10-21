@@ -118,8 +118,8 @@ export type TryCombinator = CombinatorBase & { readonly op: "try", readonly chil
  * A single grammar node. Combinators are plain serializable data (no
  * functions), so grammars can be built, inspected, and patched as values.
  * Each operation has its own subtype with explicitly named fields; the
- * per-operation definitions (how a node is created, parsed, and hashed)
- * live together in the `opDefs` table in `ops.ts`.
+ * per-operation definitions (how a node is created, parsed, hashed, and
+ * rendered) live together in the `opDefs` table in `ops.ts`.
  */
 export type GrammarCombinator =
     | TokCombinator | KwCombinator | IgnCombinator | RuleCombinator
