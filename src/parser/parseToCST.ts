@@ -1,7 +1,7 @@
 import { javaHash } from "@r47onfire/game-math";
 import { last } from "lib0/array";
 import { imul, max } from "lib0/math";
-import { Dynamics, Grammar, GrammarCombinator, hashCombinator, Locals, MatchFail, MixAction, OpContext, opDefs, ReferenceResolver, rule } from "./combinator";
+import { Dynamics, Grammar, GrammarCombinator, GrammarOpDef, hashCombinator, Locals, MatchFail, MixAction, OpContext, opDefs, ReferenceResolver, rule } from "./combinator";
 import { CSTNode } from "./cst";
 
 /**
@@ -219,7 +219,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * to its definition in the op table.
      */
     const callRule = (path: string, g: GrammarCombinator, i: number, locals: Locals, dynamics: Dynamics): CSTNode | MatchFail =>
-        opDefs[g.op].call(ctx, g, path, i, locals, dynamics);
+        (opDefs[g.op] as GrammarOpDef).call(ctx, g, path, i, locals, dynamics);
     /**
      * Links `l` and every LR above it on the stack into a single head,
      * recording their rules as involved in the recursive cycle.

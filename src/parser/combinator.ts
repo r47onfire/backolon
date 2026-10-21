@@ -15,10 +15,42 @@ export type Grammar = Readonly<Record<string, GrammarCombinator | ParameterizedR
 export type ParameterizedRule = readonly [params: readonly string[], body: GrammarCombinator];
 
 /**
+ * The fields of every operation's node, one entry per operation. This is
+ * the single source the rest of the combinator types are derived from:
+ * {@link GrammarOp} is its keys, {@link GrammarCombinator} is the union of
+ * its shapes (plus the common base), and the `opDefs` table is checked
+ * against it -- a `create` that returns anything else, or a `hashFields`
+ * entry naming a field that does not exist, is a type error.
+ */
+export interface OpNodeShapes {
+    literal: { pattern: string | [string, string] };
+    keyword: { tag: string, options: string[] };
+    ignored: { child: GrammarCombinator };
+    rule: { name: string, args: GrammarCombinator[] };
+    param: { name: string, default: GrammarCombinator | undefined };
+    ambient: { name: string, default: GrammarCombinator | undefined };
+    bind: { name: string, value: GrammarCombinator, body: GrammarCombinator };
+    sequence: { items: GrammarCombinator[], separator: GrammarCombinator | undefined };
+    alternatives: { options: GrammarCombinator[] };
+    optional: { child: GrammarCombinator };
+    repeat: { items: GrammarCombinator[], required: boolean };
+    joined: { joiner: GrammarCombinator, element: GrammarCombinator, require2: boolean, trailing: boolean };
+    if: { condition: GrammarCombinator, ifTrue: GrammarCombinator, ifFalse: GrammarCombinator };
+    tag: { tag: string, child: GrammarCombinator };
+    cut: { depth: number };
+    lookahead: { positive: boolean, child: GrammarCombinator };
+    nonempty: { child: GrammarCombinator };
+    sameline: { child: GrammarCombinator };
+    nothing: Record<never, never>;
+    try: { child: GrammarCombinator };
+    die: { message: string };
+}
+
+/**
  * The operation a {@link GrammarCombinator} performs; determines which of
  * the per-operation subtypes a node is, and so which named fields it has.
  */
-export type GrammarOp = keyof typeof opDefs;
+export type GrammarOp = keyof OpNodeShapes;
 
 /** Every subtype carries a lazily filled cache of its structural hash (see {@link hashCombinator}). */
 interface CombinatorBase {
@@ -32,9 +64,9 @@ interface CombinatorBase {
  * functions), so grammars can be built, inspected, and patched as values.
  * Each operation has its own subtype with explicitly named fields; the
  * per-operation definitions (how a node is created, parsed, hashed, and
- * rendered) live together in the `opDefs` table in `ops.ts`.
+ * rendered) live together in the `opDefs` table below.
  */
-export type GrammarCombinator = { [O in GrammarOp]: CombinatorBase & ReturnType<typeof opDefs[O]["create"]> }[GrammarOp];
+export type GrammarCombinator = { [O in GrammarOp]: CombinatorBase & { readonly op: O } & OpNodeShapes[O] }[GrammarOp];
 
 /**
  * Resolves a reference node (`param`, `ambient`, or `bind`) to the hash of
@@ -209,22 +241,50 @@ export interface OpContext {
  * (`hashFields`), and how they are rendered for debugging (`describe`).
  * Keeping all four together in this table is what lets the parser's
  * dispatcher, the hash function, and the debug renderer stay generic
- * over operations.
+ * over operations. This is the loose common shape of a definition; each
+ * entry in {@link opDefs} is more precise (its `call` and `describe` are
+ * typed against the exact node shape its own `create` returns).
  */
-export type GrammarOpDef = ReturnType<typeof gOp>;
+export interface GrammarOpDef {
+    create: (...args: any[]) => any;
+    call: (ctx: OpContext, node: any, path: string, i: number, locals: Locals, dynamics: Dynamics) => CSTNode | MatchFail;
+    hashFields: readonly (readonly [field: string, action: MixAction])[];
+    describe: (node: any) => string;
+}
 
-function gOp<T extends Omit<GrammarCombinator, keyof CombinatorBase> & Record<keyof CombinatorBase, never>>(
-    create: (...args: any[]) => T,
-    call: (ctx: OpContext, node: T, path: string, i: number, locals: Locals, dynamics: Dynamics) => CSTNode | MatchFail,
-    hashFields: readonly (readonly [field: keyof T, action: MixAction])[],
-    describe: (node: T) => string,
+/** A {@link GrammarOpDef} made precise for one operation's node shape `N`: `create` returns `N`, `call` and `describe` receive the whole node (`N` plus the common base), and `hashFields` may only name fields of `N`. */
+export interface GrammarOpDefFor<N> {
+    create: (...args: any[]) => N;
+    call: (ctx: OpContext, node: CombinatorBase & N, path: string, i: number, locals: Locals, dynamics: Dynamics) => CSTNode | MatchFail;
+    hashFields: readonly (readonly [field: keyof N, action: MixAction])[];
+    describe: (node: CombinatorBase & N) => string;
+}
+
+/**
+ * Builds one operation definition, tying the node shape to the `create`
+ * function: `call` and `describe` receive exactly the fields `create`
+ * returns, and `hashFields` may only name those fields. The generic is
+ * the create function itself, so the shape is inferred from it alone --
+ * inferring it from all four members at once (or constraining it by
+ * {@link GrammarCombinator}, which is derived from this table) makes the
+ * derivation circular.
+ */
+function gOp<C extends (...args: any[]) => Record<string, unknown>>(
+    create: C,
+    call: (ctx: OpContext, node: CombinatorBase & ReturnType<C>, path: string, i: number, locals: Locals, dynamics: Dynamics) => CSTNode | MatchFail,
+    hashFields: readonly (readonly [field: keyof ReturnType<C>, action: MixAction])[],
+    describe: (node: CombinatorBase & ReturnType<C>) => string,
 ) {
     return { create, call, hashFields, describe };
 }
 
-const singleChild = (n: GrammarCombinator) => ({ child: n });
+const singleChild = (n: GrammarCombinator): { child: GrammarCombinator } => ({ child: n });
+
+/** The type of {@link opDefs}: every operation's definition, tied to its declared node shape in {@link OpNodeShapes}. */
+export type OpDefs = { [O in GrammarOp]: GrammarOpDefFor<OpNodeShapes[O]> };
+
 /** The definition of every grammar operation, keyed by its `op`. */
-export const opDefs = {
+export const opDefs: OpDefs = {
 
     // ---------------------------------------------------------------------------
     // tok
@@ -237,9 +297,9 @@ export const opDefs = {
                 const re = new RegExp(pattern[0], pattern[1] + "y");
                 re.lastIndex = i;
                 const match = re.exec(ctx.text);
-                return match ? { text: match[0], start: i, end: i + match[0].length } : new MatchFail(i, 0, node);
+                return match ? { text: match[0], start: i, end: i + match[0].length } : new MatchFail(i, 0, node as GrammarCombinator);
             }
-            return ctx.text.startsWith(pattern, i) ? { text: pattern, start: i, end: i + pattern.length } : new MatchFail(i, 0, node);
+            return ctx.text.startsWith(pattern, i) ? { text: pattern, start: i, end: i + pattern.length } : new MatchFail(i, 0, node as GrammarCombinator);
         },
         [["pattern", MixAction.Text]],
         ({ pattern }) => isArray(pattern) ? "/" + pattern[0] + "/" + pattern[1] : stringify(pattern),
@@ -256,7 +316,7 @@ export const opDefs = {
             const re = new RegExp("\\b(" + options.map(RegExp.escape).join("|") + ")\\b", "y");
             re.lastIndex = i;
             const match = re.exec(ctx.text);
-            return match ? { text: match[0], tag, start: i, end: i + match[0].length, ignored: true } : new MatchFail(i, 0, node);
+            return match ? { text: match[0], tag, start: i, end: i + match[0].length, ignored: true } : new MatchFail(i, 0, node as GrammarCombinator);
         },
         [["tag", MixAction.String], ["options", MixAction.StringArray]],
         ({ options }) => "('" + options.join("' | '") + "')",
@@ -458,7 +518,7 @@ export const opDefs = {
                 if (ctx.cutDepth() > depthBefore) return thisMatch;
                 options.push(thisMatch);
             }
-            return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, node)) : options.reduce((a, b) => b.end > a.end ? b : a);
+            return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, node as GrammarCombinator)) : options.reduce((a, b) => b.end > a.end ? b : a);
         },
         [["options", MixAction.Children]],
         ({ options }) => "(" + options.map(c => describeCombinator(c)).join(" | ") + ")",
@@ -636,7 +696,7 @@ export const opDefs = {
         (ctx, node, path, i, locals, dynamics) => {
             const { positive, child } = node;
             const cst = ctx.applyRule(path + "/?", child, i, locals, dynamics);
-            return (cst instanceof MatchFail) !== positive ? { ignored: true, start: i, end: i } : new MatchFail(i, 0, node);
+            return (cst instanceof MatchFail) !== positive ? { ignored: true, start: i, end: i } : new MatchFail(i, 0, node as GrammarCombinator);
         },
         [["positive", MixAction.Boolean], ["child", MixAction.Child]],
         ({ positive, child }) => "(?" + (positive ? "=" : "!") + describeCombinator(child) + ")",
@@ -650,7 +710,7 @@ export const opDefs = {
         (ctx, node, path, i, locals, dynamics) => {
             const { child } = node;
             const cst = ctx.applyRule(path + "/", child, i, locals, dynamics);
-            return cst instanceof MatchFail ? cst : cst.end === i ? new MatchFail(i, 0, node) : cst;
+            return cst instanceof MatchFail ? cst : cst.end === i ? new MatchFail(i, 0, node as GrammarCombinator) : cst;
         },
         [["child", MixAction.Child]],
         ({ child }) => "(=" + describeCombinator(child) + ")",
@@ -661,7 +721,7 @@ export const opDefs = {
         (ctx, node, path, i, locals, dynamics) => {
             const { child } = node;
             const cst = ctx.applyRule(path + "/", child, i, locals, dynamics);
-            return cst instanceof MatchFail ? cst : ctx.text.slice(cst.start, cst.end).indexOf("\n") >= 0 ? new MatchFail(i, 0, node) : cst;
+            return cst instanceof MatchFail ? cst : ctx.text.slice(cst.start, cst.end).indexOf("\n") >= 0 ? new MatchFail(i, 0, node as GrammarCombinator) : cst;
         },
         [["child", MixAction.Child]],
         ({ child }) => "($" + describeCombinator(child) + ")",
@@ -701,22 +761,21 @@ export const opDefs = {
 
     die: gOp(
         (m: string) => ({ message: m }),
-        (_, node, __, i) => new MatchFail(i, Infinity, node),
+        (_, node, __, i) => new MatchFail(i, Infinity, node as GrammarCombinator),
         [["message", MixAction.String]],
         ({ message }) => "^" + stringify(message),
     ),
 
     // ---------------------------------------------------------------------------
 
-} satisfies Record<string, ReturnType<typeof gOp>>;
+};
 
-function createCombinator<T extends GrammarOp>(type: T, ...args: Parameters<typeof opDefs[T]["create"]>) {
-    const partial = opDefs[type].create(...args);
-    partial.op = type;
-    return partial;
+function createCombinator<T extends GrammarOp>(type: T, ...args: Parameters<typeof opDefs[T]["create"]>): CombinatorBase & { readonly op: T } & OpNodeShapes[T] {
+    const fields = (opDefs[type] as GrammarOpDef).create(...args) as OpNodeShapes[T];
+    return { ...fields, op: type };
 }
-function createCombinatorMaker(type: GrammarOp) {
-    return createCombinator.bind(null, type);
+function createCombinatorMaker<T extends GrammarOp>(type: T) {
+    return (...args: Parameters<typeof opDefs[T]["create"]>) => createCombinator(type, ...args);
 }
 
 /** Matches the literal string `p` exactly; produces a leaf holding that text. */
@@ -769,5 +828,8 @@ export const die = createCombinatorMaker("die");
 
 /** Renders a combinator in a compact PEG-like notation, via its operation's `describe` in {@link opDefs}; for debugging grammars. */
 export function describeCombinator(node: GrammarCombinator): string {
-    return opDefs[node.op].describe(node);
+    // The lookup goes through the loose def type: indexing the table by a
+    // not-yet-narrowed op cannot be typed precisely (the precise def for an
+    // op is keyed by that op's own node shape).
+    return (opDefs[node.op] as GrammarOpDef).describe(node);
 }
