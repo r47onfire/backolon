@@ -14,9 +14,9 @@ import { alt, ambient, bind, cut, eps, Grammar, GrammarCombinator, ignored, join
  * contextual.
  */
 const guardName = "guard";
-const guardHere = (): GrammarCombinator => ambient(guardName, rule("not_soft_keyword"));
+const guardHere = (): GrammarCombinator => ambient(guardName, eps());
 const guardExtendedBy = (extra: GrammarCombinator, body: GrammarCombinator): GrammarCombinator =>
-    bind(guardName, seq(ambient(guardName, rule("not_soft_keyword")), lookahead(false, extra)), body);
+    bind(guardName, seq(guardHere(), lookahead(false, extra)), body);
 const guardReset = (body: GrammarCombinator): GrammarCombinator => bind(guardName, eps(), body);
 
 /**
@@ -44,7 +44,7 @@ export const backolonGrammar: Grammar = {
     nl: lit("\n"),
     comma: ignored(tag("punctuation", lit(","))),
 
-    exprs: seq(rep(false, ssep(rule("expr_sep"), ssep(rule("blank"), seq(ignored(guardHere()), rule("expr"))))), ignored(opt(rule("expr_sep")))),
+    exprs: seq(rep(false, ssep(rule("expr_sep"), ssep(rule("blank"), rule("expr")))), ignored(opt(rule("expr_sep")))),
     toplevel_exprs: nonempty(rule("exprs")),
     toplevel_expr: rep(true, ssep(rule("expr_sep"), ssep(rule("blank"), rule("expr")))),
     expr: alt(rule("block_expr"), rule("simple_expr")),
@@ -68,7 +68,7 @@ export const backolonGrammar: Grammar = {
         rule("let_block"),
         rule("simple_let"),
     )),
-    simple_let: seq(rule("implicit_args"), lookahead(false, seq(rule("blank"), regex(/\bin\b/)))),
+    simple_let: seq(rule("implicit_args"), lookahead(false, seq(rule("blank"), kw("keyword", "in")))),
     let_block: ssep(
         rule("blank"),
         rule("implicit_args"),
@@ -133,32 +133,14 @@ export const backolonGrammar: Grammar = {
             lookahead(true, rule("blank_sameline")),
             rule("expr"),
             cut(),
-            ignored(opt(seq(rule("blank"), param("end"))))),
+            ignored(opt(seq(rule("blank"), param("end"))))
+        ),
         ssep(
             rule("blank"),
             rule("exprs"),
-            ignored(opt(param("end")))
-        )
+            ignored(opt(param("end"))),
+        ),
     ))],
-    body_start_keyword: alt(
-        kw("keyword", "in"),
-        kw("keyword", "do"),
-        kw("keyword", "then"),
-        kw("keyword", "else"),
-        kw("keyword", "catch"),
-        kw("keyword", "finally"),
-    ),
-    body_end_keyword: alt(
-        kw("keyword", "end"),
-        kw("keyword", "else"),
-        kw("keyword", "catch"),
-        kw("keyword", "finally"),
-    ),
-    soft_keyword: alt(
-        rule("body_start_keyword"),
-        rule("body_end_keyword"),
-    ),
-    not_soft_keyword: lookahead(false, rule("soft_keyword")),
 
     simple_expr: rule("pipe"),
 

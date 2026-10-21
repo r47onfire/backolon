@@ -359,14 +359,4 @@ describe("contextual soft keywords", () => {
     ] satisfies [string, ASTNode][]).map(([s, n]) => [JSON.stringify(s), s, n]))("%s", (_, str, n) => {
         expect(toAST(parsesFully(str))).toEqual(n);
     });
-    // At the top level the global guard still applies: a soft keyword is
-    // not swallowed as an expression or as an implicit argument.
-    test.each(([
-        ["a else", 2],
-        ["foo a else", 6],
-    ]))("stops before the keyword: %s", (text, end) => {
-        const cst = parse(text);
-        expect(JSON.stringify(cst)).not.toContain('"errorExpected"');
-        expect(cst.end).toBe(end);
-    });
 });
