@@ -31,7 +31,7 @@ export interface OpNodeShapes {
     ambient: { name: string, default: GrammarCombinator | undefined };
     bind: { name: string, value: GrammarCombinator, body: GrammarCombinator };
     sequence: { items: GrammarCombinator[], separator: GrammarCombinator | undefined };
-    alternatives: { options: GrammarCombinator[] };
+    alternatives: { options: GrammarCombinator[], first?: boolean };
     optional: { child: GrammarCombinator };
     repeat: { items: GrammarCombinator[], required: boolean };
     joined: { joiner: GrammarCombinator, element: GrammarCombinator, require2: boolean, trailing: boolean };
@@ -474,9 +474,9 @@ export const opDefs: OpDefs = {
     // alt
 
     alternatives: {
-        create: (...n: GrammarCombinator[]) => ({ options: n }),
+        create: (first: boolean, ...n: GrammarCombinator[]) => ({ options: n, first }),
         call(ctx, node, path, i, locals, dynamics) {
-            const { options: items } = node, len = items.length;
+            const { options: items, first } = node, len = items.length;
             const options: CSTNode[] = [];
             var furthestFail: MatchFail | undefined;
             for (var j = 0; j < len; j++) {
@@ -497,7 +497,8 @@ export const opDefs: OpDefs = {
                 }
                 // A cut inside a successful alternative commits the choice:
                 // return it now instead of letting a later, longer alternative win.
-                if (ctx.cutDepth() > depthBefore) return thisMatch;
+                // Alternatively, if we're intended to return the first one, do that.
+                if (ctx.cutDepth() > depthBefore || first) return thisMatch;
                 options.push(thisMatch);
             }
             return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, node as GrammarCombinator)) : options.reduce((a, b) => b.end > a.end ? b : a);
@@ -781,7 +782,9 @@ export const seq = (...n: GrammarCombinator[]) => createCombinator("sequence", u
 /** Like `seq`, but the separator `s` is attempted before, between, and after the items; separator results are marked ignored. */
 export const ssep = (s: GrammarCombinator, ...n: GrammarCombinator[]) => createCombinator("sequence", s, ...n);
 /** Tries every alternative and returns the first alternative that cut (whether or not it succeeded) or if none cut, the longest succeeding match (the first, on ties). */
-export const alt = createCombinatorMaker("alternatives");
+export const alt = (...n: GrammarCombinator[]) => createCombinator("alternatives", false, ...n);
+/** Tries every alternative and returns the first alternative that cut (whether or not it succeeded) or if none cut, the longest succeeding match (the first, on ties). */
+export const altFirst = (...n: GrammarCombinator[]) => createCombinator("alternatives", true, ...n);
 /** Matches `n` if it succeeds, otherwise succeeds empty -- unless `n` failed after a cut, in which case the failure propagates. */
 export const opt = createCombinatorMaker("optional");
 /** Repeats `n` greedily until it fails ordinarily; `r` = true requires at least one match, false allows zero. With several nodes the repetition cycles through them. */

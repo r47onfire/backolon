@@ -1,5 +1,4 @@
 import { alt, ambient, bind, cut, eps, Grammar, GrammarCombinator, ignored, joined, kw, lit, lookahead, nonempty, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
-// import { describe } from "./debug";
 
 /**
  * The soft-keyword guard, as a dynamic parameter. At the places an
@@ -16,7 +15,7 @@ import { alt, ambient, bind, cut, eps, Grammar, GrammarCombinator, ignored, join
  * being the longer match, win.
  */
 const guardName = "guard";
-const guardHere = (): GrammarCombinator => ambient(guardName, rule("not_body_end_keyword"));
+const guardHere = (): GrammarCombinator => ambient(guardName, eps());
 const guardExtendedBy = (extra: GrammarCombinator, body: GrammarCombinator): GrammarCombinator =>
     bind(guardName, seq(guardHere(), lookahead(false, extra)), body);
 const guardReset = (body: GrammarCombinator): GrammarCombinator => bind(guardName, eps(), body);
@@ -135,7 +134,7 @@ export const backolonGrammar: Grammar = {
             lookahead(true, rule("blank_sameline")),
             rule("expr"),
             cut(),
-            ignored(opt(seq(rule("blank"), param("end"))))
+            ignored(opt(seq(rule("blank"), param("end")))),
         ),
         ssep(
             rule("blank"),
@@ -143,17 +142,6 @@ export const backolonGrammar: Grammar = {
             ignored(opt(param("end"))),
         ),
     ))],
-
-    // The keywords that can end a block. Block *starters* (in, do, then)
-    // are not in this set: nothing at top level needs to claim them, so
-    // they are ordinary names there.
-    body_end_keyword: alt(
-        kw("keyword", "end"),
-        kw("keyword", "else"),
-        kw("keyword", "catch"),
-        kw("keyword", "finally"),
-    ),
-    not_body_end_keyword: lookahead(false, rule("body_end_keyword")),
 
     simple_expr: rule("pipe"),
 
@@ -435,5 +423,5 @@ export const all_tags = new Set(function walk(g: any): string[] {
 }(backolonGrammar));
 // console.log({ all_tags });
 // Object.entries(backolonGrammar).forEach(([rule, g]) => {
-//     console.log(`${rule}: ${describe(Array.isArray(g) ? g[1] : g)}`);
+//     console.log(`${rule}: ${describeCombinator(Array.isArray(g) ? g[1] : g)}`);
 // });
