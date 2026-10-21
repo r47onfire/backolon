@@ -1,7 +1,7 @@
 import { B_atLocation, JSFun } from "@r47onfire/jeb";
 import { isArray } from "lib0/array";
 import { GrammarCombinator } from "./combinator";
-import { opDefs } from "./ops";
+import { opDefs } from "./combinator";
 
 /**
  * Deep-copies a value into a printable form for debugging, replacing JEB

@@ -356,8 +356,8 @@ describe("contextual soft keywords", () => {
         "(let x = a in x end)",
         "(let else = a in else end)",
         "let x = (else) in x end",
-    ]))("parses fully: %s", text => {
-        parsesFully(text);
+    ] satisfies string[]).map(s => [JSON.stringify(s), s]))("%s", (_, str) => {
+        parsesFully(str);
     });
     // At the top level the global guard still applies: a soft keyword is
     // not swallowed as an expression or as an implicit argument.

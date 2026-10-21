@@ -1,9 +1,8 @@
 import { javaHash } from "@r47onfire/game-math";
 import { last } from "lib0/array";
 import { imul, max } from "lib0/math";
-import { Grammar, GrammarCombinator, hashCombinator, ReferenceResolver, rule } from "./combinator";
+import { Dynamics, Grammar, GrammarCombinator, hashCombinator, Locals, MatchFail, MixAction, OpContext, opDefs, ReferenceResolver, rule } from "./combinator";
 import { CSTNode } from "./cst";
-import { Dynamics, Locals, MatchFail, MixAction, OpContext, opDefs } from "./ops";
 
 /**
  * Memoization key: `<start index>#<grammar path>`. The path of a nested
@@ -43,8 +42,8 @@ class LR {
 // Exported as types only, so they can be named in public signatures (and
 // documentation) without exposing their constructors as public API;
 // only the parser itself creates them.
+export type { MatchFail } from "./combinator";
 export type { Head, LR };
-export type { MatchFail } from "./ops";
 
 /**
  * A hash of a combinator tree with its parameter references resolved:
@@ -208,9 +207,9 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
         committedDepth: () => cutStack.reduce((n, f) => n + (f[0] > 0 ? 1 : 0), 0),
         snapshotCuts,
         restoreCuts,
-        pushCutFrame: () => { cutStack.push([0]); },
-        popCutFrame: () => { const d = cutDepth(); cutStack.pop(); return d; },
-        applyCut: (depth) => { const f = last(cutStack); if (f) f[0] = max(f[0], depth); },
+        pushCutFrame: () => cutStack.push([0]),
+        popCutFrame: () => cutStack.pop()?.[0] ?? 0,
+        applyCut: depth => { const f = last(cutStack); if (f) f[0] = max(f[0], depth); },
         inCommittedScope,
         hashResolved,
         instancePath,
