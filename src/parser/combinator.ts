@@ -116,6 +116,67 @@ export const hashCombinator = (g: GrammarCombinator, resolve?: ReferenceResolver
 };
 
 /**
+ * A hash of a combinator tree with its parameter references resolved:
+ * `param` nodes contribute the hash of the argument they name (resolved in
+ * the lexical scope), `ambient` nodes the hash of the dynamic binding they
+ * name (resolved in the dynamic scope captured by that binding, so a
+ * binding's value never depends on itself), and `bind` nodes hash their
+ * body under the dynamic scope the bind creates. An unbound reference with
+ * a default contributes the default's hash. This is the one hash function,
+ * {@link hashCombinator}, driven by a resolver; nothing is cached, since
+ * the result depends on the scopes, not just the tree.
+ */
+export const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dynamics, path: string): number => {
+    const resolveWith = (scopeLocals: Locals, scopeDynamics: Dynamics): ReferenceResolver => (node, hashChild) => {
+        if (node.op === "param") {
+            for (var frame = scopeLocals; frame; frame = frame.next) {
+                const binding = frame.bindings[node.name];
+                if (binding) return hashCombinator(binding.node, resolveWith(binding.locals, scopeDynamics));
+            }
+            if (node.default) return hashChild(node.default);
+            throw new Error("unbound rule parameter " + node.name + " at " + path);
+        }
+        if (node.op === "ambient") {
+            for (var dyn = scopeDynamics; dyn; dyn = dyn.next) {
+                if (dyn.name === node.name) return hashCombinator(dyn.binding.node, resolveWith(dyn.binding.locals, dyn.binding.dynamics));
+            }
+            if (node.default) return hashChild(node.default);
+            throw new Error("unbound dynamic parameter " + node.name + " at " + path);
+        }
+        if (node.op === "bind") {
+            // The body is hashed under the dynamic scope the bind creates:
+            // its own binding is visible to ambient references inside it.
+            const { name, value, body } = node;
+            const inner: Dynamics = { name, binding: { node: value, locals: scopeLocals, dynamics: scopeDynamics }, next: scopeDynamics, key: "" };
+            const childHashes: Record<string, number> = {
+                value: hashCombinator(value, resolveWith(scopeLocals, scopeDynamics)),
+                body: hashCombinator(body, resolveWith(scopeLocals, inner)),
+            };
+            var h = javaHash(node.op);
+            for (var { 0: field, 1: action } of opDefs.bind.hashFields) {
+                if (action === MixAction.Child) h = (imul(h, 31) + childHashes[field]!) >>> 0;
+                else if (action === MixAction.String) h = (imul(h, 31) + javaHash((node as any)[field] as string)) >>> 0;
+            }
+            return h;
+        }
+        return undefined;
+    };
+    return hashCombinator(g, resolveWith(locals, dynamics));
+}
+
+/**
+ * The memo path of a parameterized rule invocation names the instance by
+ * the rule name plus the resolved hashes of its arguments (see
+ * {@link hashResolved}), so different instances of the same rule memoize
+ * separately. Resolving matters: `rule("e", param("op"))` inside a rule
+ * where `op` is bound to `lit("+")` is the *same* instance as
+ * `rule("e", lit("+"))` (in particular, a rule recursing on its own
+ * parameters recurses on itself, so left recursion still engages).
+ */
+const instancePath = (name: string, args: readonly GrammarCombinator[], locals: Locals, dynamics: Dynamics, path: string): string =>
+    name + "(" + args.map(a => hashResolved(a, locals, dynamics, path).toString(36)).join(",") + ")";
+
+/**
  * A failed match. `i` is the index where the failure occurred (used for
  * error reporting), `cut` is the remaining cut depth (Infinity for `die`),
  * and `expected` is the combinator that failed to match.
@@ -228,10 +289,6 @@ export interface OpContext {
     applyCut(depth: number): void;
     /** True if an enclosing construct has committed (cut) without finishing yet. */
     inCommittedScope(): boolean;
-    /** A hash of a combinator tree with its parameter references resolved in the given scopes. */
-    hashResolved(node: GrammarCombinator, locals: Locals, dynamics: Dynamics, path: string): number;
-    /** The memo path naming a parameterized rule instance (rule name plus resolved argument hashes). */
-    instancePath(name: string, args: readonly GrammarCombinator[], locals: Locals, dynamics: Dynamics, path: string): string;
 }
 
 /**
@@ -338,7 +395,7 @@ export const opDefs: OpDefs = {
                 const bindings: Record<string, ParamBinding> = {};
                 for (var k = 0; k < params.length; k++) bindings[params[k]!] = { node: args[k]!, locals };
                 body = ruleBody;
-                bodyPath = ctx.instancePath(name, args, locals, dynamics, path);
+                bodyPath = instancePath(name, args, locals, dynamics, path);
                 bodyLocals = { bindings, next: locals };
             } else {
                 if (args.length) throw new Error("rule " + name + " takes no arguments at " + path);
@@ -415,7 +472,7 @@ export const opDefs: OpDefs = {
                 name,
                 binding: { node: value, locals, dynamics },
                 next: dynamics,
-                key: (dynamics ? dynamics.key + "/" : "") + name + "#" + ctx.hashResolved(value, locals, dynamics, path).toString(36),
+                key: (dynamics ? dynamics.key + "/" : "") + name + "#" + hashResolved(value, locals, dynamics, path).toString(36),
             };
             return ctx.applyRule(path + "/b", body, i, locals, frame);
         },

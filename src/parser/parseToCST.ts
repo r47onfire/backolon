@@ -46,67 +46,6 @@ export type { MatchFail } from "./combinator";
 export type { Head, LR };
 
 /**
- * A hash of a combinator tree with its parameter references resolved:
- * `param` nodes contribute the hash of the argument they name (resolved in
- * the lexical scope), `ambient` nodes the hash of the dynamic binding they
- * name (resolved in the dynamic scope captured by that binding, so a
- * binding's value never depends on itself), and `bind` nodes hash their
- * body under the dynamic scope the bind creates. An unbound reference with
- * a default contributes the default's hash. This is the one hash function,
- * {@link hashCombinator}, driven by a resolver; nothing is cached, since
- * the result depends on the scopes, not just the tree.
- */
-const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dynamics, path: string): number => {
-    const resolveWith = (scopeLocals: Locals, scopeDynamics: Dynamics): ReferenceResolver => (node, hashChild) => {
-        if (node.op === "param") {
-            for (var frame = scopeLocals; frame; frame = frame.next) {
-                const binding = frame.bindings[node.name];
-                if (binding) return hashCombinator(binding.node, resolveWith(binding.locals, scopeDynamics));
-            }
-            if (node.default) return hashChild(node.default);
-            throw new Error("unbound rule parameter " + node.name + " at " + path);
-        }
-        if (node.op === "ambient") {
-            for (var dyn = scopeDynamics; dyn; dyn = dyn.next) {
-                if (dyn.name === node.name) return hashCombinator(dyn.binding.node, resolveWith(dyn.binding.locals, dyn.binding.dynamics));
-            }
-            if (node.default) return hashChild(node.default);
-            throw new Error("unbound dynamic parameter " + node.name + " at " + path);
-        }
-        if (node.op === "bind") {
-            // The body is hashed under the dynamic scope the bind creates:
-            // its own binding is visible to ambient references inside it.
-            const { name, value, body } = node;
-            const inner: Dynamics = { name, binding: { node: value, locals: scopeLocals, dynamics: scopeDynamics }, next: scopeDynamics, key: "" };
-            const childHashes: Record<string, number> = {
-                value: hashCombinator(value, resolveWith(scopeLocals, scopeDynamics)),
-                body: hashCombinator(body, resolveWith(scopeLocals, inner)),
-            };
-            var h = javaHash(node.op);
-            for (const [field, action] of opDefs.bind.hashFields) {
-                if (action === MixAction.Child) h = (imul(h, 31) + childHashes[field]!) >>> 0;
-                else if (action === MixAction.String) h = (imul(h, 31) + javaHash((node as any)[field] as string)) >>> 0;
-            }
-            return h;
-        }
-        return undefined;
-    };
-    return hashCombinator(g, resolveWith(locals, dynamics));
-};
-
-/**
- * The memo path of a parameterized rule invocation names the instance by
- * the rule name plus the resolved hashes of its arguments (see
- * {@link hashResolved}), so different instances of the same rule memoize
- * separately. Resolving matters: `rule("e", param("op"))` inside a rule
- * where `op` is bound to `lit("+")` is the *same* instance as
- * `rule("e", lit("+"))` (in particular, a rule recursing on its own
- * parameters recurses on itself, so left recursion still engages).
- */
-const instancePath = (name: string, args: readonly GrammarCombinator[], locals: Locals, dynamics: Dynamics, path: string): string =>
-    name + "(" + args.map(a => hashResolved(a, locals, dynamics, path).toString(36)).join(",") + ")";
-
-/**
  * The memo table for a parse: results (a CST node, a failure, or an
  * in-progress LR) by `MemoLoc`. A caller may pass one in to reuse it across
  * parses, but it must be cleared whenever the grammar changes.
@@ -211,8 +150,6 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
         popCutFrame: () => cutStack.pop()?.[0] ?? 0,
         applyCut: depth => { const f = last(cutStack); if (f) f[0] = max(f[0], depth); },
         inCommittedScope,
-        hashResolved,
-        instancePath,
     };
     /**
      * Do the actual logic for the grammar node's operation, by dispatching
@@ -236,9 +173,9 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * the current seed in the memo until a pass produces nothing longer,
      * memoizing each improvement.
      */
-    const leftRecurse = (mpath: string, path: string, g: GrammarCombinator, i: number, l: LR, locals: Locals, dynamics: Dynamics): CSTNode | MatchFail => {
-        if (l.head?.path !== mpath) return l.seed;
-        const loc = toMemoLoc(mpath, i);
+    const leftRecurse = (mPath: string, path: string, g: GrammarCombinator, i: number, l: LR, locals: Locals, dynamics: Dynamics): CSTNode | MatchFail => {
+        if (l.head?.path !== mPath) return l.seed;
+        const loc = toMemoLoc(mPath, i);
         memo[loc] = l.seed;
         if (l.seed instanceof MatchFail) return l.seed;
         // grow left recursion
@@ -260,15 +197,15 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * this index, rules that are not part of its cycle fail synthetically,
      * and rules in its `eval` set are re-evaluated once instead of recalled.
      */
-    const recall = (mpath: string, path: string, g: GrammarCombinator, i: number, locals: Locals, dynamics: Dynamics): CSTNode | LR | MatchFail | undefined => {
-        const m = memo[toMemoLoc(mpath, i)];
+    const recall = (mPath: string, path: string, g: GrammarCombinator, i: number, locals: Locals, dynamics: Dynamics): CSTNode | LR | MatchFail | undefined => {
+        const m = memo[toMemoLoc(mPath, i)];
         const h = heads[i];
         if (!h) return m as any;
-        if (!m && mpath !== h.path && !h.involved.has(mpath)) return new MatchFail(i, 0, g);
-        if (h.eval.has(mpath)) {
-            h.eval.delete(mpath);
+        if (!m && mPath !== h.path && !h.involved.has(mPath)) return new MatchFail(i, 0, g);
+        if (h.eval.has(mPath)) {
+            h.eval.delete(mPath);
             const ans = callRule(path, g, i, locals, dynamics);
-            memo[toMemoLoc(mpath, i)] = ans;
+            memo[toMemoLoc(mPath, i)] = ans;
             return ans;
         } else return m;
     }
