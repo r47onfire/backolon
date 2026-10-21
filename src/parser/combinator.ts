@@ -260,24 +260,6 @@ export interface GrammarOpDefFor<N> {
     describe: (node: CombinatorBase & N) => string;
 }
 
-/**
- * Builds one operation definition, tying the node shape to the `create`
- * function: `call` and `describe` receive exactly the fields `create`
- * returns, and `hashFields` may only name those fields. The generic is
- * the create function itself, so the shape is inferred from it alone --
- * inferring it from all four members at once (or constraining it by
- * {@link GrammarCombinator}, which is derived from this table) makes the
- * derivation circular.
- */
-function gOp<C extends (...args: any[]) => Record<string, unknown>>(
-    create: C,
-    call: (ctx: OpContext, node: CombinatorBase & ReturnType<C>, path: string, i: number, locals: Locals, dynamics: Dynamics) => CSTNode | MatchFail,
-    hashFields: readonly (readonly [field: keyof ReturnType<C>, action: MixAction])[],
-    describe: (node: CombinatorBase & ReturnType<C>) => string,
-) {
-    return { create, call, hashFields, describe };
-}
-
 const singleChild = (n: GrammarCombinator): { child: GrammarCombinator } => ({ child: n });
 
 /** The type of {@link opDefs}: every operation's definition, tied to its declared node shape in {@link OpNodeShapes}. */
@@ -289,9 +271,9 @@ export const opDefs: OpDefs = {
     // ---------------------------------------------------------------------------
     // tok
 
-    literal: gOp(
-        (pattern: string | [string, string]) => ({ pattern }),
-        (ctx, node, _, i) => {
+    literal: {
+        create: (pattern: string | [string, string]) => ({ pattern }),
+        call(ctx, node, _, i) {
             const pattern = node.pattern;
             if (isArray(pattern)) {
                 const re = new RegExp(pattern[0], pattern[1] + "y");
@@ -301,46 +283,46 @@ export const opDefs: OpDefs = {
             }
             return ctx.text.startsWith(pattern, i) ? { text: pattern, start: i, end: i + pattern.length } : new MatchFail(i, 0, node as GrammarCombinator);
         },
-        [["pattern", MixAction.Text]],
-        ({ pattern }) => isArray(pattern) ? "/" + pattern[0] + "/" + pattern[1] : stringify(pattern),
-    ),
+        hashFields: [["pattern", MixAction.Text]],
+        describe: ({ pattern }) => isArray(pattern) ? "/" + pattern[0] + "/" + pattern[1] : stringify(pattern),
+    },
 
     // ---------------------------------------------------------------------------
     // kw
 
 
-    keyword: gOp(
-        (t: string, ...options: string[]) => ({ tag: t, options }),
-        (ctx, node, _, i) => {
+    keyword: {
+        create: (t: string, ...options: string[]) => ({ tag: t, options }),
+        call(ctx, node, _, i) {
             const { options, tag } = node;
             const re = new RegExp("\\b(" + options.map(RegExp.escape).join("|") + ")\\b", "y");
             re.lastIndex = i;
             const match = re.exec(ctx.text);
             return match ? { text: match[0], tag, start: i, end: i + match[0].length, ignored: true } : new MatchFail(i, 0, node as GrammarCombinator);
         },
-        [["tag", MixAction.String], ["options", MixAction.StringArray]],
-        ({ options }) => "('" + options.join("' | '") + "')",
-    ),
+        hashFields: [["tag", MixAction.String], ["options", MixAction.StringArray]],
+        describe: ({ options }) => "('" + options.join("' | '") + "')",
+    },
 
     // ---------------------------------------------------------------------------
     // ign
 
-    ignored: gOp(
-        singleChild,
-        (ctx, { child }, path, i, locals, dynamics) => {
+    ignored: {
+        create: singleChild,
+        call(ctx, { child }, path, i, locals, dynamics) {
             const cst = ctx.applyRule(path + "/", child, i, locals, dynamics);
             return cst instanceof MatchFail ? cst : { ignored: true, start: cst.start, end: cst.end, children: [cst] };
         },
-        [["child", MixAction.Child]],
-        ({ child }) => "," + describeCombinator(child),
-    ),
+        hashFields: [["child", MixAction.Child]],
+        describe: ({ child }) => "," + describeCombinator(child),
+    },
 
     // ---------------------------------------------------------------------------
     // rule
 
-    rule: gOp(
-        (r: string, ...args: GrammarCombinator[]) => ({ name: r, args }),
-        (ctx, { name, args = [] }, path, i, locals, dynamics) => {
+    rule: {
+        create: (r: string, ...args: GrammarCombinator[]) => ({ name: r, args }),
+        call(ctx, { name, args = [] }, path, i, locals, dynamics) {
             const entry = ctx.grammar[name];
             if (!entry) throw new Error("unknown named rule " + name + " at " + path);
             var body: GrammarCombinator, bodyPath = name, bodyLocals = locals;
@@ -373,16 +355,16 @@ export const opDefs: OpDefs = {
             if (cst.text === undefined && typeof cst.type === "string") return cst;
             return { type: name, start: cst.start, end: cst.end, children: [cst] };
         },
-        [["name", MixAction.String], ["args", MixAction.Children]],
-        ({ name }) => name,
-    ),
+        hashFields: [["name", MixAction.String], ["args", MixAction.Children]],
+        describe: ({ name }) => name,
+    },
 
     // ---------------------------------------------------------------------------
     // param
 
-    param: gOp(
-        (p: string, defaultValue?: GrammarCombinator) => ({ name: p, default: defaultValue }),
-        (ctx, { name, default: defaultValue }, path, i, locals, dynamics) => {
+    param: {
+        create: (p: string, defaultValue?: GrammarCombinator) => ({ name: p, default: defaultValue }),
+        call(ctx, { name, default: defaultValue }, path, i, locals, dynamics) {
             for (var scope = locals; scope; scope = scope.next) {
                 const binding = scope.bindings[name];
                 // Evaluate the argument under its own memo path: the memo is
@@ -396,16 +378,16 @@ export const opDefs: OpDefs = {
             if (defaultValue) return ctx.applyRule(path + "$" + name, defaultValue, i, locals, dynamics);
             throw new Error("unbound rule parameter " + name + " at " + path);
         },
-        [["name", MixAction.String], ["default", MixAction.Child]],
-        ({ name }) => "$" + name,
-    ),
+        hashFields: [["name", MixAction.String], ["default", MixAction.Child]],
+        describe: ({ name }) => "$" + name,
+    },
 
     // ---------------------------------------------------------------------------
     // ambient
 
-    ambient: gOp(
-        (p: string, defaultValue?: GrammarCombinator) => ({ name: p, default: defaultValue }),
-        (ctx, { name, default: defaultValue }, path, i, locals, dynamics) => {
+    ambient: {
+        create: (p: string, defaultValue?: GrammarCombinator) => ({ name: p, default: defaultValue }),
+        call(ctx, { name, default: defaultValue }, path, i, locals, dynamics) {
             for (var dyn = dynamics; dyn; dyn = dyn.next) {
                 // As with param, the value gets its own memo path -- and the
                 // path names the binding's frame key, because the same
@@ -419,16 +401,16 @@ export const opDefs: OpDefs = {
             if (defaultValue) return ctx.applyRule(path + "$@" + name, defaultValue, i, locals, dynamics);
             throw new Error("unbound dynamic parameter " + name + " at " + path);
         },
-        [["name", MixAction.String], ["default", MixAction.Child]],
-        ({ name }) => "@" + name,
-    ),
+        hashFields: [["name", MixAction.String], ["default", MixAction.Child]],
+        describe: ({ name }) => "@" + name,
+    },
 
     // ---------------------------------------------------------------------------
     // bind
 
-    bind: gOp(
-        (p: string, value: GrammarCombinator, body: GrammarCombinator) => ({ name: p, value, body }),
-        (ctx, { name, value, body }, path, i, locals, dynamics) => {
+    bind: {
+        create: (p: string, value: GrammarCombinator, body: GrammarCombinator) => ({ name: p, value, body }),
+        call(ctx, { name, value, body }, path, i, locals, dynamics) {
             const frame: DynFrame = {
                 name,
                 binding: { node: value, locals, dynamics },
@@ -437,16 +419,16 @@ export const opDefs: OpDefs = {
             };
             return ctx.applyRule(path + "/b", body, i, locals, frame);
         },
-        [["name", MixAction.String], ["value", MixAction.Child], ["body", MixAction.Child]],
-        ({ name, value, body }) => "&" + name + "=" + describeCombinator(value) + " { " + describeCombinator(body) + " }",
-    ),
+        hashFields: [["name", MixAction.String], ["value", MixAction.Child], ["body", MixAction.Child]],
+        describe: ({ name, value, body }) => "&" + name + "=" + describeCombinator(value) + " { " + describeCombinator(body) + " }",
+    },
 
     // ---------------------------------------------------------------------------
     // seq / ssep
 
-    sequence: gOp(
-        (s: GrammarCombinator | undefined, ...n: GrammarCombinator[]) => ({ items: n, separator: s }),
-        (ctx, node, path, i, locals, dynamics) => {
+    sequence: {
+        create: (s: GrammarCombinator | undefined, ...n: GrammarCombinator[]) => ({ items: n, separator: s }),
+        call(ctx, node, path, i, locals, dynamics) {
             const children: CSTNode[] = [];
             const start = i;
             const { items, separator } = node, len = items.length;
@@ -484,16 +466,16 @@ export const opDefs: OpDefs = {
             sep();
             return { start, end: i, children };
         },
-        [["items", MixAction.Children], ["separator", MixAction.AuxChild]],
-        ({ items, separator }) => (separator ? describeCombinator(separator) + ".@" : "") + items.map(c => describeCombinator(c)).join(" ") + ")",
-    ),
+        hashFields: [["items", MixAction.Children], ["separator", MixAction.AuxChild]],
+        describe: ({ items, separator }) => (separator ? describeCombinator(separator) + ".@" : "") + items.map(c => describeCombinator(c)).join(" ") + ")",
+    },
 
     // ---------------------------------------------------------------------------
     // alt
 
-    alternatives: gOp(
-        (...n: GrammarCombinator[]) => ({ options: n }),
-        (ctx, node, path, i, locals, dynamics) => {
+    alternatives: {
+        create: (...n: GrammarCombinator[]) => ({ options: n }),
+        call(ctx, node, path, i, locals, dynamics) {
             const { options: items } = node, len = items.length;
             const options: CSTNode[] = [];
             var furthestFail: MatchFail | undefined;
@@ -520,30 +502,30 @@ export const opDefs: OpDefs = {
             }
             return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, node as GrammarCombinator)) : options.reduce((a, b) => b.end > a.end ? b : a);
         },
-        [["options", MixAction.Children]],
-        ({ options }) => "(" + options.map(c => describeCombinator(c)).join(" | ") + ")",
-    ),
+        hashFields: [["options", MixAction.Children]],
+        describe: ({ options }) => "(" + options.map(c => describeCombinator(c)).join(" | ") + ")",
+    },
 
     // ---------------------------------------------------------------------------
     // opt
 
-    optional: gOp(
-        singleChild,
-        (ctx, { child }, path, i, locals, dynamics) => {
+    optional: {
+        create: singleChild,
+        call(ctx, { child }, path, i, locals, dynamics) {
             const cst = ctx.applyRule(path + "/", child, i, locals, dynamics);
             // don't swallow a cut fail
             return cst instanceof MatchFail ? (cst.cut > 0 ? cst : { start: i, end: i }) : cst;
         },
-        [["child", MixAction.Child]],
-        ({ child }) => "[" + describeCombinator(child) + "]",
-    ),
+        hashFields: [["child", MixAction.Child]],
+        describe: ({ child }) => "[" + describeCombinator(child) + "]",
+    },
 
     // ---------------------------------------------------------------------------
     // rep
 
-    repeat: gOp(
-        (r: boolean, n: GrammarCombinator) => ({ items: [n], required: r }),
-        (ctx, { items: nodes, required }, path, i, locals, dynamics) => {
+    repeat: {
+        create: (r: boolean, n: GrammarCombinator) => ({ items: [n], required: r }),
+        call(ctx, { items: nodes, required }, path, i, locals, dynamics) {
             const start = i;
             const children: CSTNode[] = [];
             const len = nodes.length;
@@ -579,16 +561,16 @@ export const opDefs: OpDefs = {
             }
             return { start, end: i, children };
         },
-        [["items", MixAction.Children], ["required", MixAction.Boolean]],
-        ({ items, required }) => items.map(c => describeCombinator(c)).join("") + (required ? "+" : "*"),
-    ),
+        hashFields: [["items", MixAction.Children], ["required", MixAction.Boolean]],
+        describe: ({ items, required }) => items.map(c => describeCombinator(c)).join("") + (required ? "+" : "*"),
+    },
 
     // ---------------------------------------------------------------------------
     // joined
 
-    joined: gOp(
-        (j: GrammarCombinator, n: GrammarCombinator, r2: boolean, t: boolean) => ({ joiner: j, element: n, require2: r2, trailing: t }),
-        (ctx, { element: elemRule, joiner: sepRule, require2, trailing }, path, i, locals, dynamics) => {
+    joined: {
+        create: (j: GrammarCombinator, n: GrammarCombinator, r2: boolean, t: boolean) => ({ joiner: j, element: n, require2: r2, trailing: t }),
+        call(ctx, { element: elemRule, joiner: sepRule, require2, trailing }, path, i, locals, dynamics) {
             const start = i;
             const children: CSTNode[] = [];
             const minimum = require2 ? 3 : 1; // children interleave elements and separators: two elements are 3 children
@@ -644,105 +626,105 @@ export const opDefs: OpDefs = {
             }
             return { start, end: i, children };
         },
-        [["element", MixAction.Child], ["joiner", MixAction.AuxChild], ["require2", MixAction.Boolean], ["trailing", MixAction.Boolean]],
-        ({ element, joiner }) => describeCombinator(joiner) + "." + describeCombinator(element) + "+",
-    ),
+        hashFields: [["element", MixAction.Child], ["joiner", MixAction.AuxChild], ["require2", MixAction.Boolean], ["trailing", MixAction.Boolean]],
+        describe: ({ element, joiner }) => describeCombinator(joiner) + "." + describeCombinator(element) + "+",
+    },
 
     // ---------------------------------------------------------------------------
     // if
 
-    if: gOp(
-        (c: GrammarCombinator, t: GrammarCombinator, f: GrammarCombinator) => ({ condition: c, ifTrue: t, ifFalse: f }),
-        (ctx, { condition, ifTrue, ifFalse }, path, i, locals, dynamics) =>
+    if: {
+        create: (c: GrammarCombinator, t: GrammarCombinator, f: GrammarCombinator) => ({ condition: c, ifTrue: t, ifFalse: f }),
+        call: (ctx, { condition, ifTrue, ifFalse }, path, i, locals, dynamics) =>
             ctx.applyRule(path + "/c", condition, i, locals, dynamics) instanceof MatchFail
                 ? ctx.applyRule(path + "/f", ifFalse, i, locals, dynamics)
                 : ctx.applyRule(path + "/t", ifTrue, i, locals, dynamics),
-        [["condition", MixAction.AuxChild], ["ifTrue", MixAction.Child], ["ifFalse", MixAction.Child]],
-        ({ condition, ifTrue: if_true, ifFalse: if_false }) => "(?(" + describeCombinator(condition) + ")" + describeCombinator(if_true) + " | " + describeCombinator(if_false) + ")",
-    ),
+        hashFields: [["condition", MixAction.AuxChild], ["ifTrue", MixAction.Child], ["ifFalse", MixAction.Child]],
+        describe: ({ condition, ifTrue: if_true, ifFalse: if_false }) => "(?(" + describeCombinator(condition) + ")" + describeCombinator(if_true) + " | " + describeCombinator(if_false) + ")",
+    },
 
     // ---------------------------------------------------------------------------
     // tag
 
-    tag: gOp(
-        (t: string, n: GrammarCombinator) => ({ tag: t, child: n }),
-        (ctx, node, path, i, locals, dynamics) => {
+    tag: {
+        create: (t: string, n: GrammarCombinator) => ({ tag: t, child: n }),
+        call(ctx, node, path, i, locals, dynamics) {
             const { tag: tagName, child } = node;
             const cst = ctx.applyRule(path + "/", child, i, locals, dynamics);
             return cst instanceof MatchFail ? cst : { tag: tagName, start: cst.start, end: cst.end, children: [cst] };
         },
-        [["tag", MixAction.String], ["child", MixAction.Child]],
-        ({ tag, child }) => "#" + tag + "=" + describeCombinator(child),
-    ),
+        hashFields: [["tag", MixAction.String], ["child", MixAction.Child]],
+        describe: ({ tag, child }) => "#" + tag + "=" + describeCombinator(child),
+    },
 
     // ---------------------------------------------------------------------------
     // cut
 
-    cut: gOp(
-        (d = 1) => ({ depth: d }),
-        (ctx, { depth }, _, i) => {
+    cut: {
+        create: (d = 1) => ({ depth: d }),
+        call(ctx, { depth }, _, i) {
             ctx.applyCut(depth);
             return { ignored: true, start: i, end: i };
         },
-        [["depth", MixAction.Number]],
-        () => "!",
-    ),
+        hashFields: [["depth", MixAction.Number]],
+        describe: () => "!",
+    },
 
     // ---------------------------------------------------------------------------
     // lookahead
 
-    lookahead: gOp(
-        (p: boolean, n: GrammarCombinator) => ({ positive: p, child: n }),
-        (ctx, node, path, i, locals, dynamics) => {
+    lookahead: {
+        create: (p: boolean, n: GrammarCombinator) => ({ positive: p, child: n }),
+        call(ctx, node, path, i, locals, dynamics) {
             const { positive, child } = node;
             const cst = ctx.applyRule(path + "/?", child, i, locals, dynamics);
             return (cst instanceof MatchFail) !== positive ? { ignored: true, start: i, end: i } : new MatchFail(i, 0, node as GrammarCombinator);
         },
-        [["positive", MixAction.Boolean], ["child", MixAction.Child]],
-        ({ positive, child }) => "(?" + (positive ? "=" : "!") + describeCombinator(child) + ")",
-    ),
+        hashFields: [["positive", MixAction.Boolean], ["child", MixAction.Child]],
+        describe: ({ positive, child }) => "(?" + (positive ? "=" : "!") + describeCombinator(child) + ")",
+    },
 
     // ---------------------------------------------------------------------------
     // nonempty / sameline
 
-    nonempty: gOp(
-        singleChild,
-        (ctx, node, path, i, locals, dynamics) => {
+    nonempty: {
+        create: singleChild,
+        call(ctx, node, path, i, locals, dynamics) {
             const { child } = node;
             const cst = ctx.applyRule(path + "/", child, i, locals, dynamics);
             return cst instanceof MatchFail ? cst : cst.end === i ? new MatchFail(i, 0, node as GrammarCombinator) : cst;
         },
-        [["child", MixAction.Child]],
-        ({ child }) => "(=" + describeCombinator(child) + ")",
-    ),
+        hashFields: [["child", MixAction.Child]],
+        describe: ({ child }) => "(=" + describeCombinator(child) + ")",
+    },
 
-    sameline: gOp(
-        singleChild,
-        (ctx, node, path, i, locals, dynamics) => {
+    sameline: {
+        create: singleChild,
+        call(ctx, node, path, i, locals, dynamics) {
             const { child } = node;
             const cst = ctx.applyRule(path + "/", child, i, locals, dynamics);
             return cst instanceof MatchFail ? cst : ctx.text.slice(cst.start, cst.end).indexOf("\n") >= 0 ? new MatchFail(i, 0, node as GrammarCombinator) : cst;
         },
-        [["child", MixAction.Child]],
-        ({ child }) => "($" + describeCombinator(child) + ")",
-    ),
+        hashFields: [["child", MixAction.Child]],
+        describe: ({ child }) => "($" + describeCombinator(child) + ")",
+    },
 
     // ---------------------------------------------------------------------------
     // eps
 
-    nothing: gOp(
-        () => ({}),
-        (_, __, ___, i) => ({ start: i, end: i }),
-        [],
-        () => "\u03B5",
-    ),
+    nothing: {
+        create: () => ({}),
+        call: (_, __, ___, i) => ({ start: i, end: i }),
+        hashFields: [],
+        describe: () => "\u03B5",
+    },
 
     // ---------------------------------------------------------------------------
     // try
 
-    try: gOp(
-        singleChild,
-        (ctx, { child }, path, i, locals, dynamics) => {
+    try: {
+        create: singleChild,
+        call(ctx, { child }, path, i, locals, dynamics) {
             // Speculative parse: if node fails, hide the cuts
             const savedCuts = ctx.snapshotCuts();
             const cst = ctx.applyRule(path + "/", child, i, locals, dynamics);
@@ -752,19 +734,19 @@ export const opDefs: OpDefs = {
             }
             return cst;
         },
-        [["child", MixAction.Child]],
-        ({ child }) => "(??" + describeCombinator(child) + ")",
-    ),
+        hashFields: [["child", MixAction.Child]],
+        describe: ({ child }) => "(??" + describeCombinator(child) + ")",
+    },
 
     // ---------------------------------------------------------------------------
     // die
 
-    die: gOp(
-        (m: string) => ({ message: m }),
-        (_, node, __, i) => new MatchFail(i, Infinity, node as GrammarCombinator),
-        [["message", MixAction.String]],
-        ({ message }) => "^" + stringify(message),
-    ),
+    die: {
+        create: (m: string) => ({ message: m }),
+        call: (_, node, __, i) => new MatchFail(i, Infinity, node as GrammarCombinator),
+        hashFields: [["message", MixAction.String]],
+        describe: ({ message }) => "^" + stringify(message),
+    },
 
     // ---------------------------------------------------------------------------
 

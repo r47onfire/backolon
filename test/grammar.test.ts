@@ -350,14 +350,14 @@ describe("contextual soft keywords", () => {
     // reset and soft keywords are usable as ordinary names. These first
     // cases were errors (or truncated parses) with the old global guard.
     test.each(([
-        "(else)",
-        "(in)",
-        "(end)",
-        "(let x = a in x end)",
-        "(let else = a in else end)",
-        "let x = (else) in x end",
-    ] satisfies string[]).map(s => [JSON.stringify(s), s]))("%s", (_, str) => {
-        parsesFully(str);
+        ["(else)", ["exprs", ["par_exp", ["exprs", ["name", "else"]]]]],
+        ["(in)", ["exprs", ["par_exp", ["exprs", ["name", "in"]]]]],
+        ["(end)", ["exprs", ["par_exp", ["exprs", ["name", "end"]]]]],
+        ["(let x = a in x end)", ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["name", "x"]]]]]]]]],
+        ["(let else = a in else end)", ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "else"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["name", "else"]]]]]]]]],
+        ["let x = (else) in x end", ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["par_exp", ["exprs", ["name", "else"]]]]], ["body_exprs", ["exprs", ["name", "x"]]]]]]],
+    ] satisfies [string, ASTNode][]).map(([s, n]) => [JSON.stringify(s), s, n]))("%s", (_, str, n) => {
+        expect(toAST(parsesFully(str))).toEqual(n);
     });
     // At the top level the global guard still applies: a soft keyword is
     // not swallowed as an expression or as an implicit argument.
