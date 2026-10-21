@@ -1,4 +1,4 @@
-import { alt, cut, eps, Grammar, ignored, joined, kw, lit, lookahead, nonempty, opt, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
+import { alt, cut, eps, Grammar, ignored, joined, kw, lit, lookahead, nonempty, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
 // import { describe } from "./debug";
 
 /**
@@ -57,7 +57,7 @@ export const backolonGrammar: Grammar = {
         seq(
             kw("keyword", "in"),
             // no sep here!
-            rule("body_exprs"),
+            rule("body_exprs", kw("keyword", "end")),
         ),
     ),
     let_loop_block: ssep(
@@ -76,14 +76,14 @@ export const backolonGrammar: Grammar = {
     while_body: seq(
         ignored(rule("blank")),
         rule("expr"),
-        rule("body_exprs"),
+        rule("body_exprs", kw("keyword", "end")),
     ),
 
     for: ssep(rule("blank"), kw("keyword", "for"), rule("for_body")),
     for_body: seq(
         ignored(rule("blank")),
         rule("expr"),
-        rule("body_exprs"),
+        rule("body_exprs", kw("keyword", "end")),
     ),
 
 
@@ -94,7 +94,7 @@ export const backolonGrammar: Grammar = {
     with_body: seq(
         ignored(rule("blank")),
         rule("expr"),
-        rule("body_exprs"),
+        rule("body_exprs", kw("keyword", "end")),
     ),
 
     fn: ssep(rule("blank"), kw("keyword", "fn"), rule("fn_body")),
@@ -104,24 +104,24 @@ export const backolonGrammar: Grammar = {
     always_body: seq(
         ignored(rule("blank")),
         rule("expr"),
-        rule("body_exprs"),
+        rule("body_exprs", kw("keyword", "end")),
     ),
 
     do: ssep(rule("blank"), kw("keyword", "do"), rule("do_body")),
 
 
-    body_exprs: alt(
+    body_exprs: [["end"], alt(
         seq(
             lookahead(true, rule("blank_sameline")),
             rule("expr"),
             cut(),
-            ignored(opt(seq(rule("blank"), kw("keyword", "end"))))),
+            ignored(opt(seq(rule("blank"), param("end"))))),
         ssep(
             rule("blank"),
             rule("exprs"),
-            ignored(opt(kw("keyword", "end")))
+            ignored(opt(param("end")))
         )
-    ),
+    )],
     body_start_keyword: alt(
         kw("keyword", "in"),
         kw("keyword", "do"),
@@ -422,5 +422,5 @@ export const all_tags = new Set(function walk(g: any): string[] {
 }(backolonGrammar));
 // console.log({ all_tags });
 // Object.entries(backolonGrammar).forEach(([rule, g]) => {
-//     console.log(`    ${rule}: ${describe(g)}`);
+//     console.log(`${rule}: ${describe(Array.isArray(g) ? g[1] : g)}`);
 // });

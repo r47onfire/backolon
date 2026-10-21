@@ -32,8 +32,12 @@ export const stripInlinedFunctions = <T>(ast: T): T => {
  */
 const describe_formats: Record<GrammarOp, [string, join?: string, map?: Record<string, string>]> = {
     tok: ["v"],
+    kw: ["('u')", "' | '"],
     rule: ["r"],
-    tag: ["#r=c"],
+    param: ["$r"],
+    ambient: ["@r"],
+    bind: ["&r=c", " "],
+    tag: ["#g=c"],
     ign: [",c"],
     opt: ["[c]"],
     seq: ["(c)", " "],
@@ -54,13 +58,15 @@ const describe_formats: Record<GrammarOp, [string, join?: string, map?: Record<s
 /** Renders a combinator in a compact PEG-like notation, for debugging grammars. */
 export const describe = (g: GrammarCombinator): string => {
     const formatcode = describe_formats[g.op];
-    return formatcode[0].replaceAll(/[vrcjf]/g, m => { // cSpell: ignore vrcjf
-        switch (m as "v" | "r" | "c" | "j" | "f") {
+    return formatcode[0].replaceAll(/[vurcjfg]/g, m => { // cSpell: ignore vurcjfg
+        switch (m as "v" | "u" | "r" | "c" | "j" | "f" | "g") {
             case "v": return isArray(g.v) ? "/" + g.v[0] + "/" + g.v[1] : stringify(g.v);
+            case "u": return (g.v! as string[]).join(formatcode[1] ?? "");
             case "r": return g.v as string;
             case "c": return g.c!.map(c => describe(c)).join(formatcode[1] ?? "");
             case "j": return describe(g.j!);
-            case "f": return formatcode[2]![g.f as string] ?? "\uFFEF";
+            case "f": return formatcode[2]![g.f!] ?? "\uFFEF";
+            case "g": return g.f!;
         }
     });
 }
