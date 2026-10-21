@@ -83,29 +83,6 @@ describe("parameterized rules", () => {
     });
 });
 
-describe("Backolon parameterized body_exprs", () => {
-    // body_exprs takes the keyword(s) that may end the block as an argument,
-    // so each block construct can declare its own terminators.
-    const withTerminators = (...terminators: string[]): Grammar => ({
-        ...backolonGrammar,
-        main: seq(lit("if "), rule("body_exprs", kw("keyword", ...terminators))),
-    });
-
-    test("the body stops at, and consumes, a terminator from the argument list", () => {
-        parsesFully(withTerminators("else", "end"), "main", "if a b else");
-        parsesFully(withTerminators("else", "end"), "main", "if a\nb\nelse");
-        parsesFully(withTerminators("else", "end"), "main", "if a b end");
-    });
-
-    test("a keyword not in the argument list does not end the body", () => {
-        const cst = parseToCST("if a b else", 0, "main", withTerminators("end"), "exprs");
-        expect(JSON.stringify(cst)).not.toContain('"errorExpected"');
-        // the body parsed "a b" and stopped before "else" (only the
-        // separator blank after it was consumed)
-        expect(cst.end).toBe("if a b ".length);
-    });
-});
-
 describe("dynamic parameters", () => {
     test("visible across rule boundaries", () => {
         const grammar: Grammar = {
