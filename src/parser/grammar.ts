@@ -26,9 +26,24 @@ const guardReset = (body: GrammarCombinator): GrammarCombinator => bind(guardNam
  * The Backolon grammar, as plain combinator data.
  *
  * The expression rules form a precedence chain from loosest to tightest:
- * expr -> pipe -> implicit_call -> kw_arg -> assignment -> ternary -> logical ->
- * comparison -> bitwise -> bitshift -> sum -> term -> factor -> indexing ->
- * primary. Binary levels are written left-recursively (the parser grows the
+ *
+ * * expr
+ * * pipe
+ * * implicit_call
+ * * kw_arg
+ * * assignment
+ * * ternary
+ * * logical
+ * * comparison
+ * * bitwise
+ * * bitshift
+ * * sum
+ * * term
+ * * factor
+ * * indexing
+ * * primary
+ *
+ * Binary levels are written left-recursively (the parser grows the
  * recursion), and after matching an operator each level first checks a
  * negative lookahead on `assign_op` -- so `a += b` is not misread as a binary
  * `+` followed by a prefix `=` assignment -- and then cuts to commit the level.
@@ -54,6 +69,7 @@ export const backolonGrammar: Grammar = {
 
     // block_expr: let, if, while, foreach, trycatch, with, fn
     block_expr: alt(
+        rule("strong_block"),
         rule("let"),
         rule("if"),
         rule("while"),
@@ -62,19 +78,21 @@ export const backolonGrammar: Grammar = {
         rule("with"),
         rule("fn"),
         rule("always"),
+    ),
+    strong_block: alt(
         rule("do"),
     ),
 
     let: ssep(rule("blank"), kw("keyword", "let"), rule("let_body")),
-    let_body: guardExtendedBy(kw("keyword", "in"), alt(
+    let_body: alt(
         rule("let_loop_block"),
         rule("let_block"),
         rule("simple_let"),
-    )),
-    simple_let: seq(rule("implicit_args"), lookahead(false, seq(rule("blank"), kw("keyword", "in")))),
+    ),
+    simple_let: guardExtendedBy(kw("keyword", "in"), rule("implicit_args")),
     let_block: ssep(
         rule("blank"),
-        rule("implicit_args"),
+        rule("simple_let"),
         seq(
             kw("keyword", "in"),
             // no sep here!
@@ -91,6 +109,23 @@ export const backolonGrammar: Grammar = {
     ),
 
     if: ssep(rule("blank"), kw("keyword", "if"), rule("if_body")),
+    if_body: seq(
+        ignored(rule("blank")),
+        guardExtendedBy(kw("keyword", "then"), rule("expr")),
+        kw("keyword", "then"),
+        altFirst(
+            rule("else_body"),
+            rule("no_else_body"),
+        ),
+    ),
+    else_body: seq(
+        rule("body_exprs", kw("keyword", "else", "end")),
+        kw("keyword", "else"),
+        rule("body_exprs", kw("keyword", "end")),
+    ),
+    no_else_body: seq(
+        rule("body_exprs", kw("keyword", "end")),
+    ),
 
 
     while: ssep(rule("blank"), kw("keyword", "while"), rule("while_body")),
@@ -128,7 +163,7 @@ export const backolonGrammar: Grammar = {
         rule("body_exprs", kw("keyword", "end")),
     ),
 
-    do: ssep(rule("blank"), kw("keyword", "do"), rule("do_body")),
+    do: ssep(rule("blank"), kw("keyword", "do", "begin"), rule("do_body")),
 
 
     body_exprs: [["end"], guardExtendedBy(param("end"), alt(
@@ -166,9 +201,11 @@ export const backolonGrammar: Grammar = {
     implicit_args: seq(
         // can't use joined() here since the first and second are different + there are lookahead assertions!
         ignored(guardHere()),
+        lookahead(false, rule("strong_block")),
         rule("implicit_call"),
         rep(false, seq(
             ignored(ssep(rule("blank_sameline"), rule("comma"))),
+            lookahead(false, rule("strong_block")),
             ignored(guardHere()),
             alt(rule("implicit_call"), rule("empty_arg"))
         )),
@@ -211,8 +248,8 @@ export const backolonGrammar: Grammar = {
         rule("logical_and"),
         rule("logical_or"),
     ),
-    logical_and: alt(tag("operator", lit("&&")), tag("operator", regex(/\band\b/))),
-    logical_or: alt(tag("operator", lit("||")), tag("operator", regex(/\bor\b/))),
+    logical_and: alt(tag("operator", lit("&&")), kw("operator", "and")),
+    logical_or: alt(tag("operator", lit("||")), kw("operator", "or")),
 
     // chain associative
     comparison: alt(joined(ssep(rule("blank"), rule("comparison_op")), ssep(rule("blank"), rule("bitwise")), true, false), rule("bitwise")),
@@ -394,7 +431,9 @@ export const backolonGrammar: Grammar = {
     regex_body: regex(/(\[([^\]]|\\\])+\]|\\.|[^\\/\n])*/),
     regex_flags: regex(/[gimsuvy]*/), // cSpell: ignore gimsuvy
 
-    boolean: tag("boolean", regex(/\b([Tt]rue|[Ff]alse)\b/)), // cSpell: ignore alse
+    boolean: alt(rule("boolean_true"), rule("boolean_false")),
+    boolean_true: kw("boolean", "true", "True", "TRUE"),
+    boolean_false: kw("boolean", "false", "False", "FALSE"),
 
     collection: ssep(rule("blank"), ignored(tag("operator", lit("["))), cut(), rule("collection_body"), ignored(tag("operator", lit("]")))),
     collection_body: guardReset(alt(
