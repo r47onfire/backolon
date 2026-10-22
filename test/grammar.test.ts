@@ -219,7 +219,17 @@ describe("let", () => {
 describe("if", () => {
     test.each(([
         [`if a == b then c() end`, []],
+        [`if a == b\n    c()\nend`, []],
         [`if a == b then c() else d() end`, []],
+        [`if a == b\n    c()\nelse\n    d()\nend`, []],
+    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
+        expect(toAST(parsesFully(text))).toEqual(ast);
+    });
+});
+describe("while", () => {
+    test.each(([
+        [`while a == b do c() end`, []],
+        [`while a == b\n    c()\nend`, []],
     ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
         expect(toAST(parsesFully(text))).toEqual(ast);
     });

@@ -1,5 +1,8 @@
 import { alt, altFirst, ambient, bind, cut, eps, Grammar, GrammarCombinator, ignored, joined, kw, lit, lookahead, nonempty, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
 
+// TODO: make these helpers more combinators, since js functions act like macros
+// which are unavailable to patched code
+
 /**
  * The soft-keyword guard, as a dynamic parameter. At the places an
  * expression or an implicit argument may start, `ignored(guardHere())`
@@ -21,6 +24,16 @@ const guardHere = (): GrammarCombinator => ambient(guardName, eps());
 const guardExtendedBy = (extra: GrammarCombinator, body: GrammarCombinator): GrammarCombinator =>
     bind(guardName, seq(guardHere(), lookahead(false, extra)), body);
 const guardReset = (body: GrammarCombinator): GrammarCombinator => bind(guardName, eps(), body);
+
+/**
+ * A body together with its closing keyword. `body_exprs` itself only
+ * *stops* at its `end` parameter (the stop set is never consumed), so
+ * the keyword is matched here, once, by the construct that owns the
+ * body. Compound constructs (if/else, try/catch) call `body_exprs`
+ * directly instead and match each boundary keyword between segments.
+ */
+const bodyUntil = (end: GrammarCombinator): GrammarCombinator =>
+    seq(rule("body_exprs", end), ignored(opt(seq(rule("blank"), end))));
 
 /**
  * The Backolon grammar, as plain combinator data.
@@ -83,12 +96,11 @@ export const backolonGrammar: Grammar = {
         rule("do"),
     ),
 
-    let: ssep(rule("blank"), kw("keyword", "let"), rule("let_body")),
-    let_body: alt(
+    let: ssep(rule("blank"), kw("keyword", "let"), alt(
         rule("let_loop_block"),
         rule("let_block"),
         rule("simple_let"),
-    ),
+    )),
     simple_let: guardExtendedBy(kw("keyword", "in"), rule("implicit_args")),
     let_block: ssep(
         rule("blank"),
@@ -96,7 +108,7 @@ export const backolonGrammar: Grammar = {
         seq(
             kw("keyword", "in"),
             // no sep here!
-            rule("body_exprs", kw("keyword", "end")),
+            bodyUntil(kw("keyword", "end")),
         ),
     ),
     let_loop_block: ssep(
@@ -108,75 +120,71 @@ export const backolonGrammar: Grammar = {
         rule("let_block"),
     ),
 
-    if: ssep(rule("blank"), kw("keyword", "if"), rule("if_body")),
-    if_body: seq(
+    if: ssep(rule("blank"), kw("keyword", "if"), seq(
         ignored(rule("blank")),
         guardExtendedBy(kw("keyword", "then"), rule("expr")),
-        kw("keyword", "then"),
+        ignored(opt(kw("keyword", "then"))),
         altFirst(
-            rule("else_body"),
-            rule("no_else_body"),
+            rule("if_else"),
+            rule("if_no_else"),
         ),
-    ),
-    else_body: seq(
+    )),
+    if_else: seq(
         rule("body_exprs", kw("keyword", "else", "end")),
+        ignored(rule("blank")),
         kw("keyword", "else"),
         rule("body_exprs", kw("keyword", "end")),
+        ignored(opt(seq(rule("blank"), kw("keyword", "end")))),
     ),
-    no_else_body: seq(
-        rule("body_exprs", kw("keyword", "end")),
+    if_no_else: seq(
+        rule("body_exprs", kw("keyword", "else", "end")),
+        ignored(opt(seq(rule("blank"), kw("keyword", "end")))),
     ),
 
 
-    while: ssep(rule("blank"), kw("keyword", "while"), rule("while_body")),
-    while_body: seq(
+    while: ssep(rule("blank"), kw("keyword", "while"), seq(
         ignored(rule("blank")),
         rule("expr"),
-        rule("body_exprs", kw("keyword", "end")),
-    ),
+        bodyUntil(kw("keyword", "end")),
+    )),
 
-    for: ssep(rule("blank"), kw("keyword", "for"), rule("for_body")),
-    for_body: seq(
+    for: ssep(rule("blank"), kw("keyword", "for"), seq(
         ignored(rule("blank")),
         rule("expr"),
-        rule("body_exprs", kw("keyword", "end")),
-    ),
-
+        bodyUntil(kw("keyword", "end")),
+    )),
 
     trycatch: ssep(rule("blank"), kw("keyword", "try"), rule("trycatch_body")),
 
 
-    with: ssep(rule("blank"), kw("keyword", "with"), rule("with_body")),
-    with_body: seq(
+    with: ssep(rule("blank"), kw("keyword", "with"), seq(
         ignored(rule("blank")),
         rule("expr"),
-        rule("body_exprs", kw("keyword", "end")),
-    ),
+        bodyUntil(kw("keyword", "end")),
+    )),
 
     fn: ssep(rule("blank"), kw("keyword", "fn"), rule("fn_body")),
 
 
-    always: ssep(rule("blank"), kw("keyword", "always"), rule("always_body")),
-    always_body: seq(
+    always: ssep(rule("blank"), kw("keyword", "always"), seq(
         ignored(rule("blank")),
-        rule("expr"),
-        rule("body_exprs", kw("keyword", "end")),
-    ),
+        cut(),
+        ignored(tag("keyword", lit("@"))),
+        cut(),
+        rule("par_exp"),
+        bodyUntil(kw("keyword", "end")),
+    )),
 
-    do: ssep(rule("blank"), kw("keyword", "do", "begin"), rule("do_body")),
+    do: ssep(rule("blank"), kw("keyword", "do", "begin"), bodyUntil(kw("keyword", "end"))),
 
-
-    body_exprs: [["end"], guardExtendedBy(param("end"), alt(
+    body_exprs: [["end"], guardExtendedBy(param("end"), altFirst(
         seq(
             lookahead(true, rule("blank_sameline")),
             rule("expr"),
-            cut(),
-            ignored(opt(seq(rule("blank"), param("end")))),
         ),
         ssep(
             rule("blank"),
             rule("exprs"),
-            ignored(opt(param("end"))),
         ),
     ))],
 
