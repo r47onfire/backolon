@@ -138,7 +138,7 @@ export const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dyn
         }
         if (node.op === "ambient") {
             for (var dyn = scopeDynamics; dyn; dyn = dyn.next) {
-                if (dyn.name === node.name) return hashCombinator(dyn.binding.node, resolveWith(dyn.binding.locals, dyn.binding.dynamics));
+                if (dyn.name === node.name) return hashCombinator(dyn.node, resolveWith(dyn.locals, dyn.dynamics));
             }
             if (node.default) return hashChild(node.default);
             throw new Error("unbound dynamic parameter " + node.name + " at " + path);
@@ -147,9 +147,9 @@ export const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dyn
             // The body is hashed under the dynamic scope the bind creates:
             // its own binding is visible to ambient references inside it.
             const { name, value, body } = node;
-            const inner: Dynamics = { name, binding: { node: value, locals: scopeLocals, dynamics: scopeDynamics }, next: scopeDynamics, key: "" };
+            const inner: Dynamics = { name, node: value, locals: scopeLocals, dynamics: scopeDynamics, next: scopeDynamics, key: "" };
             const childHashes: Record<string, number> = {
-                value: hashCombinator(value, resolveWith(scopeLocals, scopeDynamics)),
+                value: hashCombinator(value, hashChild),
                 body: hashCombinator(body, resolveWith(scopeLocals, inner)),
             };
             var h = javaHash(node.op);
@@ -209,34 +209,22 @@ export interface ParamFrame {
 export type Locals = ParamFrame | undefined;
 
 /**
- * One dynamic (ambient) binding: the combinator bound by a `bind`, the
- * lexical scope in effect where that bind was written (for any rule
- * parameters the value mentions), and the dynamic scope outside the bind
- * (what `ambient` references inside the value see -- in particular, the
- * binding this one shadows is still visible to the value itself, so a new
- * value can extend the one it replaces).
+ * The dynamic scope: a chain of dynamic bindings (bound value, scopes in which
+ * it was created), innermost first. Like the lexical scope it is threaded through
+ * the parse as an immutable value, so speculative branches cannot disturb each
+ * other's bindings. `key` identifies this exact chain; while a chain is in effect
+ * its key is part of every memo identity, so a result that depends on ambient
+ * context is never reused under a different context.
  */
-export interface DynBinding {
+export interface DynBindingFrame {
+    readonly name: string,
     readonly node: GrammarCombinator,
     readonly locals: Locals,
     readonly dynamics: Dynamics
-}
-
-/**
- * The dynamic scope: a chain of {@link DynBinding}s, innermost first. Like
- * the lexical scope it is threaded through the parse as an immutable value,
- * so speculative branches cannot disturb each other's bindings. `key`
- * identifies this exact chain; while a chain is in effect its key is part
- * of every memo identity, so a result that depends on ambient context is
- * never reused under a different context.
- */
-export interface DynFrame {
-    readonly name: string,
-    readonly binding: DynBinding,
     readonly next: Dynamics,
     readonly key: string
 }
-export type Dynamics = DynFrame | undefined;
+export type Dynamics = DynBindingFrame | undefined;
 
 /** How one field of a combinator is mixed into its hash (see `hashFields` on {@link GrammarOpDef}). */
 export enum MixAction {
@@ -332,14 +320,14 @@ export interface GrammarOpDef {
 /** A {@link GrammarOpDef} made precise for one operation's node shape `N`: `create` returns `N`, `call` and `describe` receive the whole node (`N` plus the common base), and `hashFields` may only name fields of `N`. */
 export interface GrammarOpDefFor<N> {
     create: (...args: any[]) => N;
-    call: (ctx: OpContext, node: CombinatorBase & N, path: string, i: number, locals: Locals, dynamics: Dynamics) => CSTNode | MatchFail;
+    call: (ctx: OpContext, node: N, path: string, i: number, locals: Locals, dynamics: Dynamics) => CSTNode | MatchFail;
     hashFields: readonly (readonly [field: keyof N, action: MixAction])[];
-    describe: (node: CombinatorBase & N) => string;
+    describe: (node: N) => string;
 }
 
 const singleChild = (n: GrammarCombinator): { child: GrammarCombinator } => ({ child: n });
 
-/** The type of {@link opDefs}: every operation's definition, tied to its declared node shape in {@link OpNodeShapes}. */
+/** The (weak) type of {@link opDefs}: every operation's definition, tied to its declared node shape in {@link OpNodeShapes}. */
 export type OpDefs = { [O in GrammarOp]: GrammarOpDefFor<OpNodeShapes[O]> };
 
 /** The definition of every grammar operation, keyed by its `op`. */
@@ -473,7 +461,7 @@ export const opDefs = {
                 // outside the bind. It is evaluated with the lexical scope of
                 // the bind that supplied it, and the dynamic scope outside
                 // that bind.
-                if (dyn.name === name) return ctx.applyRule(path + "$@" + name + "#" + dyn.key, dyn.binding.node, i, dyn.binding.locals, dyn.binding.dynamics);
+                if (dyn.name === name) return ctx.applyRule(path + "$@" + name + "#" + dyn.key, dyn.node, i, dyn.locals, dyn.dynamics);
             }
             if (defaultValue) return ctx.applyRule(path + "$@" + name, defaultValue, i, locals, dynamics);
             throw new Error("unbound dynamic parameter " + name + " at " + path);
@@ -488,9 +476,11 @@ export const opDefs = {
     bind: {
         create: (p: string, value: GrammarCombinator, body: GrammarCombinator) => ({ name: p, value, body }),
         call(ctx, { name, value, body }, path, i, locals, dynamics) {
-            const frame: DynFrame = {
+            const frame: DynBindingFrame = {
                 name,
-                binding: { node: value, locals, dynamics },
+                node: value,
+                locals,
+                dynamics,
                 next: dynamics,
                 key: (dynamics ? dynamics.key + "/" : "") + name + "#" + hashResolved(value, locals, dynamics, path).toString(36),
             };
