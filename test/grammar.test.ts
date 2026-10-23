@@ -203,6 +203,7 @@ test("ternary", () => {
 describe("let", () => {
     test.each(([
         [`let a = b`, ["exprs", ["let", ["implicit_args", ["assignment", ["name", "a"], ["normal_assign", "="], ["name", "b"]]]]]],
+        [`let a = b c`, ["exprs", ["let", ["implicit_args", ["assignment", ["name", "a"], ["normal_assign", "="], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "c"]]]]]]]],
         [`let x = a, y = b in foo x end`, ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]], ["assignment", ["name", "y"], ["normal_assign", "="], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]]]],
         [`let x = a, y = b in foo x end a b`, ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]], ["assignment", ["name", "y"], ["normal_assign", "="], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]], ["implicit_call", ["name", "a"], ["implicit_args", ["name", "b"]]]]],
         [`let(loop) x = a in foo loop end`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]],
@@ -243,24 +244,29 @@ describe("trycatch", () => {
         [`try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end else foo() finally bar() end`, ["exprs", ["trycatch", ["body_exprs", ["exprs", ["explicit_call", ["name", "x"], ["explicit_args"]]]], ["trycatch_handler", ["assignment", ["name", "e"], ["normal_assign", "="], ["name", "ENOENT"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "b"], ["explicit_args", ["name", "e"]]]]]]]], ["trycatch_handler", ["assignment", ["name", "e"], ["normal_assign", "="], ["name", "EPERM"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args", ["name", "e"]]]]]]]], ["trycatch_else", ["body_exprs", ["explicit_call", ["name", "foo"], ["explicit_args"]]]], ["trycatch_finally", ["body_exprs", ["explicit_call", ["name", "bar"], ["explicit_args"]]]]]]],
         [`try\n    x()\ncatch e = ENOENT\n    b(e)\nelse\n    foo()\nfinally\n    bar()\nend`, ["exprs", ["trycatch", ["body_exprs", ["exprs", ["explicit_call", ["name", "x"], ["explicit_args"]]]], ["trycatch_handler", ["assignment", ["name", "e"], ["normal_assign", "="], ["name", "ENOENT"]], ["body_exprs", ["exprs", ["explicit_call", ["name", "b"], ["explicit_args", ["name", "e"]]]]]], ["trycatch_else", ["body_exprs", ["exprs", ["explicit_call", ["name", "foo"], ["explicit_args"]]]]], ["trycatch_finally", ["body_exprs", ["exprs", ["explicit_call", ["name", "bar"], ["explicit_args"]]]]]]]],
     ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-            expect(toAST(parsesFully(text))).toEqual(ast);
+        expect(toAST(parsesFully(text))).toEqual(ast);
     });
 });
 
-test("foreach", () => {
-    // TODO: foreach_body is not yet defined in the grammar
-    // Once implemented:
-    // - `foreach i in range(1, 100) do\n    print fizzbuzz i\nend` should parse
-    // - `foreach i in x do print i end` should parse
+describe("for", () => {
+    test.each(([
+        [`for i = range 1, 100 do print fizzbuzz i end`, ["exprs", ["for", ["assignment", ["name", "i"], ["normal_assign", "="], ["implicit_call", ["name", "range"], ["implicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "100"]]]]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]]]],
+        [`for i = range 1, 100\n    print fizzbuzz i\nend`, ["exprs", ["for", ["assignment", ["name", "i"], ["normal_assign", "="], ["implicit_call", ["name", "range"], ["implicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "100"]]]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]],
+    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
+        expect(toAST(parsesFully(text))).toEqual(ast);
+    });
 });
 
-test("lambdas", () => {
-    // TODO: fn_body is not yet defined in the grammar
-    // Once implemented:
-    // - `fn(x) x + 1` (inline) should parse
-    // - `fn(x)\n    x + 1\nend` (block) should parse
-    // - `fn(x, y, z...) x` (rest params) should parse
-    // - `callcc fn(c) c` (lambda as implicit-call arg) should parse
+describe("lambdas", () => {
+    test.each(([
+        [`fn(x) x + 1`, []],
+        [`fn (x) x + 1`, []],
+        [`fn(x)\n    x + 1\nend`, []],
+        [`fn(x, y, ...z) x`, []],
+        [`fn(x) callcc fn(c) c`, []],
+    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
+        expect(toAST(parsesFully(text))).toEqual(ast);
+    });
 });
 
 test("lists and objects", () => {
@@ -280,7 +286,7 @@ test("lists and objects", () => {
     expect(toAST(parsesFully(`[:]`))).toEqual(["exprs", ["collection", ["empty_map", ":"]]]);
     // shorthand
     expect(toAST(parsesFully("[`foo:]"))).toEqual(["exprs", ["collection", ["collection_body", ["collection_shorthand", ["name", "foo"]]]]]);
-    expect(toAST(parsesFully("[`foo:, `bar: baz]"))).toEqual(["exprs", ["collection", ["collection_body", ["collection_shorthand",["name", "foo"]], ["kw_arg", ["prefix", ["quote", "`"], ["name", "bar"]], ["kw", ":"], ["name", "baz"]]]]]);
+    expect(toAST(parsesFully("[`foo:, `bar: baz]"))).toEqual(["exprs", ["collection", ["collection_body", ["collection_shorthand", ["name", "foo"]], ["kw_arg", ["prefix", ["quote", "`"], ["name", "bar"]], ["kw", ":"], ["name", "baz"]]]]]);
 });
 
 describe("quotes", () => {

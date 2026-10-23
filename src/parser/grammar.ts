@@ -134,8 +134,7 @@ export const backolonGrammar: Grammar = {
         rule("body_exprs", kw("keyword", "else", "end"), no()),
         ignored(rule("blank")),
         kw("keyword", "else"),
-        rule("body_exprs", kw("keyword", "end"), no()),
-        ignored(opt(seq(rule("blank"), kw("keyword", "end")))),
+        rule("body_exprs", kw("keyword", "end"), yes()),
     ),
     if_no_else: seq(
         rule("body_exprs", kw("keyword", "else", "end"), no()),
@@ -151,7 +150,7 @@ export const backolonGrammar: Grammar = {
 
     for: ssep(rule("blank"), kw("keyword", "for"), seq(
         ignored(rule("blank")),
-        rule("expr"),
+        rule("assignment"),
         rule("body_exprs", kw("keyword", "end"), yes()),
     )),
 
@@ -182,15 +181,12 @@ export const backolonGrammar: Grammar = {
         rule("body_exprs", kw("keyword", "end"), no()),
     ),
 
-
-
     with: ssep(rule("blank"), kw("keyword", "with"), seq(
         rule("expr"),
         rule("body_exprs", kw("keyword", "end"), yes()),
     )),
 
-    fn: ssep(rule("blank"), kw("keyword", "fn"), rule("fn_body")),
-
+    fn: ssep(rule("blank"), kw("keyword", "fn"), rule("par_exp"), rule("body_exprs", kw("keyword", "end"), yes())),
 
     always: ssep(rule("blank"), kw("keyword", "always"), seq(
         cut(),
@@ -238,12 +234,12 @@ export const backolonGrammar: Grammar = {
         // can't use joined() here since the first and second are different + there are lookahead assertions!
         ignored(guardHere()),
         lookahead(false, rule("strong_block")),
-        rule("implicit_call"),
+        altFirst(rule("block_expr"), rule("implicit_call")),
         rep(false, seq(
             ignored(seq(opt(rule("blank_sameline")), rule("comma"), opt(rule("blank_sameline")))),
             lookahead(false, rule("strong_block")),
             ignored(guardHere()),
-            alt(rule("implicit_call"), rule("empty_arg"))
+            altFirst(rule("block_expr"), rule("implicit_call"), rule("empty_arg"))
         )),
     ),
 
@@ -256,8 +252,8 @@ export const backolonGrammar: Grammar = {
     ),
     kw: tag("operator", lit(":")),
 
-    // right associative
-    assignment: alt(ssep(rule("blank"), rule("ternary"), rule("assign_op"), cut(), rule("assignment")), rule("ternary")),
+    // strongly right associative
+    assignment: alt(ssep(rule("blank"), rule("ternary"), rule("assign_op"), cut(), rule("expr")), rule("ternary")),
     assign_op: alt(
         rule("old_assign"),
         rule("aug_assign"),
