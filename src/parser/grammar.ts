@@ -160,7 +160,7 @@ export const backolonGrammar: Grammar = {
         rep(false, rule("trycatch_handler")),
         opt(rule("trycatch_else")),
         opt(rule("trycatch_finally")),
-        ignored(seq(rule("blank"), kw("keyword", "end"))),
+        ignored(opt(seq(rule("blank"), kw("keyword", "end")))),
     )),
     trycatch_guarded: rule("body_exprs", kw("keyword", "catch", "finally", "else", "end"), no()),
     trycatch_handler: seq(
