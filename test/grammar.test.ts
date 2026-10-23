@@ -219,8 +219,10 @@ describe("let", () => {
 describe("if", () => {
     test.each(([
         [`if a == b then c() end`, []],
+        [`if a == b then\n    c()\nend`, []],
         [`if a == b\n    c()\nend`, []],
         [`if a == b then c() else d() end`, []],
+        [`if a == b then\n    c()\nelse\n    d()\nend`, []],
         [`if a == b\n    c()\nelse\n    d()\nend`, []],
     ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
         expect(toAST(parsesFully(text))).toEqual(ast);
