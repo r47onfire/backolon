@@ -141,7 +141,6 @@ export const backolonGrammar: Grammar = {
         ignored(opt(seq(rule("blank"), kw("keyword", "end")))),
     ),
 
-
     while: ssep(rule("blank"), kw("keyword", "while"), seq(
         ignored(rule("blank")),
         rule("expr"),
@@ -186,7 +185,7 @@ export const backolonGrammar: Grammar = {
         rule("body_exprs", kw("keyword", "end"), yes()),
     )),
 
-    fn: ssep(rule("blank"), kw("keyword", "fn"), rule("par_exp"), rule("body_exprs", kw("keyword", "end"), yes())),
+    fn: ssep(rule("blank"), kw("keyword", "fn"), ignored(tag("operator", lit("("))), cut(), rule("explicit_args"), ignored(tag("operator", lit(")"))), rule("body_exprs", kw("keyword", "end"), yes())),
 
     always: ssep(rule("blank"), kw("keyword", "always"), seq(
         cut(),
@@ -393,9 +392,9 @@ export const backolonGrammar: Grammar = {
     explicit_call: ssep(rule("blank"), rule("primary"), ignored(tag("operator", lit("("))), cut(), rule("explicit_args"), ignored(tag("operator", lit(")")))),
     explicit_args: alt(
         guardReset(joined(
-            ignored(seq(opt(rule("blank")), rule("comma"), opt(rule("blank")))),
+            ignored(rule("ws_comma")),
             alt(rule("expr"), rule("empty_arg")),
-            false, false,
+            false, true,
         )),
         seq(), // empty args
     ), // allow blank arguments
@@ -493,8 +492,9 @@ export const backolonGrammar: Grammar = {
     collection: ssep(rule("blank"), ignored(tag("operator", lit("["))), cut(), rule("collection_body"), ignored(tag("operator", lit("]")))),
     collection_body: guardReset(alt(
         rule("empty_collection"),
-        joined(ignored(seq(opt(rule("blank")), rule("comma"), opt(rule("blank")))), rule("collection_item"), false, true), // TODO: allow trailing comma
+        joined(ignored(rule("ws_comma")), rule("collection_item"), false, true),
     )),
+    ws_comma: seq(rule("blank"), rule("comma"), rule("blank")),
     empty_collection: alt(
         rule("empty_list"),
         rule("empty_map"),
