@@ -38,6 +38,7 @@ const guardReset = (body: GrammarCombinator): GrammarCombinator => bind(guardNam
  * * ternary
  * * logical
  * * comparison
+ * * containment
  * * bitwise
  * * bitshift
  * * sum
@@ -294,11 +295,11 @@ export const backolonGrammar: Grammar = {
                 rule("comparison_op"),
                 ignored(opt(rule("blank"))),
             ),
-            rule("bitwise"),
+            rule("containment"),
             true,
             false,
         ),
-        rule("bitwise"),
+        rule("containment"),
     ),
     comparison_op: alt(
         rule("equal"),
@@ -314,6 +315,15 @@ export const backolonGrammar: Grammar = {
     gte: tag("operator", lit(">=")),
     less: tag("operator", regex(/<(?![<-])/)),
     greater: tag("operator", regex(/>(?!>)/)),
+
+    // non associative
+    containment: alt(ssep(rule("blank"), rule("bitwise"), rule("containment_op"), cut(), rule("bitwise")), rule("bitwise")),
+    containment_op: alt(
+        rule("needle_in_haystack"),
+        rule("haystack_has_needle"),
+    ),
+    needle_in_haystack: alt(tag("operator", lit("<:")), seq(ignored(guardHere()), kw("operator", "in"))),
+    haystack_has_needle: alt(tag("operator", lit(":>")), kw("operator", "has")),
 
     // left associative
     bitwise: alt(ssep(rule("blank"), rule("bitwise"), rule("bitwise_op"), lookahead(false, rule("assign_op")), cut(), rule("bitshift")), rule("bitshift")),
@@ -499,7 +509,7 @@ export const backolonGrammar: Grammar = {
         rule("collection_shorthand"),
         rule("expr"),
     ),
-    collection_shorthand: ssep(rule("blank"), rule("quote"), alt(rule("atom"), rule("par_exp")), ignored(tag("operator", lit(":")))),
+    collection_shorthand: ssep(rule("blank"), ignored(rule("quote")), alt(rule("atom"), rule("par_exp")), ignored(tag("operator", lit(":")))),
 
     quasiquote: tag("quoted", ssep(rule("blank"), ignored(tag("operator", lit("{"))), cut(), guardReset(rule("exprs")), ignored(tag("operator", lit("}"))))),
     par_exp: ssep(rule("blank"), ignored(tag("operator", lit("("))), cut(), guardReset(rule("exprs")), ignored(tag("operator", lit(")")))),

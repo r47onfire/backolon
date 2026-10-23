@@ -1,7 +1,6 @@
-import { javaHash } from "@r47onfire/game-math";
 import { last } from "lib0/array";
-import { imul, max } from "lib0/math";
-import { Dynamics, Grammar, GrammarCombinator, GrammarOpDef, hashCombinator, Locals, MatchFail, MixAction, OpContext, opDefs, ReferenceResolver, rule } from "./combinator";
+import { max } from "lib0/math";
+import { Dynamics, Grammar, GrammarCombinator, GrammarOpDef, Locals, MatchFail, OpContext, opDefs, rule } from "./combinator";
 import { CSTNode } from "./cst";
 
 /**
@@ -59,22 +58,14 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
     const heads: (Head | undefined)[] = [];
     var lrStack: LR | undefined;
     const cutStack: [number][] = [];
-    /** Cut depth of the innermost open rule frame (0 if there is none). */
     const cutDepth = () => last(cutStack)?.[0] ?? 0;
-    /** Marks the innermost frame's cut as consumed by the current alternative. */
     const consumeCut = () => { if (cutStack.length) last(cutStack)![0] = 0; };
-    /** A snapshot of the cut stack's depths, for speculative parses. */
-    const snapshotCuts = (): number[] => cutStack.map(frame => frame[0]);
-    /** Restores a snapshot taken with {@link snapshotCuts}. */
+    const snapshotCuts = (): readonly number[] => cutStack.map(frame => frame[0]);
     const restoreCuts = (saved: readonly number[]) => {
-        for (var k = 0; k < saved.length; k++) cutStack[k]![0] = saved[k]!;
+        for (var k = 0; k < saved.length; k++) (cutStack[k] ??= [] as any)[0] = saved[k]!;
         cutStack.length = saved.length;
     };
     const errorNode = (start: number, end: number, expected: GrammarCombinator): CSTNode => ({ type: errorType, start, end, text: text.slice(start, end), errorExpected: expected });
-    /**
-     * True if an enclosing construct has committed (cut) without finishing yet.
-     * Resyncs inside such a scope must stay local to it!
-     */
     const inCommittedScope = () => cutStack.some(f => f[0] > 0);
     /**
      * Probe `node` at index `j`, restoring cut/LR state afterwards (probes are
@@ -91,15 +82,6 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
         if (probe.end <= j) return null;
         return probe;
     };
-    /**
-     * Panic-mode recovery: scan forward for the next index where `item` matches,
-     * turning all skipped source into a single error node. Returns the index to
-     * continue parsing from. If nothing works, emits an error up to end of input.
-     *
-     * Only used when NOT inside a committed scope. Inside one, the enclosing
-     * construct owns resynchronization (seq_sep rescans for its failed child;
-     * repeats emit a minimal error), so no bracket guessing is needed.
-     */
     const recover = (path: string, item: GrammarCombinator, i: number, fail: MatchFail, children: CSTNode[], locals: Locals, dynamics: Dynamics): number => {
         if (i >= text.length) return i;
         for (var j = max(fail.i, i + 1); j <= text.length; j++) {
@@ -111,14 +93,6 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
         children.push(errorNode(i, text.length, fail.expected));
         return text.length;
     };
-    /**
-     * Local recovery for a sequence with a fail after a cut.
-     * Resynchronize to the nearest position where that child matches, keeping the committed prefix intact.
-     * Returns the index to continue from, or null if the child never matches (give up and propagate the fail).
-     *
-     * The skipped text becomes a BAD node that carries the recovered child in its `recovered` field.
-     * This keeps the sequence's fixed arity while still allowing the parse to recover later
-     */
     const recoverChild = (path: string, child: GrammarCombinator, i: number, fail: MatchFail, children: CSTNode[], locals: Locals, dynamics: Dynamics): number | null => {
         for (var j = i + 1; j <= text.length; j++) {
             const probe = probeAt(path, child, j, locals, dynamics);
@@ -132,24 +106,6 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             return probe.end;
         }
         return null;
-    };
-    /** The services the operation definitions run against (see {@link OpContext}). */
-    const ctx: OpContext = {
-        text,
-        grammar,
-        applyRule: (path, node, i, locals, dynamics) => applyRule(path, node, i, locals, dynamics),
-        errorNode,
-        recover,
-        recoverChild,
-        cutDepth,
-        consumeCut,
-        committedDepth: () => cutStack.reduce((n, f) => n + (f[0] > 0 ? 1 : 0), 0),
-        snapshotCuts,
-        restoreCuts,
-        pushCutFrame: () => cutStack.push([0]),
-        popCutFrame: () => cutStack.pop()?.[0] ?? 0,
-        applyCut: depth => { const f = last(cutStack); if (f) f[0] = max(f[0], depth); },
-        inCommittedScope,
     };
     /**
      * Do the actual logic for the grammar node's operation, by dispatching
@@ -241,6 +197,24 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
             return ans;
         }
     }
+    /** The services the operation definitions run against (see {@link OpContext}). */
+    const ctx: OpContext = {
+        text,
+        grammar,
+        applyRule,
+        errorNode,
+        recover,
+        recoverChild,
+        cutDepth,
+        consumeCut,
+        committedDepth: () => cutStack.reduce((n, f) => n + (f[0] > 0 ? 1 : 0), 0),
+        snapshotCuts,
+        restoreCuts,
+        pushCutFrame: () => cutStack.push([0]),
+        popCutFrame: () => cutStack.pop()?.[0] ?? 0,
+        applyCut(depth) { const f = last(cutStack); if (f) f[0] = max(f[0], depth); },
+        inCommittedScope,
+    };
     const ans = applyRule("", rule(startRule), startIndex, undefined, undefined);
     if (ans instanceof MatchFail) {
         // The start rule didn't match at all: resync past any leading garbage.
