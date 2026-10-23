@@ -164,7 +164,23 @@ export const backolonGrammar: Grammar = {
         bodyUntil(kw("keyword", "end")),
     )),
 
-    trycatch: ssep(rule("blank"), kw("keyword", "try"), rule("trycatch_body")),
+    trycatch: ssep(rule("blank"), kw("keyword", "try"), seq(
+        rule("trycatch_guarded"),
+        cut(),
+        rule("trycatch_handlers"),
+        opt(rule("trycatch_else")),
+        opt(rule("trycatch_finally")),
+    )),
+    trycatch_guarded: rule("body_exprs", kw("keyword", "catch", "finally", "else", "end")),
+    trycatch_handlers: rep(true, seq(
+        ignored(rule("blank")),
+        kw("keyword", "catch"),
+        guardExtendedBy(kw("keyword", "finally", "else", "end"), rule("expr")),
+        rule("body_exprs", kw("keyword", "finally", "else", "end")),
+    )),
+    trycatch_else: rule("body_exprs", kw("keyword", "finally", "end")),
+    trycatch_finally: bodyUntil(kw("keyword", "end")),
+
 
 
     with: ssep(rule("blank"), kw("keyword", "with"), seq(

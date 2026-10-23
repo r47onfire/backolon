@@ -237,6 +237,15 @@ describe("while", () => {
     });
 });
 
+describe("trycatch", () => {
+    test.each(([
+        [`try x() catch ENOENT b() end`, []],
+        [`try\n    x()\ncatch ENOENT\n    b()\nend`, []],
+    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
+        expect(toAST(parsesFully(text))).toEqual(ast);
+    });
+});
+
 test("foreach", () => {
     // TODO: foreach_body is not yet defined in the grammar
     // Once implemented:
