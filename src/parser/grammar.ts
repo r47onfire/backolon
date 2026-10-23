@@ -201,17 +201,18 @@ export const backolonGrammar: Grammar = {
 
     do: ssep(rule("blank"), kw("keyword", "do", "begin"), rule("body_exprs", kw("keyword", "end"), yes())),
 
-    body_exprs: [["end", "consume"], guardExtendedBy(param("end"), altFirst(
-        seq(
-            ignored(rule("blank_sameline")),
-            ignored(guardHere()),
-            rule("expr"),
-            ignored(if_(param("consume"), opt(param("end")), eps())),
+    body_exprs: [["end", "consume"], guardExtendedBy(param("end"), seq(
+        altFirst(
+            seq(
+                ignored(rule("blank_sameline")),
+                ignored(guardHere()),
+                rule("expr"),
+            ),
+            seq(
+                rule("exprs"),
+            ),
         ),
-        seq(
-            rule("exprs"),
-            ignored(if_(param("consume"), opt(param("end")), eps())),
-        ),
+        ignored(if_(param("consume"), opt(seq(rule("blank"), param("end"))), eps())),
     ))],
 
     simple_expr: rule("pipe"),
