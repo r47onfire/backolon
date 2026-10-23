@@ -1,10 +1,10 @@
-import { expect, test, describe } from "bun:test";
-import { backolonGrammar, CSTNode, parseToCST, describe as describeGrammar } from "../src";
+import { describe, expect, test } from "bun:test";
+import { backolonGrammar, CSTNode, describeCombinator, parseToCST } from "../src";
 
 type ASTNode = string | number | undefined | ASTNode[];
 const toAST = (cst: CSTNode): ASTNode => {
     const c = () => cst.children?.filter(c => !c.ignored).flatMap(c => c.type ? [toAST(c)] : toAST(c)) ?? [];
-    if (cst.errorExpected) return [cst.type, describeGrammar(cst.errorExpected), cst.end, cst.text];
+    if (cst.errorExpected) return [cst.type, describeCombinator(cst.errorExpected), cst.end, cst.text];
     if (cst.type) return [cst.type, ...c()];
     if (cst.children) return c();
     return cst.text;

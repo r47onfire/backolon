@@ -1,6 +1,5 @@
 import { B_atLocation, JSFun } from "@r47onfire/jeb";
 import { isArray } from "lib0/array";
-import { GrammarCombinator, GrammarOpDef, opDefs } from "./combinator";
 
 /**
  * Deep-copies a value into a printable form for debugging, replacing JEB
@@ -22,6 +21,3 @@ export const stripInlinedFunctions = <T>(ast: T): T => {
     }
     return ast;
 }
-
-/** Renders a combinator in a compact PEG-like notation, for debugging grammars. Each operation's rendering lives in its definition in the op table (`opDefs`). */
-export const describe = (g: GrammarCombinator): string => (opDefs[g.op] as GrammarOpDef).describe(g);

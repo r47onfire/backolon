@@ -131,7 +131,6 @@ export const backolonGrammar: Grammar = {
     ),
 
     if: ssep(rule("blank"), kw("keyword", "if"), seq(
-        ignored(rule("blank")),
         guardExtendedBy(kw("keyword", "then"), rule("expr")),
         ignored(opt(rule("blank"))),
         ignored(opt(kw("keyword", "then"))),
@@ -169,7 +168,6 @@ export const backolonGrammar: Grammar = {
 
 
     with: ssep(rule("blank"), kw("keyword", "with"), seq(
-        ignored(rule("blank")),
         rule("expr"),
         bodyUntil(kw("keyword", "end")),
     )),
@@ -178,7 +176,6 @@ export const backolonGrammar: Grammar = {
 
 
     always: ssep(rule("blank"), kw("keyword", "always"), seq(
-        ignored(rule("blank")),
         cut(),
         ignored(tag("keyword", lit("@"))),
         cut(),

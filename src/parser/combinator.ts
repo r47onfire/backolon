@@ -413,7 +413,7 @@ export const opDefs: OpDefs = {
             return { type: name, start: cst.start, end: cst.end, children: [cst] };
         },
         hashFields: [["name", MixAction.String], ["args", MixAction.Children]],
-        describe: ({ name }) => name,
+        describe: ({ name, args }) => name + args.map(arg => "{" + describeCombinator(arg) + "}").join(""),
     },
 
     // ---------------------------------------------------------------------------
@@ -522,7 +522,7 @@ export const opDefs: OpDefs = {
             return { start, end: i, children };
         },
         hashFields: [["items", MixAction.Children], ["separator", MixAction.AuxChild]],
-        describe: ({ items, separator }) => (separator ? describeCombinator(separator) + ".@" : "") + items.map(c => describeCombinator(c)).join(" ") + ")",
+        describe: ({ items, separator }) => (separator ? describeCombinator(separator) + ".@(" : "(") + items.map(c => describeCombinator(c)).join(" ") + ")",
     },
 
     // ---------------------------------------------------------------------------
@@ -762,7 +762,7 @@ export const opDefs: OpDefs = {
             return cst instanceof MatchFail ? cst : ctx.text.slice(cst.start, cst.end).indexOf("\n") >= 0 ? new MatchFail(i, 0, node as GrammarCombinator) : cst;
         },
         hashFields: [["child", MixAction.Child]],
-        describe: ({ child }) => "($" + describeCombinator(child) + ")",
+        describe: ({ child }) => "(#" + describeCombinator(child) + ")",
     },
 
     // ---------------------------------------------------------------------------
