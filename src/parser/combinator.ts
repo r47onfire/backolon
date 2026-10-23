@@ -489,19 +489,18 @@ export const opDefs: OpDefs = {
             const children: CSTNode[] = [];
             const start = i;
             const { items, separator } = node, len = items.length;
-            const sep = () => {
-                if (!separator) return;
-                const sepThing = ctx.applyRule(path + "/s", separator, i, locals, dynamics);
-                if (sepThing instanceof MatchFail) {
-                    children.push({ ignored: true, start: i, end: i });
-                } else {
-                    children.push({ ignored: true, start: sepThing.start, end: sepThing.end, children: [sepThing] });
-                    i = sepThing.end;
-                }
-            };
             const currentCut = ctx.cutDepth();
             for (var j = 0; j < len; j++) {
-                sep();
+                // try sep between items only
+                if (j > 0 && separator) {
+                    const sepThing = ctx.applyRule(path + "/s", separator, i, locals, dynamics);
+                    if (sepThing instanceof MatchFail) {
+                        children.push({ ignored: true, start: i, end: i });
+                    } else {
+                        children.push({ ignored: true, start: sepThing.start, end: sepThing.end, children: [sepThing] });
+                        i = sepThing.end;
+                    }
+                }
                 const child = items[j]!;
                 const thisMatch = ctx.applyRule(path + "/" + j, child, i, locals, dynamics);
                 if (thisMatch instanceof MatchFail) {
@@ -520,7 +519,6 @@ export const opDefs: OpDefs = {
                 children.push(thisMatch);
                 i = thisMatch.end;
             }
-            sep();
             return { start, end: i, children };
         },
         hashFields: [["items", MixAction.Children], ["separator", MixAction.AuxChild]],
@@ -836,7 +834,7 @@ export const ambient = createCombinatorMaker("ambient");
 export const bind = createCombinatorMaker("bind");
 /** Matches all of `n` in order; the result is a flat node holding every child's result. */
 export const seq = (...n: GrammarCombinator[]) => createCombinator("sequence", undefined, ...n);
-/** Like `seq`, but the separator `s` is attempted before, between, and after the items; separator results are marked ignored. */
+/** Like `seq`, but the separator `s` is attempted between the items; separator results are marked ignored. */
 export const ssep = (s: GrammarCombinator, ...n: GrammarCombinator[]) => createCombinator("sequence", s, ...n);
 /** Tries every alternative and returns the first alternative that cut (whether or not it succeeded) or if none cut, the longest succeeding match (the first, on ties). */
 export const alt = (...n: GrammarCombinator[]) => createCombinator("alternatives", false, ...n);

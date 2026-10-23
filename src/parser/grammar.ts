@@ -75,9 +75,19 @@ export const backolonGrammar: Grammar = {
     nl: lit("\n"),
     comma: ignored(tag("punctuation", lit(","))),
 
-    exprs: seq(rep(false, ssep(rule("expr_sep"), ssep(rule("blank"), seq(ignored(guardHere()), rule("expr"))))), ignored(opt(rule("expr_sep")))),
+    exprs: seq(
+        rep(false,
+            seq(
+                ignored(opt(rule("expr_sep"))),
+                ignored(opt(rule("blank"))),
+                ignored(guardHere()),
+                rule("expr"),
+            ),
+        ),
+        ignored(opt(rule("expr_sep"))),
+    ),
     toplevel_exprs: nonempty(rule("exprs")),
-    toplevel_expr: rep(true, ssep(rule("expr_sep"), ssep(rule("blank"), rule("expr")))),
+    toplevel_expr: rep(true, seq(ignored(opt(rule("expr_sep"))), ignored(opt(rule("blank"))), rule("expr"))),
     expr: altFirst(rule("block_expr"), rule("simple_expr")),
 
     // block_expr: let, if, while, foreach, trycatch, with, fn
@@ -123,6 +133,7 @@ export const backolonGrammar: Grammar = {
     if: ssep(rule("blank"), kw("keyword", "if"), seq(
         ignored(rule("blank")),
         guardExtendedBy(kw("keyword", "then"), rule("expr")),
+        ignored(opt(rule("blank"))),
         ignored(opt(kw("keyword", "then"))),
         altFirst(
             rule("if_else"),
@@ -179,13 +190,10 @@ export const backolonGrammar: Grammar = {
 
     body_exprs: [["end"], guardExtendedBy(param("end"), altFirst(
         seq(
-            lookahead(true, rule("blank_sameline")),
+            ignored(rule("blank_sameline")),
             rule("expr"),
         ),
-        ssep(
-            rule("blank"),
-            rule("exprs"),
-        ),
+        seq(rule("exprs")),
     ))],
 
     simple_expr: rule("pipe"),
@@ -212,7 +220,7 @@ export const backolonGrammar: Grammar = {
         lookahead(false, rule("strong_block")),
         rule("implicit_call"),
         rep(false, seq(
-            ignored(ssep(rule("blank_sameline"), rule("comma"))),
+            ignored(seq(opt(rule("blank_sameline")), rule("comma"), opt(rule("blank_sameline")))),
             lookahead(false, rule("strong_block")),
             ignored(guardHere()),
             alt(rule("implicit_call"), rule("empty_arg"))
@@ -260,7 +268,19 @@ export const backolonGrammar: Grammar = {
     logical_or: alt(tag("operator", lit("||")), kw("operator", "or")),
 
     // chain associative
-    comparison: alt(joined(ssep(rule("blank"), rule("comparison_op")), ssep(rule("blank"), rule("bitwise")), true, false), rule("bitwise")),
+    comparison: alt(
+        joined(
+            seq(
+                ignored(opt(rule("blank"))),
+                rule("comparison_op"),
+                ignored(opt(rule("blank"))),
+            ),
+            rule("bitwise"),
+            true,
+            false,
+        ),
+        rule("bitwise"),
+    ),
     comparison_op: alt(
         rule("equal"),
         rule("not_equal"),
@@ -346,7 +366,7 @@ export const backolonGrammar: Grammar = {
     explicit_call: ssep(rule("blank"), rule("primary"), ignored(tag("operator", lit("("))), cut(), rule("explicit_args"), ignored(tag("operator", lit(")")))),
     explicit_args: alt(
         guardReset(joined(
-            ignored(ssep(rule("blank"), rule("comma"))),
+            ignored(seq(opt(rule("blank")), rule("comma"), opt(rule("blank")))),
             alt(rule("expr"), rule("empty_arg")),
             false, false,
         )),
@@ -446,7 +466,7 @@ export const backolonGrammar: Grammar = {
     collection: ssep(rule("blank"), ignored(tag("operator", lit("["))), cut(), rule("collection_body"), ignored(tag("operator", lit("]")))),
     collection_body: guardReset(alt(
         rule("empty_collection"),
-        joined(ignored(ssep(rule("blank"), rule("comma"))), rule("collection_item"), false, true), // TODO: allow trailing comma
+        joined(ignored(seq(opt(rule("blank")), rule("comma"), opt(rule("blank")))), rule("collection_item"), false, true), // TODO: allow trailing comma
     )),
     empty_collection: alt(
         rule("empty_list"),
