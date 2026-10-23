@@ -323,7 +323,7 @@ const singleChild = (n: GrammarCombinator): { child: GrammarCombinator } => ({ c
 export type OpDefs = { [O in GrammarOp]: GrammarOpDefFor<OpNodeShapes[O]> };
 
 /** The definition of every grammar operation, keyed by its `op`. */
-export const opDefs: OpDefs = {
+export const opDefs = {
 
     // ---------------------------------------------------------------------------
     // tok
@@ -806,7 +806,7 @@ export const opDefs: OpDefs = {
 
     // ---------------------------------------------------------------------------
 
-};
+} satisfies OpDefs;
 
 function createCombinator<T extends GrammarOp>(type: T, ...args: Parameters<typeof opDefs[T]["create"]>): CombinatorBase & { readonly op: T } & OpNodeShapes[T] {
     const fields = (opDefs[type] as GrammarOpDef).create(...args) as OpNodeShapes[T];
@@ -838,6 +838,8 @@ export const seq = (...n: GrammarCombinator[]) => createCombinator("sequence", u
 export const ssep = (s: GrammarCombinator, ...n: GrammarCombinator[]) => createCombinator("sequence", s, ...n);
 /** Tries every alternative and returns the first alternative that cut (whether or not it succeeded) or if none cut, the longest succeeding match (the first, on ties). */
 export const alt = (...n: GrammarCombinator[]) => createCombinator("alternatives", false, ...n);
+/** Always fails, but not a hard failure. */
+export const no = () => createCombinator("alternatives", false);
 /** Ordered choice: returns the first succeeding alternative, without trying later ones (a later alternative is tried only if every earlier one fails without cutting). */
 export const altFirst = (...n: GrammarCombinator[]) => createCombinator("alternatives", true, ...n);
 /** Matches `n` if it succeeds, otherwise succeeds empty -- unless `n` failed after a cut, in which case the failure propagates. */
@@ -860,6 +862,8 @@ export const nonempty = createCombinatorMaker("nonempty");
 export const sameline = createCombinatorMaker("sameline");
 /** Always matches, consuming no input. */
 export const eps = createCombinatorMaker("nothing");
+/** Always matches, consuming no input. */
+export const yes = eps;
 /** Parses `n` speculatively: if `n` fails, any cut inside it is hidden, so the failure looks ordinary and enclosing alternatives can still fall back. */
 export const try_ = createCombinatorMaker("try");
 /** Always fails, with `m` naming what was expected. The failure carries an infinite cut, so no alternative or recovery is attempted past it. */

@@ -1,4 +1,4 @@
-import { alt, altFirst, ambient, bind, cut, eps, Grammar, GrammarCombinator, ignored, joined, kw, lit, lookahead, nonempty, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "./combinator";
+import { alt, altFirst, ambient, bind, cut, eps, Grammar, GrammarCombinator, if_, ignored, joined, kw, lit, lookahead, no, nonempty, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_, yes } from "./combinator";
 
 // TODO: make these helpers more combinators, since js functions act like macros
 // which are unavailable to patched code
@@ -24,16 +24,6 @@ const guardHere = (): GrammarCombinator => ambient(guardName, eps());
 const guardExtendedBy = (extra: GrammarCombinator, body: GrammarCombinator): GrammarCombinator =>
     bind(guardName, seq(guardHere(), lookahead(false, extra)), body);
 const guardReset = (body: GrammarCombinator): GrammarCombinator => bind(guardName, eps(), body);
-
-/**
- * A body together with its closing keyword. `body_exprs` itself only
- * *stops* at its `end` parameter (the stop set is never consumed), so
- * the keyword is matched here, once, by the construct that owns the
- * body. Compound constructs (if/else, try/catch) call `body_exprs`
- * directly instead and match each boundary keyword between segments.
- */
-const bodyUntil = (end: GrammarCombinator): GrammarCombinator =>
-    seq(rule("body_exprs", end), ignored(opt(seq(rule("blank"), end))));
 
 /**
  * The Backolon grammar, as plain combinator data.
@@ -118,7 +108,7 @@ export const backolonGrammar: Grammar = {
         seq(
             kw("keyword", "in"),
             // no sep here!
-            bodyUntil(kw("keyword", "end")),
+            rule("body_exprs", kw("keyword", "end"), yes()),
         ),
     ),
     let_loop_block: ssep(
@@ -140,14 +130,14 @@ export const backolonGrammar: Grammar = {
         ),
     )),
     if_else: seq(
-        rule("body_exprs", kw("keyword", "else", "end")),
+        rule("body_exprs", kw("keyword", "else", "end"), no()),
         ignored(rule("blank")),
         kw("keyword", "else"),
-        rule("body_exprs", kw("keyword", "end")),
+        rule("body_exprs", kw("keyword", "end"), no()),
         ignored(opt(seq(rule("blank"), kw("keyword", "end")))),
     ),
     if_no_else: seq(
-        rule("body_exprs", kw("keyword", "else", "end")),
+        rule("body_exprs", kw("keyword", "else", "end"), no()),
         ignored(opt(seq(rule("blank"), kw("keyword", "end")))),
     ),
 
@@ -155,37 +145,47 @@ export const backolonGrammar: Grammar = {
     while: ssep(rule("blank"), kw("keyword", "while"), seq(
         ignored(rule("blank")),
         rule("expr"),
-        bodyUntil(kw("keyword", "end")),
+        rule("body_exprs", kw("keyword", "end"), yes()),
     )),
 
     for: ssep(rule("blank"), kw("keyword", "for"), seq(
         ignored(rule("blank")),
         rule("expr"),
-        bodyUntil(kw("keyword", "end")),
+        rule("body_exprs", kw("keyword", "end"), yes()),
     )),
 
     trycatch: ssep(rule("blank"), kw("keyword", "try"), seq(
         rule("trycatch_guarded"),
         cut(),
-        rule("trycatch_handlers"),
+        rep(false, rule("trycatch_handler")),
         opt(rule("trycatch_else")),
         opt(rule("trycatch_finally")),
+        ignored(seq(rule("blank"), kw("keyword", "end"))),
     )),
-    trycatch_guarded: rule("body_exprs", kw("keyword", "catch", "finally", "else", "end")),
-    trycatch_handlers: rep(true, seq(
+    trycatch_guarded: rule("body_exprs", kw("keyword", "catch", "finally", "else", "end"), no()),
+    trycatch_handler: seq(
         ignored(rule("blank")),
         kw("keyword", "catch"),
-        guardExtendedBy(kw("keyword", "finally", "else", "end"), rule("expr")),
-        rule("body_exprs", kw("keyword", "finally", "else", "end")),
-    )),
-    trycatch_else: rule("body_exprs", kw("keyword", "finally", "end")),
-    trycatch_finally: bodyUntil(kw("keyword", "end")),
+        ignored(rule("blank")),
+        guardExtendedBy(kw("keyword", "catch", "finally", "else", "end"), rule("expr")),
+        rule("body_exprs", kw("keyword", "catch", "finally", "else", "end"), no()),
+    ),
+    trycatch_else: seq(
+        ignored(rule("blank")),
+        kw("keyword", "else"),
+        rule("body_exprs", kw("keyword", "finally", "end"), no()),
+    ),
+    trycatch_finally: seq(
+        ignored(rule("blank")),
+        kw("keyword", "finally"),
+        rule("body_exprs", kw("keyword", "end"), no()),
+    ),
 
 
 
     with: ssep(rule("blank"), kw("keyword", "with"), seq(
         rule("expr"),
-        bodyUntil(kw("keyword", "end")),
+        rule("body_exprs", kw("keyword", "end"), yes()),
     )),
 
     fn: ssep(rule("blank"), kw("keyword", "fn"), rule("fn_body")),
@@ -196,17 +196,22 @@ export const backolonGrammar: Grammar = {
         ignored(tag("keyword", lit("@"))),
         cut(),
         rule("par_exp"),
-        bodyUntil(kw("keyword", "end")),
+        rule("body_exprs", kw("keyword", "end"), yes()),
     )),
 
-    do: ssep(rule("blank"), kw("keyword", "do", "begin"), bodyUntil(kw("keyword", "end"))),
+    do: ssep(rule("blank"), kw("keyword", "do", "begin"), rule("body_exprs", kw("keyword", "end"), yes())),
 
-    body_exprs: [["end"], guardExtendedBy(param("end"), altFirst(
+    body_exprs: [["end", "consume"], guardExtendedBy(param("end"), altFirst(
         seq(
             ignored(rule("blank_sameline")),
+            ignored(guardHere()),
             rule("expr"),
+            ignored(if_(param("consume"), opt(param("end")), eps())),
         ),
-        seq(rule("exprs")),
+        seq(
+            rule("exprs"),
+            ignored(if_(param("consume"), opt(param("end")), eps())),
+        ),
     ))],
 
     simple_expr: rule("pipe"),
@@ -360,9 +365,11 @@ export const backolonGrammar: Grammar = {
     indexing: alt(ssep(rule("blank"), rule("indexing"), rule("indexing_op"), cut(), rule("primary")), rule("primary")),
     indexing_op: alt(
         rule("dot"),
+        rule("up_dot"),
         rule("arrow"),
     ),
     dot: tag("operator", lit(".")),
+    up_dot: tag("operator", lit("..")),
     arrow: tag("operator", lit("->")),
 
     // primary: unary operators or atom

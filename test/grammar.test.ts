@@ -239,8 +239,9 @@ describe("while", () => {
 
 describe("trycatch", () => {
     test.each(([
-        [`try x() catch ENOENT b() end`, []],
-        [`try\n    x()\ncatch ENOENT\n    b()\nend`, []],
+        [`try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end`, []],
+        [`try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end else foo() finally bar() end`, []],
+        [`try\n    x()\ncatch e = ENOENT\n    b(e)\nelse\n    foo()\nfinally\n    bar()\nend`, []],
     ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
         expect(toAST(parsesFully(text))).toEqual(ast);
     });
