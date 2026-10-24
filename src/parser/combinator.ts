@@ -782,7 +782,7 @@ export const opDefs = {
         create: () => ({}),
         call: (_, __, ___, i) => ({ start: i, end: i }),
         hashFields: [],
-        describe: () => "\u03B5",
+        describe: () => "()",
     },
 
     // ---------------------------------------------------------------------------
@@ -856,7 +856,7 @@ export const altFirst = (...n: GrammarCombinator[]) => createCombinator("alterna
 export const opt = createCombinatorMaker("optional");
 /** Repeats `n` greedily until it fails ordinarily; `r` = true requires at least one match, false allows zero. With several nodes the repetition cycles through them. */
 export const rep = createCombinatorMaker("repeat");
-/** Matches `n` separated by `j` (`n`, `n` j `n`, ...), keeping elements and separators in one flat result. `r2` requires at least two elements; `t` permits a trailing separator. */
+/** Matches `n` separated by `j` (`n`, `n` `j` `n`, ...), keeping elements and separators in one flat result. `r2` requires at least two elements; `t` permits a trailing separator. */
 export const joined = createCombinatorMaker("joined");
 /** Conditional: evaluates `c` as a lookahead (consuming no input); matches `t` if it succeeds, `f` otherwise. */
 export const if_ = createCombinatorMaker("if");

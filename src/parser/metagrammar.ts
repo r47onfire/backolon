@@ -51,8 +51,8 @@ import { alt, Grammar, ignored, lit, lookahead, opt, regex, rep, rule, seq } fro
  * * `<x>` -> `rule("x")`; a bare `x` in a body is the same reference
  * * `<x(y, z)>` -> `rule("x", y, z...)`; bare `x(y, z)` likewise
  * * `()` -> `nothing()` / `yes()`
- * * `(|)` -> `alt()` / `no()`
  * * the epsilon sign -> `nothing()`
+ * * `(|)` -> `alt()` / `no()`
  * * `$x` -> `param("x")`
  * * `$x:y` -> `param("x", y)`
  * * `@x` -> `ambient("x")`
