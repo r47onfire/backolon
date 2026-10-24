@@ -91,13 +91,7 @@ import { alt, Grammar, ignored, joined, lit, lookahead, opt, regex, rep, rule, s
 // that starts at the end of the text succeeds empty without ever
 // trying its item, which would let the construction match a lone
 // operand there.
-// The `|` joiner must not be the first half of a `||`: without the
-// guard, joined would consume one pipe of a `||` and then fail its
-// next element with a cut, which hides the leftover from the
-// mixed-forms rejection instead of leaving it unconsumed. (A
-// trailing separator needs no guard: joined itself now rejects
-// one at end of input when trailing is false.)
-const alt_joiner = seq(ignored(rule("blank")), ignored(lit("|")), lookahead(false, lit("|")), ignored(rule("blank")));
+const alt_joiner = seq(ignored(rule("blank")), ignored(lit("|")), ignored(rule("blank")));
 const first_alt_joiner = seq(ignored(rule("blank")), ignored(lit("||")), ignored(rule("blank")));
 const comma_joiner = seq(ignored(rule("blank")), ignored(lit(",")), ignored(rule("blank")));
 const seq_item = seq(ignored(rule("blank")), rule("postfixed"));
