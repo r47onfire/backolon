@@ -49,9 +49,9 @@ const TESTS: Record<string, [string, [string, ASTNode][]]> = {
         ["baz(x): abc $x", ["rule_definition", ["name", "baz"], ["param_list", ["name", "x"]], ["sequence", ["rule_ref", ["name", "abc"], undefined], ["param_ref", ["name", "x"], undefined]]]],
     ]],
     "grammar definitions": ["grammar", [
-        ["foo: bar baz\nbaz(x): abc $x", ["grammar", ["rule_definition", ["name", "foo"], undefined, ["sequence", ["rule_ref", ["name", "bar"], undefined], ["rule_ref", ["name", "baz"], undefined]]], ["rule_definition", ["name", "baz"], ["param_list", ["name", "x"]], ["sequence", ["rule_ref", ["name", "abc"], undefined], ["param_ref", ["name", "x"], undefined]]]]]],
+        ["foo: bar baz\nbaz(x): abc $x", ["grammar", ["rule_definition", ["name", "foo"], undefined, ["sequence", ["rule_ref", ["name", "bar"], undefined], ["rule_ref", ["name", "baz"], undefined]]], ["rule_definition", ["name", "baz"], ["param_list", ["name", "x"]], ["sequence", ["rule_ref", ["name", "abc"], undefined], ["param_ref", ["name", "x"], undefined]]]]],
         ["one: <two> | <three>\ntwo: \"x\"", ["grammar", ["rule_definition", ["name", "one"], undefined, ["alternatives", ["rule_ref", ["name", "two"], undefined], ["rule_ref", ["name", "three"], undefined]]], ["rule_definition", ["name", "two"], undefined, ["string_literal", "\"x\""]]]],
-        ["expr: <block_expr> || <simple_expr>", ["grammar", ["rule_definition", ["name", "expr"], undefined, ["first_alternatives", ["rule_ref", ["name", "block_expr"], undefined], ["rule_ref", ["name", "simple_expr"], undefined]]]],
+        ["expr: <block_expr> || <simple_expr>", ["grammar", ["rule_definition", ["name", "expr"], undefined, ["first_alternatives", ["rule_ref", ["name", "block_expr"], undefined], ["rule_ref", ["name", "simple_expr"], undefined]]]]],
     ]],
 };
 
