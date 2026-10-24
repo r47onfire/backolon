@@ -35,7 +35,9 @@ import { alt, Grammar, ignored, lit, lookahead, opt, regex, rep, rule, seq } fro
  * * `#t=x` -> `tag("t", x)`
  * * `;x` -> `ignored(x)`
  * * `x.@(y)` -> `ssep(x, y...)`
- * * `x.y+` -> `joined(x, y)` - TODO: require2 and trailing flags
+ * * `x.y+` -> `joined(x, y)`; the `+` may carry flags: `+2` requires
+ *   at least two elements, `+t` permits a trailing joiner, `+2t` both
+ *   (a closed set of flags, not a repetition count)
  * * `x+` -> `rep(true, x)`
  * * `x*` -> `rep(false, x)`
  * * `x?` -> `opt(x)`
@@ -112,7 +114,11 @@ export const metaGrammar: Grammar = {
     // The joined element may carry postfixes of its own, except a
     // bare `+`: the final `+` of the joined form is the terminator,
     // so `x.y+` is unambiguous and `x.y++` a repeat of a joined.
-    joined_post: seq(lit("."), ignored(rule("blank")), rule("joined_element"), ignored(rule("blank")), lit("+")),
+    joined_post: seq(lit("."), ignored(rule("blank")), rule("joined_element"), ignored(rule("blank")), lit("+"), opt(rule("joined_flags"))),
+    // The flags on a joined's `+`, attached with no blank: `2`
+    // (at least two elements), `t` (a trailing joiner is allowed),
+    // or both. A closed set, not a count.
+    joined_flags: alt(lit("2t"), lit("2"), lit("t")),
     joined_element: seq(rule("primary"), rep(false, seq(ignored(rule("blank")), alt(rule("opt_post"), rule("star_post"), rule("ssep_post"))))),
     star_post: lit("*"),
 

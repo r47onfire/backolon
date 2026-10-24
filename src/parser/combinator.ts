@@ -693,7 +693,7 @@ export const opDefs = {
             return { start, end: i, children };
         },
         hashFields: [["element", MixAction.Child], ["joiner", MixAction.AuxChild], ["require2", MixAction.Boolean], ["trailing", MixAction.Boolean]],
-        describe: ({ element, joiner }) => describeCombinator(joiner) + "." + describeCombinator(element) + "+",
+        describe: ({ element, joiner, require2, trailing }) => describeCombinator(joiner) + "." + describeCombinator(element) + "+" + (require2 ? "2" : "") + (trailing ? "t" : ""),
     },
 
     // ---------------------------------------------------------------------------
