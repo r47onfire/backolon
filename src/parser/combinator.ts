@@ -632,9 +632,14 @@ export const opDefs = {
             const start = i;
             const children: CSTNode[] = [];
             const minimum = require2 ? 3 : 1; // children interleave elements and separators: two elements are 3 children
+            // Whether the last child pushed was a separator: at the end
+            // of the text, a trailing separator is only acceptable
+            // when trailing is set -- without this, reaching the end
+            // right after a separator would succeed regardless.
+            var lastWasSep = false;
             for (; ;) {
                 if (i >= ctx.text.length) {
-                    if (children.length < minimum) return new MatchFail(i, 0, elemRule);
+                    if (children.length < minimum || (!trailing && lastWasSep)) return new MatchFail(i, 0, elemRule);
                     break;
                 }
                 const elem = ctx.applyRule(path + "/e", elemRule, i, locals, dynamics);
@@ -660,6 +665,7 @@ export const opDefs = {
                 }
                 children.push(elem);
                 i = elem.end;
+                lastWasSep = false;
                 const s = ctx.applyRule(path + "/s", sepRule, i, locals, dynamics);
                 if (s instanceof MatchFail) {
                     if (s.cut === Infinity) return s;
@@ -681,6 +687,7 @@ export const opDefs = {
                 if (s.end === i) break; // empty separator ?!?
                 children.push(s);
                 i = s.end;
+                lastWasSep = true;
             }
             return { start, end: i, children };
         },

@@ -94,14 +94,11 @@ import { alt, Grammar, ignored, joined, lit, lookahead, opt, regex, rep, rule, s
 // The `|` joiner must not be the first half of a `||`: without the
 // guard, joined would consume one pipe of a `||` and then fail its
 // next element with a cut, which hides the leftover from the
-// mixed-forms rejection instead of leaving it unconsumed. And a
-// joiner must be followed by an element: joined stops at the end
-// of the text without ever attempting the next element, so a
-// trailing separator at end of input would otherwise be silently
-// accepted -- the positive lookahead makes the separator fail
-// plainly there instead, leaving it unconsumed.
-const alt_joiner = seq(ignored(rule("blank")), ignored(lit("|")), lookahead(false, lit("|")), ignored(rule("blank")), lookahead(true, rule("postfixed")));
-const first_alt_joiner = seq(ignored(rule("blank")), ignored(lit("||")), ignored(rule("blank")), lookahead(true, rule("postfixed")));
+// mixed-forms rejection instead of leaving it unconsumed. (A
+// trailing separator needs no guard: joined itself now rejects
+// one at end of input when trailing is false.)
+const alt_joiner = seq(ignored(rule("blank")), ignored(lit("|")), lookahead(false, lit("|")), ignored(rule("blank")));
+const first_alt_joiner = seq(ignored(rule("blank")), ignored(lit("||")), ignored(rule("blank")));
 const comma_joiner = seq(ignored(rule("blank")), ignored(lit(",")), ignored(rule("blank")));
 const seq_item = seq(ignored(rule("blank")), rule("postfixed"));
 const postfix_part = seq(ignored(rule("blank")), rule("postfix"));
@@ -209,7 +206,7 @@ export const metaGrammar: Grammar = {
 
     // `%tag=option/option/...`
     keyword: ssep(rule("blank"), ignored(lit("%")), rule("name"), ignored(lit("=")), rule("kw_options")),
-    kw_options: joined(seq(ignored(lit("/")), lookahead(true, rule("kw_option"))), rule("kw_option"), false, false),
+    kw_options: joined(ignored(lit("/")), rule("kw_option"), false, false),
     kw_option: regex(/[^/\s|()<>\[\],]+/),
 
     // `&name=value-body`, or `&+name=value-body` for a bind whose
