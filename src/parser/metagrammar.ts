@@ -71,6 +71,23 @@ import { alt, Grammar, ignored, lit, lookahead, opt, regex, rep, rule, seq } fro
  * optional, not an optional tag), and a rule reference's argument
  * list binds even across a blank (`x (y)` is a call, like Pegase).
  */
+// The tower rules below are shaped like the main grammar's
+// precedence levels: each is an alt of a construction branch and a
+// delegation to the next level down, and the construction branch
+// requires its distinguishing content (at least one separator, at
+// least one postfix). A lone operand therefore falls through every
+// level untouched -- a rule whose result is already a typed node
+// does not nest (see the rule operation) -- and a level node
+// appears only when the level actually grouped something. The
+// separator-and-item tails are written `item, rep(false, item)`
+// rather than `rep(true, item)`: a rep that starts at the end of
+// the text succeeds empty without ever trying its item, which
+// would let the construction match a lone operand there.
+const alt_item = seq(ignored(rule("blank")), ignored(lit("|")), ignored(rule("blank")), rule("postfixed"));
+const first_alt_item = seq(ignored(rule("blank")), ignored(lit("||")), ignored(rule("blank")), rule("postfixed"));
+const seq_item = seq(ignored(rule("blank")), rule("postfixed"));
+const postfix_part = seq(ignored(rule("blank")), rule("postfix"));
+
 export const metaGrammar: Grammar = {
     // A whole grammar text: rule definitions separated by blanks.
     grammar: seq(ignored(rule("blank")), rep(false, seq(rule("rule_definition"), ignored(rule("blank"))))),
@@ -81,24 +98,34 @@ export const metaGrammar: Grammar = {
     // rule_ref).
     rule_definition: seq(rule("name"), ignored(rule("blank")), opt(rule("param_list")), ignored(rule("blank")), ignored(lit(":")), ignored(rule("blank")), rule("body")),
 
-    // One combinator, with blanks tolerated at the edges. A body is
-    // a sequence or an alternatives, never a mix -- `a | b c` is a
-    // parse error -- so grouping is always explicit: an alternative
-    // inside a sequence, or a sequence inside an alternative, is
-    // parenthesized (which is also how describe renders them).
-    combinator: seq(ignored(rule("blank")), rule("body"), ignored(rule("blank"))),
+    // One combinator. A body is a sequence or an alternatives,
+    // never a mix -- `a | b c` is a parse error -- so grouping is
+    // always explicit: an alternative inside a sequence, or a
+    // sequence inside an alternative, is parenthesized (which is
+    // also how describe renders them).
+    combinator: rule("body"),
     body: alt(rule("alternatives"), rule("first_alternatives"), rule("sequence")),
-    alternatives: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), ignored(lit("|")), ignored(rule("blank")), rule("postfixed")))),
+    alternatives: alt(
+        seq(rule("postfixed"), alt_item, rep(false, alt_item)),
+        rule("postfixed"),
+    ),
     // An alternatives whose options are tried in order, first match
     // wins, instead of longest match.
-    first_alternatives: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), ignored(lit("||")), ignored(rule("blank")), rule("postfixed")))),
-    sequence: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), rule("postfixed")))),
+    first_alternatives: alt(
+        seq(rule("postfixed"), first_alt_item, rep(false, first_alt_item)),
+        rule("postfixed"),
+    ),
+    sequence: alt(
+        seq(rule("postfixed"), seq_item, rep(false, seq_item)),
+        rule("postfixed"),
+    ),
 
     // A primary with its postfix constructions, applied left to
     // right: `x.@(items)` (ssep), `x.y+` (joined), `x*` / `x+`
-    // (repeat), `x?` (opt).
+    // (repeat), `x?` (opt). With no postfix the primary itself is
+    // the result.
     postfixed: alt(
-        seq(rule("primary"), rep(true, seq(ignored(rule("blank")), rule("postfix")))),
+        seq(rule("primary"), postfix_part, rep(false, postfix_part)),
         rule("primary"),
     ),
     postfix: alt(
