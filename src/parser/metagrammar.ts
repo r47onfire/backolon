@@ -47,11 +47,11 @@ import { alt, Grammar, ignored, lit, lookahead, opt, regex, rep, rule, seq } fro
  * * `(+x)` -> `nonempty(x)`
  * * `!n` -> `cut(n)` (a bare `!` is `cut(1)`)
  * * `x y z` -> `seq(x, y, z)`
- * * `x | y | z` -> `alt(x, y, z)` - TODO: how to denote `alt()` vs `altFirst()`
+ * * `x | y | z` -> `alt(x, y, z)`
+ * * `x || y || z` -> `altFirst(x, y, z)`
  * * `<x>` -> `rule("x")`; a bare `x` in a body is the same reference
  * * `<x(y, z)>` -> `rule("x", y, z...)`; bare `x(y, z)` likewise
  * * `()` -> `nothing()` / `yes()`
- * * the epsilon sign -> `nothing()`
  * * `(|)` -> `alt()` / `no()`
  * * `$x` -> `param("x")`
  * * `$x:y` -> `param("x", y)`
@@ -85,8 +85,11 @@ export const metaGrammar: Grammar = {
     // inside a sequence, or a sequence inside an alternative, is
     // parenthesized (which is also how describe renders them).
     combinator: seq(ignored(rule("blank")), rule("body"), ignored(rule("blank"))),
-    body: alt(rule("alternatives"), rule("sequence")),
+    body: alt(rule("alternatives"), rule("first_alternatives"), rule("sequence")),
     alternatives: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), lit("|"), ignored(rule("blank")), rule("postfixed")))),
+    // An alternatives whose options are tried in order, first match
+    // wins, instead of longest match.
+    first_alternatives: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), lit("||"), ignored(rule("blank")), rule("postfixed")))),
     sequence: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), rule("postfixed")))),
 
     // A primary with its postfix constructions, applied left to

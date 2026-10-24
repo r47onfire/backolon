@@ -569,7 +569,7 @@ export const opDefs = {
             return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, node as GrammarCombinator)) : options.reduce((a, b) => b.end > a.end ? b : a);
         },
         hashFields: [["options", MixAction.Children], ["first", MixAction.Boolean]],
-        describe: ({ options }) => options.length === 0 ? "(|)" : "(" + options.map(c => describeCombinator(c)).join(" | ") + ")",
+        describe: ({ options, first }) => options.length === 0 ? "(|)" : "(" + options.map(c => describeCombinator(c)).join(first ? " || " : " | ") + ")",
     },
 
     // ---------------------------------------------------------------------------
