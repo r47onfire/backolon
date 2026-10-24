@@ -632,13 +632,10 @@ export const opDefs = {
             const start = i;
             const children: CSTNode[] = [];
             const minimum = require2 ? 3 : 1; // children interleave elements and separators: two elements are 3 children
-            // Whether the last child pushed was a separator: at the end
-            // of the text, a trailing separator is only acceptable
-            // when trailing is set -- without this, reaching the end
-            // right after a separator would succeed regardless.
             var lastWasSep = false;
             for (; ;) {
                 if (i >= ctx.text.length) {
+                    // at EOF don't allow a trailing separator unless trailing sep is allowed in general
                     if (children.length < minimum || (!trailing && lastWasSep)) return new MatchFail(i, 0, elemRule);
                     break;
                 }
