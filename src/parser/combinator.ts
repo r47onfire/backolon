@@ -532,7 +532,7 @@ export const opDefs = {
             return { start, end: i, children };
         },
         hashFields: [["items", MixAction.Children], ["separator", MixAction.AuxChild]],
-        describe: ({ items, separator }) => items.length === 0 && !separator ? "()" : (separator ? describeCombinator(separator) + ".@(" : "(") + items.map(c => describeCombinator(c)).join(" ") + ")",
+        describe: ({ items, separator }) => (separator ? describeCombinator(separator) + ".@(" : "(") + items.map(c => describeCombinator(c)).join(" ") + ")",
     },
 
     // ---------------------------------------------------------------------------

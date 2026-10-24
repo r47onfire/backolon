@@ -214,8 +214,8 @@ export const metaGrammar: Grammar = {
     cut_form: seq(lit("!"), opt(rule("number"))),
     number: regex(/[0-9]+/),
 
-    // The epsilon sign, or the empty form `()`.
-    nothing_form: alt(lit("ε"), seq(lit("("), ignored(rule("blank")), lit(")"))),
+    // The empty form `()`.
+    nothing_form: seq(lit("("), ignored(rule("blank")), lit(")")),
 
     // `^"message"`
     die_form: seq(lit("^"), ignored(rule("blank")), rule("string_literal")),

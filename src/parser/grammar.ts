@@ -1,4 +1,4 @@
-import { alt, altFirst, ambient, bind, cut, nothing, Grammar, GrammarCombinator, if_, ignored, joined, kw, lit, lookahead, no, nonempty, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_, yes, describeCombinator } from "./combinator";
+import { alt, altFirst, ambient, bind, cut, Grammar, if_, ignored, joined, kw, lit, lookahead, no, nonempty, nothing, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_, yes } from "./combinator";
 
 /**
  * The Backolon grammar, as plain combinator data.
@@ -492,7 +492,7 @@ export const all_tags = new Set(function walk(g: any): string[] {
     if (typeof g !== "object") return [];
     return (g.op === "tag" || g.op === "kw" ? [g.tag] : []).concat(Object.values(g).flatMap(walk));
 }(backolonGrammar));
-console.log({ all_tags });
-Object.entries(backolonGrammar).forEach(([rule, g]) => {
-    console.log(`${rule}: ${describeCombinator(Array.isArray(g) ? g[1] : g)}`);
-});
+// console.log({ all_tags });
+// Object.entries(backolonGrammar).forEach(([rule, g]) => {
+//     console.log(`${rule}: ${describeCombinator(Array.isArray(g) ? g[1] : g)}`);
+// });
