@@ -358,7 +358,7 @@ export const opDefs = {
             return match ? { text: match[0], tag, start: i, end: i + match[0].length, ignored: true } : new MatchFail(i, 0, node as GrammarCombinator);
         },
         hashFields: [["tag", MixAction.String], ["options", MixAction.StringArray]],
-        describe: ({ options }) => "('" + options.join("' | '") + "')",
+        describe: ({ tag, options }) => "%" + tag + "=" + options.join("/"),
     },
 
     // ---------------------------------------------------------------------------
@@ -371,7 +371,7 @@ export const opDefs = {
             return cst instanceof MatchFail ? cst : { ignored: true, start: cst.start, end: cst.end, children: [cst] };
         },
         hashFields: [["child", MixAction.Child]],
-        describe: ({ child }) => "," + describeCombinator(child),
+        describe: ({ child }) => ";" + describeCombinator(child),
     },
 
     // ---------------------------------------------------------------------------
@@ -413,7 +413,7 @@ export const opDefs = {
             return { type: name, start: cst.start, end: cst.end, children: [cst] };
         },
         hashFields: [["name", MixAction.String], ["args", MixAction.Children]],
-        describe: ({ name, args }) => name + args.map(arg => "{" + describeCombinator(arg) + "}").join(""),
+        describe: ({ name, args }) => "<" + name + (args.length ? "(" + args.map(arg => describeCombinator(arg)).join(", ") + ")" : "") + ">",
     },
 
     // ---------------------------------------------------------------------------
@@ -436,7 +436,7 @@ export const opDefs = {
             throw new Error("unbound rule parameter " + name + " at " + path);
         },
         hashFields: [["name", MixAction.String], ["default", MixAction.Child]],
-        describe: ({ name }) => "$" + name,
+        describe: ({ name, default: defaultValue }) => "$" + name + (defaultValue ? ":" + describeCombinator(defaultValue) : ""),
     },
 
     // ---------------------------------------------------------------------------
@@ -459,7 +459,7 @@ export const opDefs = {
             throw new Error("unbound dynamic parameter " + name + " at " + path);
         },
         hashFields: [["name", MixAction.String], ["default", MixAction.Child]],
-        describe: ({ name }) => "@" + name,
+        describe: ({ name, default: defaultValue }) => "@" + name + (defaultValue ? ":" + describeCombinator(defaultValue) : ""),
     },
 
     // ---------------------------------------------------------------------------
@@ -479,7 +479,7 @@ export const opDefs = {
             return ctx.applyRule(path + "/b", body, i, locals, frame);
         },
         hashFields: [["name", MixAction.String], ["value", MixAction.Child], ["extend", MixAction.Boolean], ["body", MixAction.Child]],
-        describe: ({ name, value, extend, body }) => (extend ? "&+" : "&") + name + "=" + describeCombinator(value) + " { " + describeCombinator(body) + " }",
+        describe: ({ name, value, extend, body }) => (extend ? "&+" : "&") + name + "=" + describeCombinator(value) + "-" + describeCombinator(body),
     },
 
     // ---------------------------------------------------------------------------
@@ -561,7 +561,7 @@ export const opDefs = {
             return options.length < 1 ? (furthestFail ?? new MatchFail(i, 0, node as GrammarCombinator)) : options.reduce((a, b) => b.end > a.end ? b : a);
         },
         hashFields: [["options", MixAction.Children], ["first", MixAction.Boolean]],
-        describe: ({ options }) => "(" + options.map(c => describeCombinator(c)).join(" | ") + ")",
+        describe: ({ options, first }) => options.length === 0 ? "(|)" : "(" + options.map(c => describeCombinator(c)).join(first ? " || " : " | ") + ")",
     },
 
     // ---------------------------------------------------------------------------
@@ -575,7 +575,7 @@ export const opDefs = {
             return cst instanceof MatchFail ? (cst.cut > 0 ? cst : { start: i, end: i }) : cst;
         },
         hashFields: [["child", MixAction.Child]],
-        describe: ({ child }) => "[" + describeCombinator(child) + "]",
+        describe: ({ child }) => describeCombinator(child) + "?",
     },
 
     // ---------------------------------------------------------------------------
@@ -632,9 +632,11 @@ export const opDefs = {
             const start = i;
             const children: CSTNode[] = [];
             const minimum = require2 ? 3 : 1; // children interleave elements and separators: two elements are 3 children
+            var lastWasSep = false;
             for (; ;) {
                 if (i >= ctx.text.length) {
-                    if (children.length < minimum) return new MatchFail(i, 0, elemRule);
+                    // at EOF don't allow a trailing separator unless trailing sep is allowed in general
+                    if (children.length < minimum || (!trailing && lastWasSep)) return new MatchFail(i, 0, elemRule);
                     break;
                 }
                 const elem = ctx.applyRule(path + "/e", elemRule, i, locals, dynamics);
@@ -660,6 +662,7 @@ export const opDefs = {
                 }
                 children.push(elem);
                 i = elem.end;
+                lastWasSep = false;
                 const s = ctx.applyRule(path + "/s", sepRule, i, locals, dynamics);
                 if (s instanceof MatchFail) {
                     if (s.cut === Infinity) return s;
@@ -681,11 +684,12 @@ export const opDefs = {
                 if (s.end === i) break; // empty separator ?!?
                 children.push(s);
                 i = s.end;
+                lastWasSep = true;
             }
             return { start, end: i, children };
         },
         hashFields: [["element", MixAction.Child], ["joiner", MixAction.AuxChild], ["require2", MixAction.Boolean], ["trailing", MixAction.Boolean]],
-        describe: ({ element, joiner }) => describeCombinator(joiner) + "." + describeCombinator(element) + "+",
+        describe: ({ element, joiner, require2, trailing }) => describeCombinator(joiner) + "." + describeCombinator(element) + "+" + (require2 ? "2" : "") + (trailing ? "t" : ""),
     },
 
     // ---------------------------------------------------------------------------
@@ -698,7 +702,7 @@ export const opDefs = {
                 ? ctx.applyRule(path + "/f", ifFalse, i, locals, dynamics)
                 : ctx.applyRule(path + "/t", ifTrue, i, locals, dynamics),
         hashFields: [["condition", MixAction.AuxChild], ["ifTrue", MixAction.Child], ["ifFalse", MixAction.Child]],
-        describe: ({ condition, ifTrue: if_true, ifFalse: if_false }) => "(?(" + describeCombinator(condition) + ")" + describeCombinator(if_true) + " | " + describeCombinator(if_false) + ")",
+        describe: ({ condition, ifTrue: if_true, ifFalse: if_false }) => "(?(" + describeCombinator(condition) + ") " + describeCombinator(if_true) + " // " + describeCombinator(if_false) + ")",
     },
 
     // ---------------------------------------------------------------------------
@@ -725,7 +729,7 @@ export const opDefs = {
             return { ignored: true, start: i, end: i };
         },
         hashFields: [["depth", MixAction.Number]],
-        describe: () => "!",
+        describe: ({ depth }) => "!" + depth,
     },
 
     // ---------------------------------------------------------------------------
@@ -753,7 +757,7 @@ export const opDefs = {
             return cst instanceof MatchFail ? cst : cst.end === i ? new MatchFail(i, 0, node as GrammarCombinator) : cst;
         },
         hashFields: [["child", MixAction.Child]],
-        describe: ({ child }) => "(=" + describeCombinator(child) + ")",
+        describe: ({ child }) => "(+" + describeCombinator(child) + ")",
     },
 
     sameline: {
@@ -764,7 +768,7 @@ export const opDefs = {
             return cst instanceof MatchFail ? cst : ctx.text.slice(cst.start, cst.end).indexOf("\n") >= 0 ? new MatchFail(i, 0, node as GrammarCombinator) : cst;
         },
         hashFields: [["child", MixAction.Child]],
-        describe: ({ child }) => "(#" + describeCombinator(child) + ")",
+        describe: ({ child }) => "(=" + describeCombinator(child) + ")",
     },
 
     // ---------------------------------------------------------------------------
@@ -774,7 +778,7 @@ export const opDefs = {
         create: () => ({}),
         call: (_, __, ___, i) => ({ start: i, end: i }),
         hashFields: [],
-        describe: () => "\u03B5",
+        describe: () => "()",
     },
 
     // ---------------------------------------------------------------------------
@@ -793,7 +797,7 @@ export const opDefs = {
             return cst;
         },
         hashFields: [["child", MixAction.Child]],
-        describe: ({ child }) => "(??" + describeCombinator(child) + ")",
+        describe: ({ child }) => "[" + describeCombinator(child) + "]",
     },
 
     // ---------------------------------------------------------------------------
@@ -848,7 +852,7 @@ export const altFirst = (...n: GrammarCombinator[]) => createCombinator("alterna
 export const opt = createCombinatorMaker("optional");
 /** Repeats `n` greedily until it fails ordinarily; `r` = true requires at least one match, false allows zero. With several nodes the repetition cycles through them. */
 export const rep = createCombinatorMaker("repeat");
-/** Matches `n` separated by `j` (`n`, `n` j `n`, ...), keeping elements and separators in one flat result. `r2` requires at least two elements; `t` permits a trailing separator. */
+/** Matches `n` separated by `j` (`n`, `n` `j` `n`, ...), keeping elements and separators in one flat result. `r2` requires at least two elements; `t` permits a trailing separator. */
 export const joined = createCombinatorMaker("joined");
 /** Conditional: evaluates `c` as a lookahead (consuming no input); matches `t` if it succeeds, `f` otherwise. */
 export const if_ = createCombinatorMaker("if");

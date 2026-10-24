@@ -1,4 +1,4 @@
-import { alt, altFirst, ambient, bind, cut, nothing, Grammar, GrammarCombinator, if_, ignored, joined, kw, lit, lookahead, no, nonempty, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_, yes } from "./combinator";
+import { alt, altFirst, ambient, bind, cut, Grammar, if_, ignored, joined, kw, lit, lookahead, no, nonempty, nothing, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_, yes } from "./combinator";
 
 /**
  * The Backolon grammar, as plain combinator data.
@@ -219,7 +219,7 @@ export const backolonGrammar: Grammar = {
 
     empty_arg: seq(nothing(), lookahead(true, rule("comma"))), // only between commas
 
-    // non-associative
+    // non associative
     kw_arg: alt(ssep(rule("blank"), rule("assignment"), rule("kw_arg_op"), cut(), rule("assignment")), rule("assignment")),
     kw_arg_op: alt(
         rule("kw"),
