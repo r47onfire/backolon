@@ -1,4 +1,4 @@
-import { alt, Grammar, ignored, lit, lookahead, opt, regex, rep, rule, seq } from "./combinator";
+import { alt, Grammar, ignored, joined, lit, lookahead, opt, regex, rep, rule, seq, ssep } from "./combinator";
 
 /**
  * The metagrammar: a grammar for the textual form of combinators and
@@ -78,13 +78,31 @@ import { alt, Grammar, ignored, lit, lookahead, opt, regex, rep, rule, seq } fro
 // least one postfix). A lone operand therefore falls through every
 // level untouched -- a rule whose result is already a typed node
 // does not nest (see the rule operation) -- and a level node
-// appears only when the level actually grouped something. The
-// separator-and-item tails are written `item, rep(false, item)`
-// rather than `rep(true, item)`: a rep that starts at the end of
-// the text succeeds empty without ever trying its item, which
-// would let the construction match a lone operand there.
-const alt_item = seq(ignored(rule("blank")), ignored(lit("|")), ignored(rule("blank")), rule("postfixed"));
-const first_alt_item = seq(ignored(rule("blank")), ignored(lit("||")), ignored(rule("blank")), rule("postfixed"));
+// appears only when the level actually grouped something.
+// The alternatives levels use joined, whose flat children are
+// exactly the form's operands (these forms are non-associative: an
+// option is a postfixed, never another alternatives), and whose
+// joiners can never match empty, so its minimum is exact. The
+// sequence and items lists keep explicit tails: their separator
+// is a blank, which may match empty, and joined stops at an empty
+// separator -- a sequence like `<a><b>` would lose its second
+// item -- so joined cannot express them. Their tails are written
+// `item, rep(false, item)` rather than `rep(true, item)`: a rep
+// that starts at the end of the text succeeds empty without ever
+// trying its item, which would let the construction match a lone
+// operand there.
+// The `|` joiner must not be the first half of a `||`: without the
+// guard, joined would consume one pipe of a `||` and then fail its
+// next element with a cut, which hides the leftover from the
+// mixed-forms rejection instead of leaving it unconsumed. And a
+// joiner must be followed by an element: joined stops at the end
+// of the text without ever attempting the next element, so a
+// trailing separator at end of input would otherwise be silently
+// accepted -- the positive lookahead makes the separator fail
+// plainly there instead, leaving it unconsumed.
+const alt_joiner = seq(ignored(rule("blank")), ignored(lit("|")), lookahead(false, lit("|")), ignored(rule("blank")), lookahead(true, rule("postfixed")));
+const first_alt_joiner = seq(ignored(rule("blank")), ignored(lit("||")), ignored(rule("blank")), lookahead(true, rule("postfixed")));
+const comma_joiner = seq(ignored(rule("blank")), ignored(lit(",")), ignored(rule("blank")));
 const seq_item = seq(ignored(rule("blank")), rule("postfixed"));
 const postfix_part = seq(ignored(rule("blank")), rule("postfix"));
 
@@ -96,7 +114,7 @@ export const metaGrammar: Grammar = {
     // rule. The body ends where the next definition begins because
     // a bare rule reference may not be a definition header (see
     // rule_ref).
-    rule_definition: seq(rule("name"), ignored(rule("blank")), opt(rule("param_list")), ignored(rule("blank")), ignored(lit(":")), ignored(rule("blank")), rule("body")),
+    rule_definition: ssep(rule("blank"), rule("name"), opt(rule("param_list")), ignored(lit(":")), rule("body")),
 
     // One combinator. A body is a sequence or an alternatives,
     // never a mix -- `a | b c` is a parse error -- so grouping is
@@ -106,13 +124,13 @@ export const metaGrammar: Grammar = {
     combinator: rule("body"),
     body: alt(rule("alternatives"), rule("first_alternatives"), rule("sequence")),
     alternatives: alt(
-        seq(rule("postfixed"), alt_item, rep(false, alt_item)),
+        joined(alt_joiner, rule("postfixed"), true, false),
         rule("postfixed"),
     ),
     // An alternatives whose options are tried in order, first match
     // wins, instead of longest match.
     first_alternatives: alt(
-        seq(rule("postfixed"), first_alt_item, rep(false, first_alt_item)),
+        joined(first_alt_joiner, rule("postfixed"), true, false),
         rule("postfixed"),
     ),
     sequence: alt(
@@ -138,7 +156,7 @@ export const metaGrammar: Grammar = {
     opt: lit("?"),
     repeat_opt: lit("*"),
     repeat_req: lit("+"),
-    ssep: seq(ignored(lit(".@(")), ignored(rule("blank")), opt(rule("items")), ignored(rule("blank")), ignored(lit(")"))),
+    ssep: ssep(rule("blank"), ignored(lit(".@(")), opt(rule("items")), ignored(lit(")"))),
     items: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), rule("postfixed")))),
     // The joined element may carry postfixes of its own, except a
     // bare `+`: the final `+` of the joined form is the terminator,
@@ -182,31 +200,31 @@ export const metaGrammar: Grammar = {
     sameline: seq(ignored(lit("(=")), rule("postfixed"), ignored(lit(")"))),
     nonempty: seq(ignored(lit("(+")), rule("postfixed"), ignored(lit(")"))),
     // `(|)`: an alternatives with no options.
-    empty_alt: ignored(seq(lit("("), rule("blank"), lit("|"), rule("blank"), lit(")"))),
+    empty_alt: ignored(ssep(rule("blank"), lit("("), lit("|"), lit(")"))),
     // A parenthesized body: grouping for sequences and alternatives.
-    paren: seq(ignored(lit("(")), ignored(rule("blank")), rule("body"), ignored(rule("blank")), ignored(lit(")"))),
+    paren: ssep(rule("blank"), ignored(lit("(")), rule("body"), ignored(lit(")"))),
 
     // `[x]`
-    try: seq(ignored(lit("[")), ignored(rule("blank")), rule("body"), ignored(rule("blank")), ignored(lit("]"))),
+    try: ssep(rule("blank"), ignored(lit("[")), rule("body"), ignored(lit("]"))),
 
     // `%tag=option/option/...`
-    keyword: seq(ignored(lit("%")), rule("name"), ignored(rule("blank")), ignored(lit("=")), ignored(rule("blank")), rule("kw_options")),
-    kw_options: seq(rule("kw_option"), rep(false, seq(ignored(lit("/")), rule("kw_option")))),
+    keyword: ssep(rule("blank"), ignored(lit("%")), rule("name"), ignored(lit("=")), rule("kw_options")),
+    kw_options: joined(seq(ignored(lit("/")), lookahead(true, rule("kw_option"))), rule("kw_option"), false, false),
     kw_option: regex(/[^/\s|()<>\[\],]+/),
 
     // `&name=value-body`, or `&+name=value-body` for a bind whose
     // value extends the binding it shadows. The value and the body
     // are both primaries-with-postfixes, so a composite body is
     // parenthesized and `-` is unambiguous.
-    bind: seq(alt(lit("&+"), lit("&")), rule("name"), ignored(rule("blank")), ignored(lit("=")), ignored(rule("blank")), rule("postfixed"), ignored(rule("blank")), ignored(lit("-")), ignored(rule("blank")), rule("postfixed")),
+    bind: ssep(rule("blank"), alt(lit("&+"), lit("&")), rule("name"), ignored(lit("=")), rule("postfixed"), ignored(lit("-")), rule("postfixed")),
 
     // `#tag=item`
-    tag: seq(ignored(lit("#")), rule("tag_name"), ignored(rule("blank")), ignored(lit("=")), ignored(rule("blank")), rule("postfixed")),
+    tag: ssep(rule("blank"), ignored(lit("#")), rule("tag_name"), ignored(lit("=")), rule("postfixed")),
     tag_name: regex(/[A-Za-z0-9_-]+/),
 
     // `;item` -- a semicolon, not a comma, so the comma stays free
     // for argument lists.
-    ignored: seq(ignored(lit(";")), ignored(rule("blank")), rule("postfixed")),
+    ignored: ssep(rule("blank"), ignored(lit(";")), rule("postfixed")),
 
     literal: alt(rule("string_literal"), rule("regex_literal")),
     // A JSON string, as produced by stringify.
@@ -236,12 +254,12 @@ export const metaGrammar: Grammar = {
         seq(ignored(lit("<")), ignored(rule("blank")), rule("name"), opt(rule("arg_list")), ignored(rule("blank")), ignored(lit(">"))),
         seq(lookahead(false, rule("definition_header")), rule("name"), opt(rule("arg_list"))),
     ),
-    definition_header: seq(rule("name"), ignored(rule("blank")), opt(rule("param_list")), ignored(rule("blank")), ignored(lit(":"))),
+    definition_header: ssep(rule("blank"), rule("name"), opt(rule("param_list")), ignored(lit(":"))),
     // Arguments are bodies, comma-separated. (With the ignored form
     // spelled `;x`, nothing in a body can be mistaken for the comma
     // that separates arguments.)
-    arg_list: seq(ignored(lit("(")), ignored(rule("blank")), opt(seq(rule("body"), rep(false, seq(ignored(rule("blank")), ignored(lit(",")), ignored(rule("blank")), rule("body"))))), ignored(rule("blank")), ignored(lit(")"))),
-    param_list: seq(ignored(lit("(")), ignored(rule("blank")), opt(seq(rule("name"), rep(false, seq(ignored(rule("blank")), ignored(lit(",")), ignored(rule("blank")), rule("name"))))), ignored(rule("blank")), ignored(lit(")"))),
+    arg_list: ssep(rule("blank"), ignored(lit("(")), opt(joined(comma_joiner, rule("body"), false, false)), ignored(lit(")"))),
+    param_list: ssep(rule("blank"), ignored(lit("(")), opt(joined(comma_joiner, rule("name"), false, false)), ignored(lit(")"))),
 
     // `$name` or `$name:default`
     param_ref: seq(ignored(lit("$")), rule("name"), opt(seq(ignored(rule("blank")), ignored(lit(":")), rule("postfixed")))),
@@ -253,10 +271,10 @@ export const metaGrammar: Grammar = {
     number: regex(/[0-9]+/),
 
     // The empty form `()`.
-    nothing: ignored(seq(lit("("), rule("blank"), lit(")"))),
+    nothing: ignored(ssep(rule("blank"), lit("("), lit(")"))),
 
     // `^"message"`
-    die: seq(ignored(lit("^")), ignored(rule("blank")), rule("string_literal")),
+    die: ssep(rule("blank"), ignored(lit("^")), rule("string_literal")),
 
     name: regex(/[A-Za-z_][A-Za-z0-9_]*/),
     blank: regex(/\s*/),
