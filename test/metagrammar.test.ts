@@ -22,6 +22,7 @@ const parsesFully = (text: string, entry = "combinator"): CSTNode => {
 const TESTS: Record<string, [string, [string, ASTNode][]]> = {
 
     "basic forms": ["combinator", [
+        ["abc", ["rule_ref", ["name", "abc"]]],
         ["%keyword=else/end", ["combinator", ["alternatives", ["postfixed", ["keyword", ["name", "keyword"], ["kw_options", ["kw_option", "else"], ["kw_option", "end"]]]]]]],
         ["<a> <b>*", ["combinator", ["sequence", ["rule_ref", ["name", "a"], undefined], ["postfixed", ["rule_ref", ["name", "b"], undefined], ["repeat_opt", "*"]]]]],
         ["<a> | <b>", ["combinator", ["alternatives", ["rule_ref", ["name", "a"], undefined], ["postfixed", ["rule_ref", ["name", "b"], undefined]]]]],
