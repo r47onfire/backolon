@@ -79,7 +79,7 @@ export const metaGrammar: Grammar = {
     // rule. The body ends where the next definition begins because
     // a bare rule reference may not be a definition header (see
     // rule_ref).
-    rule_definition: seq(rule("name"), ignored(rule("blank")), opt(rule("param_list")), ignored(rule("blank")), lit(":"), ignored(rule("blank")), rule("body")),
+    rule_definition: seq(rule("name"), ignored(rule("blank")), opt(rule("param_list")), ignored(rule("blank")), ignored(lit(":")), ignored(rule("blank")), rule("body")),
 
     // One combinator, with blanks tolerated at the edges. A body is
     // a sequence or an alternatives, never a mix -- `a | b c` is a
@@ -88,10 +88,10 @@ export const metaGrammar: Grammar = {
     // parenthesized (which is also how describe renders them).
     combinator: seq(ignored(rule("blank")), rule("body"), ignored(rule("blank"))),
     body: alt(rule("alternatives"), rule("first_alternatives"), rule("sequence")),
-    alternatives: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), lit("|"), ignored(rule("blank")), rule("postfixed")))),
+    alternatives: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), ignored(lit("|")), ignored(rule("blank")), rule("postfixed")))),
     // An alternatives whose options are tried in order, first match
     // wins, instead of longest match.
-    first_alternatives: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), lit("||"), ignored(rule("blank")), rule("postfixed")))),
+    first_alternatives: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), ignored(lit("||")), ignored(rule("blank")), rule("postfixed")))),
     sequence: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), rule("postfixed")))),
 
     // A primary with its postfix constructions, applied left to
@@ -102,82 +102,84 @@ export const metaGrammar: Grammar = {
         rule("primary"),
     ),
     postfix: alt(
-        rule("ssep_post"),
-        rule("joined_post"),
-        rule("repeat_post"),
-        rule("opt_post"),
+        rule("ssep"),
+        rule("joined"),
+        rule("repeat_opt"),
+        rule("repeat_req"),
+        rule("opt"),
     ),
-    opt_post: lit("?"),
-    repeat_post: alt(lit("*"), lit("+")),
-    ssep_post: seq(lit(".@("), ignored(rule("blank")), opt(rule("items")), ignored(rule("blank")), lit(")")),
+    opt: lit("?"),
+    repeat_opt: lit("*"),
+    repeat_req: lit("+"),
+    ssep: seq(ignored(lit(".@(")), ignored(rule("blank")), opt(rule("items")), ignored(rule("blank")), ignored(lit(")"))),
     items: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), rule("postfixed")))),
     // The joined element may carry postfixes of its own, except a
     // bare `+`: the final `+` of the joined form is the terminator,
     // so `x.y+` is unambiguous and `x.y++` a repeat of a joined.
-    joined_post: seq(lit("."), ignored(rule("blank")), rule("joined_element"), ignored(rule("blank")), lit("+"), opt(rule("joined_flags"))),
+    joined: seq(ignored(lit(".")), ignored(rule("blank")), rule("joined_element"), ignored(rule("blank")), ignored(lit("+")), opt(rule("joined_flags"))),
     // The flags on a joined's `+`, attached with no blank: `2`
     // (at least two elements), `t` (a trailing joiner is allowed),
     // or both. A closed set, not a count.
-    joined_flags: alt(lit("2t"), lit("2"), lit("t")),
-    joined_element: seq(rule("primary"), rep(false, seq(ignored(rule("blank")), alt(rule("opt_post"), rule("star_post"), rule("ssep_post"))))),
-    star_post: lit("*"),
+    joined_flags: alt(lit("2t"), lit("t2"), lit("2"), lit("t")),
+    joined_element: seq(rule("primary"), rep(false, seq(ignored(rule("blank")), alt(rule("opt"), rule("star"), rule("ssep"))))),
+    star: lit("*"),
 
     primary: alt(
-        rule("if_form"),
+        rule("if"),
         rule("lookahead_pos"),
         rule("lookahead_neg"),
-        rule("sameline_form"),
-        rule("nonempty_form"),
-        rule("empty_alt_form"),
+        rule("sameline"),
+        rule("nonempty"),
+        rule("empty_alt"),
         rule("paren"),
-        rule("try_form"),
-        rule("keyword_form"),
-        rule("bind_form"),
-        rule("tag_form"),
-        rule("ignored_form"),
+        rule("try"),
+        rule("keyword"),
+        rule("bind"),
+        rule("tag"),
+        rule("ignored"),
         rule("literal"),
         rule("rule_ref"),
         rule("param_ref"),
         rule("ambient_ref"),
-        rule("cut_form"),
-        rule("nothing_form"),
-        rule("die_form"),
+        rule("cut"),
+        rule("nothing"),
+        rule("die"),
     ),
 
     // The parenthesized forms. Composite operands of the prefix
     // forms are primaries (parenthesized when composite), exactly as
     // describe renders them.
-    if_form: seq(lit("(?("), rule("postfixed"), lit(")"), ignored(rule("blank")), rule("postfixed"), ignored(rule("blank")), lit("//"), ignored(rule("blank")), rule("postfixed"), lit(")")),
-    lookahead_pos: seq(lit("(?="), rule("postfixed"), lit(")")),
-    lookahead_neg: seq(lit("(?!"), rule("postfixed"), lit(")")),
-    sameline_form: seq(lit("(="), rule("postfixed"), lit(")")),
-    nonempty_form: seq(lit("(+"), rule("postfixed"), lit(")")),
+    if: seq(ignored(lit("(?(")), rule("postfixed"), ignored(lit(")")), ignored(rule("blank")), rule("postfixed"), ignored(rule("blank")), ignored(lit("//")), ignored(rule("blank")), rule("postfixed"), ignored(lit(")"))),
+    lookahead_pos: seq(ignored(lit("(?=")), rule("postfixed"), ignored(lit(")"))),
+    lookahead_neg: seq(ignored(lit("(?!")), rule("postfixed"), ignored(lit(")"))),
+    sameline: seq(ignored(lit("(=")), rule("postfixed"), ignored(lit(")"))),
+    nonempty: seq(ignored(lit("(+")), rule("postfixed"), ignored(lit(")"))),
     // `(|)`: an alternatives with no options.
-    empty_alt_form: seq(lit("("), ignored(rule("blank")), lit("|"), ignored(rule("blank")), lit(")")),
+    empty_alt: ignored(seq(lit("("), rule("blank"), lit("|"), rule("blank"), lit(")"))),
     // A parenthesized body: grouping for sequences and alternatives.
-    paren: seq(lit("("), ignored(rule("blank")), rule("body"), ignored(rule("blank")), lit(")")),
+    paren: seq(ignored(lit("(")), ignored(rule("blank")), rule("body"), ignored(rule("blank")), ignored(lit(")"))),
 
     // `[x]`
-    try_form: seq(lit("["), ignored(rule("blank")), rule("body"), ignored(rule("blank")), lit("]")),
+    try: seq(ignored(lit("[")), ignored(rule("blank")), rule("body"), ignored(rule("blank")), ignored(lit("]"))),
 
     // `%tag=option/option/...`
-    keyword_form: seq(lit("%"), rule("name"), ignored(rule("blank")), lit("="), ignored(rule("blank")), rule("kw_options")),
-    kw_options: seq(rule("kw_option"), rep(false, seq(lit("/"), rule("kw_option")))),
+    keyword: seq(ignored(lit("%")), rule("name"), ignored(rule("blank")), ignored(lit("=")), ignored(rule("blank")), rule("kw_options")),
+    kw_options: seq(rule("kw_option"), rep(false, seq(ignored(lit("/")), rule("kw_option")))),
     kw_option: regex(/[^/\s|()<>\[\],]+/),
 
     // `&name=value-body`, or `&+name=value-body` for a bind whose
     // value extends the binding it shadows. The value and the body
     // are both primaries-with-postfixes, so a composite body is
     // parenthesized and `-` is unambiguous.
-    bind_form: seq(alt(lit("&+"), lit("&")), rule("name"), ignored(rule("blank")), lit("="), ignored(rule("blank")), rule("postfixed"), ignored(rule("blank")), lit("-"), ignored(rule("blank")), rule("postfixed")),
+    bind: seq(alt(lit("&+"), lit("&")), rule("name"), ignored(rule("blank")), ignored(lit("=")), ignored(rule("blank")), rule("postfixed"), ignored(rule("blank")), ignored(lit("-")), ignored(rule("blank")), rule("postfixed")),
 
     // `#tag=item`
-    tag_form: seq(lit("#"), rule("tag_name"), ignored(rule("blank")), lit("="), ignored(rule("blank")), rule("postfixed")),
+    tag: seq(ignored(lit("#")), rule("tag_name"), ignored(rule("blank")), ignored(lit("=")), ignored(rule("blank")), rule("postfixed")),
     tag_name: regex(/[A-Za-z0-9_-]+/),
 
     // `;item` -- a semicolon, not a comma, so the comma stays free
     // for argument lists.
-    ignored_form: seq(lit(";"), ignored(rule("blank")), rule("postfixed")),
+    ignored: seq(ignored(lit(";")), ignored(rule("blank")), rule("postfixed")),
 
     literal: alt(rule("string_literal"), rule("regex_literal")),
     // A JSON string, as produced by stringify.
@@ -189,13 +191,13 @@ export const metaGrammar: Grammar = {
     // slashes inside a class do not end the literal. (Requiring a
     // nonempty source keeps `//`, the if form's separator, from
     // lexing as an empty regex.)
-    regex_literal: seq(lit("/"), rep(true, rule("regex_atom")), lit("/"), regex(/[a-z]*/)),
+    regex_literal: seq(ignored(lit("/")), rep(true, rule("regex_atom")), ignored(lit("/")), regex(/[a-z]*/)),
     regex_atom: alt(
         rule("regex_class"),
         regex(/\\./),
         regex(/[^/\\]/),
     ),
-    regex_class: seq(lit("["), rep(false, rule("regex_class_atom")), lit("]")),
+    regex_class: seq(ignored(lit("[")), rep(false, rule("regex_class_atom")), ignored(lit("]"))),
     regex_class_atom: alt(regex(/\\./), regex(/[^\]\\]/)),
 
     // `<name>` or `<name(arg, ...)>`; a bare `name` or `name(arg,
@@ -204,30 +206,30 @@ export const metaGrammar: Grammar = {
     // (borrowed from Pegase's metagrammar) is what lets a rule body
     // end where the next definition begins.
     rule_ref: alt(
-        seq(lit("<"), ignored(rule("blank")), rule("name"), opt(rule("arg_list")), ignored(rule("blank")), lit(">")),
+        seq(ignored(lit("<")), ignored(rule("blank")), rule("name"), opt(rule("arg_list")), ignored(rule("blank")), ignored(lit(">"))),
         seq(lookahead(false, rule("definition_header")), rule("name"), opt(rule("arg_list"))),
     ),
-    definition_header: seq(rule("name"), ignored(rule("blank")), opt(rule("param_list")), ignored(rule("blank")), lit(":")),
+    definition_header: seq(rule("name"), ignored(rule("blank")), opt(rule("param_list")), ignored(rule("blank")), ignored(lit(":"))),
     // Arguments are bodies, comma-separated. (With the ignored form
     // spelled `;x`, nothing in a body can be mistaken for the comma
     // that separates arguments.)
-    arg_list: seq(lit("("), ignored(rule("blank")), opt(seq(rule("body"), rep(false, seq(ignored(rule("blank")), lit(","), ignored(rule("blank")), rule("body"))))), ignored(rule("blank")), lit(")")),
-    param_list: seq(lit("("), ignored(rule("blank")), opt(seq(rule("name"), rep(false, seq(ignored(rule("blank")), lit(","), ignored(rule("blank")), rule("name"))))), ignored(rule("blank")), lit(")")),
+    arg_list: seq(ignored(lit("(")), ignored(rule("blank")), opt(seq(rule("body"), rep(false, seq(ignored(rule("blank")), ignored(lit(",")), ignored(rule("blank")), rule("body"))))), ignored(rule("blank")), ignored(lit(")"))),
+    param_list: seq(ignored(lit("(")), ignored(rule("blank")), opt(seq(rule("name"), rep(false, seq(ignored(rule("blank")), ignored(lit(",")), ignored(rule("blank")), rule("name"))))), ignored(rule("blank")), ignored(lit(")"))),
 
     // `$name` or `$name:default`
-    param_ref: seq(lit("$"), rule("name"), opt(seq(ignored(rule("blank")), lit(":"), rule("postfixed")))),
+    param_ref: seq(ignored(lit("$")), rule("name"), opt(seq(ignored(rule("blank")), ignored(lit(":")), rule("postfixed")))),
     // `@name` or `@name:default`
-    ambient_ref: seq(lit("@"), rule("name"), opt(seq(ignored(rule("blank")), lit(":"), rule("postfixed")))),
+    ambient_ref: seq(ignored(lit("@")), rule("name"), opt(seq(ignored(rule("blank")), ignored(lit(":")), rule("postfixed")))),
 
     // `!` with an optional depth: `!2`, or a bare `!` for depth 1.
-    cut_form: seq(lit("!"), opt(rule("number"))),
+    cut: seq(ignored(lit("!")), opt(rule("number"))),
     number: regex(/[0-9]+/),
 
     // The empty form `()`.
-    nothing_form: seq(lit("("), ignored(rule("blank")), lit(")")),
+    nothing: ignored(seq(lit("("), rule("blank"), lit(")"))),
 
     // `^"message"`
-    die_form: seq(lit("^"), ignored(rule("blank")), rule("string_literal")),
+    die: seq(ignored(lit("^")), ignored(rule("blank")), rule("string_literal")),
 
     name: regex(/[A-Za-z_][A-Za-z0-9_]*/),
     blank: regex(/\s*/),
