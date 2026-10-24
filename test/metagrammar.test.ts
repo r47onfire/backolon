@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { alt, altFirst, ambient, backolonGrammar, bind, cut, describeCombinator, die, eps, GrammarCombinator, if_, ignored, joined, kw, lit, lookahead, metaGrammar, nonempty, no, opt, param, parseToCST, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "../src";
+import { alt, altFirst, ambient, backolonGrammar, bind, cut, describeCombinator, die, nothing, GrammarCombinator, if_, ignored, joined, kw, lit, lookahead, metaGrammar, nonempty, no, opt, param, parseToCST, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "../src";
 
 /** Parse a combinator description with the metagrammar and require a full, error-free parse. */
 const parsesFully = (text: string) => {
@@ -26,19 +26,19 @@ describe("metagrammar: one form per operation", () => {
     test("ignored", () => roundTrips(ignored(rule("blank"))));
     test("rule", () => {
         roundTrips(rule("expr"));
-        roundTrips(rule("body_exprs", kw("keyword", "end"), eps()));
+        roundTrips(rule("body_exprs", kw("keyword", "end"), nothing()));
     });
     test("param", () => {
         roundTrips(param("end"));
-        roundTrips(param("end", eps()));
+        roundTrips(param("end", nothing()));
     });
     test("ambient", () => {
         roundTrips(ambient("guard"));
-        roundTrips(ambient("guard", eps()));
+        roundTrips(ambient("guard", nothing()));
     });
     test("bind", () => {
-        roundTrips(bind("guard", eps(), rule("expr")));
-        roundTrips(bind("guard", lookahead(false, kw("keyword", "end")), seq(rule("a"), rule("b"))));
+        roundTrips(bind("guard", false, nothing(), rule("expr")));
+        roundTrips(bind("guard", true, lookahead(false, kw("keyword", "end")), seq(rule("a"), rule("b"))));
     });
     test("sequence", () => {
         roundTrips(seq(lit("a"), rule("b"), lit("c")));
@@ -56,7 +56,7 @@ describe("metagrammar: one form per operation", () => {
         roundTrips(rep(true, seq(rule("a"), lit(","))));
     });
     test("joined", () => roundTrips(joined(ignored(rule("ws_comma")), rule("item"), false, true)));
-    test("if", () => roundTrips(if_(eps(), lit("a"), lit("b"))));
+    test("if", () => roundTrips(if_(nothing(), lit("a"), lit("b"))));
     test("tag", () => roundTrips(tag("operator", lit("+"))));
     test("cut", () => roundTrips(cut()));
     test("lookahead", () => {
@@ -65,9 +65,33 @@ describe("metagrammar: one form per operation", () => {
     });
     test("nonempty", () => roundTrips(nonempty(rule("implicit_args"))));
     test("sameline", () => roundTrips(sameline(rule("blank"))));
-    test("nothing", () => roundTrips(eps()));
+    test("nothing", () => roundTrips(nothing()));
     test("try", () => roundTrips(try_(rule("implicit_args"))));
     test("die", () => roundTrips(die("expected a thing")));
+});
+
+describe("metagrammar: whitespace and the empty forms", () => {
+    test("whitespace is insignificant", () => {
+        parsesFully("(  a   |   b  )");
+        parsesFully("(\n\ta\n\t|\n\tb\n)");
+        parsesFully("&+guard =\n\t(?!('end'))\n\t{\n\t\t(x y)\n\t}");
+        parsesFully("[  ('then')  ]");
+        parsesFully("blank .@(\n\tx\n\ty\n)");
+        parsesFully("a . b +");
+        parsesFully("x *");
+    });
+    test("() is nothing", () => {
+        const cst = parseToCST("()", 0, "combinator", metaGrammar, "combinator");
+        expect(cst.end).toBe(2);
+        expect(JSON.stringify(cst)).toContain('"type":"nothing"');
+        parsesFully("( ( ) )");
+    });
+    test("(|) is an empty alternatives", () => {
+        const cst = parseToCST("(|)", 0, "combinator", metaGrammar, "combinator");
+        expect(cst.end).toBe(3);
+        expect(JSON.stringify(cst)).toContain('"type":"alternatives"');
+        parsesFully("( | )");
+    });
 });
 
 describe("metagrammar: the whole Backolon grammar round-trips", () => {
