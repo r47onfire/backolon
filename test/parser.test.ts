@@ -1,5 +1,5 @@
 import { expect, test, describe } from "bun:test";
-import { alt, ambient, backolonGrammar, bind, CSTNode, eps, Grammar, kw, lit, opt, param, parseToCST, regex, rule, seq } from "../src";
+import { alt, ambient, backolonGrammar, bind, CSTNode, nothing, Grammar, kw, lit, opt, param, parseToCST, regex, rule, seq } from "../src";
 
 /** Parse with a synthetic grammar and require a full, error-free parse. */
 const parsesFully = (grammar: Grammar, start: string, text: string): CSTNode => {
@@ -86,7 +86,7 @@ describe("parameterized rules", () => {
 describe("dynamic parameters", () => {
     test("visible across rule boundaries", () => {
         const grammar: Grammar = {
-            main: bind("term", lit("!"), rule("a")),
+            main: bind("term", false, lit("!"), rule("a")),
             a: rule("b"),
             b: seq(lit("x"), ambient("term")),
         };
@@ -95,8 +95,8 @@ describe("dynamic parameters", () => {
 
     test("extent of shadowing", () => {
         const grammar: Grammar = {
-            main: bind("t", lit("a"), seq(rule("inner"), ambient("t"))),
-            inner: bind("t", lit("b"), ambient("t")),
+            main: bind("t", false, lit("a"), seq(rule("inner"), ambient("t"))),
+            inner: bind("t", false, lit("b"), ambient("t")),
         };
         // inner sees "b"; the outer binding is in effect again afterwards
         parsesFully(grammar, "main", "ba");
@@ -104,14 +104,14 @@ describe("dynamic parameters", () => {
 
     test("can reference the parent value in their own definition", () => {
         const grammar: Grammar = {
-            main: bind("t", lit("a"), bind("t", seq(ambient("t"), lit("b")), ambient("t"))),
+            main: bind("t", false, lit("a"), bind("t", false, seq(ambient("t"), lit("b")), ambient("t"))),
         };
         parsesFully(grammar, "main", "ab");
     });
 
     test("clear binding by setting it to eps", () => {
         const grammar: Grammar = {
-            main: bind("t", lit("z"), seq(bind("t", eps(), ambient("t")), ambient("t"))),
+            main: bind("t", false, lit("z"), seq(bind("t", false, nothing(), ambient("t")), ambient("t"))),
         };
         // inside the inner bind the parameter matches nothing; outside, "z" again
         parsesFully(grammar, "main", "z");
@@ -119,7 +119,7 @@ describe("dynamic parameters", () => {
 
     test("memoization keys on ambient context too", () => {
         const grammar: Grammar = {
-            main: alt(bind("t", lit("a"), rule("h")), bind("t", lit("b"), rule("h"))),
+            main: alt(bind("t", false, lit("a"), rule("h")), bind("t", false, lit("b"), rule("h"))),
             h: seq(ambient("t"), lit("!")),
         };
         // h fails under t="a" on this input; under t="b" it must be tried fresh
@@ -128,7 +128,7 @@ describe("dynamic parameters", () => {
 
     test("can work with lexical parameters", () => {
         const grammar: Grammar = {
-            main: bind("x", lit("D"), rule("outer", lit("L"))),
+            main: bind("x", false, lit("D"), rule("outer", lit("L"))),
             outer: [["x"], seq(param("x"), rule("inner", param("x")))],
             inner: [["y"], seq(param("y"), ambient("x"))],
         };
@@ -140,7 +140,7 @@ describe("dynamic parameters", () => {
 
     test("can still be left-recursive", () => {
         const grammar: Grammar = {
-            main: bind("op", lit("+"), rule("e")),
+            main: bind("op", false, lit("+"), rule("e")),
             e: alt(seq(rule("e"), ambient("op"), rule("num")), rule("num")),
             num: regex(/[0-9]+/),
         };
@@ -188,12 +188,12 @@ describe("parameter defaults", () => {
 
     test("binding wins over an ambient default, resolves in the reference site's context", () => {
         const bound: Grammar = {
-            main: bind("sep", lit("good"), ambient("sep", lit("bad"))),
+            main: bind("sep", false, lit("good"), ambient("sep", lit("bad"))),
         };
         parsesFully(bound, "main", "good");
         // the default itself can read other ambient values in effect at the reference
         const nested: Grammar = {
-            main: bind("a", lit("abc"), ambient("notdefined", ambient("a"))),
+            main: bind("a", false, lit("abc"), ambient("notdefined", ambient("a"))),
         };
         parsesFully(nested, "main", "abc");
     });

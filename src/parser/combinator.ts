@@ -29,7 +29,7 @@ export interface OpNodeShapes {
     rule: { name: string, args: GrammarCombinator[] };
     param: { name: string, default: GrammarCombinator | undefined };
     ambient: { name: string, default: GrammarCombinator | undefined };
-    bind: { name: string, value: GrammarCombinator, body: GrammarCombinator };
+    bind: { name: string, value: GrammarCombinator, extend: boolean, body: GrammarCombinator };
     sequence: { items: GrammarCombinator[], separator: GrammarCombinator | undefined };
     alternatives: { options: GrammarCombinator[], first?: boolean };
     optional: { child: GrammarCombinator };
@@ -41,7 +41,7 @@ export interface OpNodeShapes {
     lookahead: { positive: boolean, child: GrammarCombinator };
     nonempty: { child: GrammarCombinator };
     sameline: { child: GrammarCombinator };
-    nothing: Record<never, never>;
+    nothing: {};
     try: { child: GrammarCombinator };
     die: { message: string };
 }
@@ -325,7 +325,7 @@ export interface GrammarOpDefFor<N> {
     describe: (node: N) => string;
 }
 
-const singleChild = (n: GrammarCombinator): { child: GrammarCombinator } => ({ child: n });
+const singleChild = (n: GrammarCombinator) => ({ child: n });
 
 /** The (weak) type of {@link opDefs}: every operation's definition, tied to its declared node shape in {@link OpNodeShapes}. */
 export type OpDefs = { [O in GrammarOp]: GrammarOpDefFor<OpNodeShapes[O]> };
@@ -474,11 +474,11 @@ export const opDefs = {
     // bind
 
     bind: {
-        create: (p: string, value: GrammarCombinator, body: GrammarCombinator) => ({ name: p, value, body }),
-        call(ctx, { name, value, body }, path, i, locals, dynamics) {
+        create: (p: string, extend: boolean, value: GrammarCombinator, body: GrammarCombinator) => ({ name: p, value, extend, body }),
+        call(ctx, { name, value, extend, body }, path, i, locals, dynamics) {
             const frame: DynBindingFrame = {
                 name,
-                node: value,
+                node: extend ? seq(ambient(name, nothing()), value) : value,
                 locals,
                 dynamics,
                 next: dynamics,
@@ -486,8 +486,8 @@ export const opDefs = {
             };
             return ctx.applyRule(path + "/b", body, i, locals, frame);
         },
-        hashFields: [["name", MixAction.String], ["value", MixAction.Child], ["body", MixAction.Child]],
-        describe: ({ name, value, body }) => "&" + name + "=" + describeCombinator(value) + " { " + describeCombinator(body) + " }",
+        hashFields: [["name", MixAction.String], ["value", MixAction.Child], ["extend", MixAction.Boolean], ["body", MixAction.Child]],
+        describe: ({ name, value, extend, body }) => (extend ? "&+" : "&") + name + "=" + describeCombinator(value) + " { " + describeCombinator(body) + " }",
     },
 
     // ---------------------------------------------------------------------------
@@ -871,9 +871,9 @@ export const nonempty = createCombinatorMaker("nonempty");
 /** Parses `n` and fails if the matched span contains a newline. */
 export const sameline = createCombinatorMaker("sameline");
 /** Always matches, consuming no input. */
-export const eps = createCombinatorMaker("nothing");
+export const nothing = createCombinatorMaker("nothing");
 /** Always matches, consuming no input. */
-export const yes = eps;
+export const yes = nothing;
 /** Parses `n` speculatively: if `n` fails, any cut inside it is hidden, so the failure looks ordinary and enclosing alternatives can still fall back. */
 export const try_ = createCombinatorMaker("try");
 /** Always fails, with `m` naming what was expected. The failure carries an infinite cut, so no alternative or recovery is attempted past it. */

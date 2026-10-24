@@ -1,29 +1,4 @@
-import { alt, altFirst, ambient, bind, cut, eps, Grammar, GrammarCombinator, if_, ignored, joined, kw, lit, lookahead, no, nonempty, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_, yes } from "./combinator";
-
-// TODO: make these helpers more combinators, since js functions act like macros
-// which are unavailable to patched code
-
-/**
- * The soft-keyword guard, as a dynamic parameter. At the places an
- * expression or an implicit argument may start, `ignored(guardHere())`
- * succeeds only if the next word is not structural *in the current nesting
- * context*: constructs extend the guard with the keywords that delimit
- * their own parts (so their parts cannot swallow those keywords), and
- * bracketed contexts reset it (nothing inside brackets can end an
- * enclosing block, so every soft keyword is usable as a plain name there).
- * With no binding in effect, the reference-site default blocks nothing:
- * any word may start an expression or an argument at top level. A block
- * construct still claims its delimiting keywords -- not through the
- * guard, but because `expr` tries block expressions before simple ones
- * and takes the first match (see `altFirst`): the name/implicit-call
- * reading of the same text never gets to swallow a block's parts, even
- * where it would match longer.
- */
-const guardName = "guard";
-const guardHere = (): GrammarCombinator => ambient(guardName, eps());
-const guardExtendedBy = (extra: GrammarCombinator, body: GrammarCombinator): GrammarCombinator =>
-    bind(guardName, seq(guardHere(), lookahead(false, extra)), body);
-const guardReset = (body: GrammarCombinator): GrammarCombinator => bind(guardName, eps(), body);
+import { alt, altFirst, ambient, bind, cut, nothing, Grammar, GrammarCombinator, if_, ignored, joined, kw, lit, lookahead, no, nonempty, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_, yes } from "./combinator";
 
 /**
  * The Backolon grammar, as plain combinator data.
@@ -71,7 +46,7 @@ export const backolonGrammar: Grammar = {
             seq(
                 ignored(opt(rule("expr_sep"))),
                 ignored(opt(rule("blank"))),
-                ignored(guardHere()),
+                ignored(ambient("guard", nothing())),
                 rule("expr"),
             ),
         ),
@@ -102,7 +77,7 @@ export const backolonGrammar: Grammar = {
         rule("let_block"),
         rule("simple_let"),
     )),
-    simple_let: guardExtendedBy(kw("keyword", "in"), rule("implicit_args")),
+    simple_let: bind("guard", true, lookahead(false, kw("keyword", "in")), rule("implicit_args")),
     let_block: ssep(
         rule("blank"),
         rule("simple_let"),
@@ -122,7 +97,7 @@ export const backolonGrammar: Grammar = {
     ),
 
     if: ssep(rule("blank"), kw("keyword", "if"), seq(
-        guardExtendedBy(kw("keyword", "then"), rule("expr")),
+        bind("guard", true, lookahead(false, kw("keyword", "then")), rule("expr")),
         ignored(opt(rule("blank"))),
         ignored(opt(kw("keyword", "then"))),
         altFirst(
@@ -166,7 +141,7 @@ export const backolonGrammar: Grammar = {
         ignored(rule("blank")),
         kw("keyword", "catch"),
         ignored(rule("blank")),
-        guardExtendedBy(kw("keyword", "catch", "finally", "else", "end"), rule("expr")),
+        bind("guard", true, lookahead(false, kw("keyword", "catch", "finally", "else", "end")), rule("expr")),
         rule("body_exprs", kw("keyword", "catch", "finally", "else", "end"), no()),
     ),
     trycatch_else: seq(
@@ -197,18 +172,18 @@ export const backolonGrammar: Grammar = {
 
     do: ssep(rule("blank"), kw("keyword", "do", "begin"), rule("body_exprs", kw("keyword", "end"), yes())),
 
-    body_exprs: [["end", "consume"], guardExtendedBy(param("end"), seq(
+    body_exprs: [["end", "consume"], bind("guard", true, lookahead(false, param("end")), seq(
         altFirst(
             seq(
                 ignored(rule("blank_sameline")),
-                ignored(guardHere()),
+                ignored(ambient("guard", nothing())),
                 rule("expr"),
             ),
             seq(
                 rule("exprs"),
             ),
         ),
-        ignored(if_(param("consume"), opt(seq(rule("blank"), param("end"))), eps())),
+        ignored(if_(param("consume"), opt(seq(rule("blank"), param("end"))), nothing())),
     ))],
 
     simple_expr: rule("pipe"),
@@ -224,25 +199,25 @@ export const backolonGrammar: Grammar = {
     normal_pipe: tag("operator", lit("|>")),
     filter_pipe: tag("operator", lit("|?>")),
     map_pipe: tag("operator", lit("|*>")),
-    reduce_pipe: seq(tag("operator", lit("|+>")), cut(), tag("operator", lit("[")), guardReset(rule("exprs")), tag("operator", lit("]"))),
+    reduce_pipe: seq(tag("operator", lit("|+>")), cut(), tag("operator", lit("[")), bind("guard", false, nothing(), rule("exprs")), tag("operator", lit("]"))),
 
     // right associative
     // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try kw_arg
     implicit_call: alt(ssep(rule("blank_sameline"), rule("kw_arg"), try_(nonempty(rule("implicit_args")))), rule("kw_arg")),
     implicit_args: seq(
         // can't use joined() here since the first and second are different + there are lookahead assertions!
-        ignored(guardHere()),
+        ignored(ambient("guard", nothing())),
         lookahead(false, rule("strong_block")),
         altFirst(rule("block_expr"), rule("implicit_call")),
         rep(false, seq(
             ignored(seq(opt(rule("blank_sameline")), rule("comma"), opt(rule("blank_sameline")))),
             lookahead(false, rule("strong_block")),
-            ignored(guardHere()),
+            ignored(ambient("guard", nothing())),
             altFirst(rule("block_expr"), rule("implicit_call"), rule("empty_arg"))
         )),
     ),
 
-    empty_arg: seq(eps(), lookahead(true, rule("comma"))), // only between commas
+    empty_arg: seq(nothing(), lookahead(true, rule("comma"))), // only between commas
 
     // non-associative
     kw_arg: alt(ssep(rule("blank"), rule("assignment"), rule("kw_arg_op"), cut(), rule("assignment")), rule("assignment")),
@@ -317,7 +292,7 @@ export const backolonGrammar: Grammar = {
         rule("needle_in_haystack"),
         rule("haystack_has_needle"),
     ),
-    needle_in_haystack: alt(tag("operator", lit("<:")), seq(ignored(guardHere()), kw("operator", "in"))),
+    needle_in_haystack: alt(tag("operator", lit("<:")), seq(ignored(ambient("guard", nothing())), kw("operator", "in"))),
     haystack_has_needle: alt(tag("operator", lit(":>")), kw("operator", "has")),
 
     // left associative
@@ -391,7 +366,7 @@ export const backolonGrammar: Grammar = {
 
     explicit_call: ssep(rule("blank"), rule("primary"), ignored(tag("operator", lit("("))), cut(), rule("explicit_args"), ignored(tag("operator", lit(")")))),
     explicit_args: alt(
-        guardReset(joined(
+        bind("guard", false, nothing(), joined(
             ignored(rule("ws_comma")),
             alt(rule("expr"), rule("empty_arg")),
             false, true,
@@ -478,7 +453,7 @@ export const backolonGrammar: Grammar = {
     i_x_escape: seq(ignored(lit("x")), cut(), regex(/[0-9a-f]{2}/)),
     i_u_escape: seq(ignored(lit("u")), cut(), regex(/[0-9a-f]{4}/)),
     i_U_escape: seq(ignored(lit("U")), cut(), regex(/\{[0-9a-f]+\}/)),
-    i_interpolation: seq(ignored(tag("escape", lit("\\("))), cut(), guardReset(rule("exprs")), ignored(tag("escape", lit(")")))),
+    i_interpolation: seq(ignored(tag("escape", lit("\\("))), cut(), bind("guard", false, nothing(), rule("exprs")), ignored(tag("escape", lit(")")))),
     i_body: tag("string", regex(/[^"\\]+/)),
 
     regex: tag("regex", seq(ignored(lit("/")), rule("regex_body"), ignored(lit("/")), rule("regex_flags"))),
@@ -490,7 +465,7 @@ export const backolonGrammar: Grammar = {
     boolean_false: kw("boolean", "false", "False", "FALSE"),
 
     collection: ssep(rule("blank"), ignored(tag("operator", lit("["))), cut(), rule("collection_body"), ignored(tag("operator", lit("]")))),
-    collection_body: guardReset(alt(
+    collection_body: bind("guard", false, nothing(), alt(
         rule("empty_collection"),
         joined(ignored(rule("ws_comma")), rule("collection_item"), false, true),
     )),
@@ -499,7 +474,7 @@ export const backolonGrammar: Grammar = {
         rule("empty_list"),
         rule("empty_map"),
     ),
-    empty_list: ignored(eps()),
+    empty_list: ignored(nothing()),
     empty_map: tag("operator", lit(":")),
     collection_item: alt(
         rule("collection_shorthand"),
@@ -507,8 +482,8 @@ export const backolonGrammar: Grammar = {
     ),
     collection_shorthand: ssep(rule("blank"), ignored(rule("quote")), alt(rule("atom"), rule("par_exp")), ignored(tag("operator", lit(":")))),
 
-    quasiquote: tag("quoted", ssep(rule("blank"), ignored(tag("operator", lit("{"))), cut(), guardReset(rule("exprs")), ignored(tag("operator", lit("}"))))),
-    par_exp: ssep(rule("blank"), ignored(tag("operator", lit("("))), cut(), guardReset(rule("exprs")), ignored(tag("operator", lit(")")))),
+    quasiquote: tag("quoted", ssep(rule("blank"), ignored(tag("operator", lit("{"))), cut(), bind("guard", false, nothing(), rule("exprs")), ignored(tag("operator", lit("}"))))),
+    par_exp: ssep(rule("blank"), ignored(tag("operator", lit("("))), cut(), bind("guard", false, nothing(), rule("exprs")), ignored(tag("operator", lit(")")))),
     name: tag("name", regex(/[_\p{L}][_\p{L}\p{N}]*/u)),
 };
 
