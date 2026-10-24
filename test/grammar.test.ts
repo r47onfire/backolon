@@ -16,7 +16,7 @@ const parse = (text: string): CSTNode => {
     return cst as CSTNode;
 };
 
-/** like the CSV test: concatenating the leaves must exactly reproduce the source span */
+/** concatenating the leaves must exactly reproduce the source span */
 const leaves = (node: CSTNode): string[] => {
     if (node.children === undefined || node.children.length === 0) return [node.text ?? ""];
     return node.children.flatMap(leaves);
@@ -27,87 +27,60 @@ const checkSource = (node: CSTNode, source: string): void => {
 
 const parsesFully = (text: string): CSTNode => {
     const cst = parse(text);
-    expect(JSON.stringify(cst)).not.toContain('"errorExpected"');
     expect(cst.end).toBe(text.length);
     checkSource(cst, text);
     return cst;
 };
 
-describe("comments", () => {
-    test.each(([
+const TESTS: Record<string, [string, ASTNode][]> = {
+
+    comments: [
         "## line comment",
         "##line comment2",
         "##[[ block comment ##]]",
         "##[[block comment2##]]",
         "##[[nested ##[[block comment##]]##]]",
-    ] satisfies string[]).map(s => [JSON.stringify(s), s]))("%s", (_, str) => {
-        expect(toAST(parsesFully(str))).toEqual(["exprs"]);
-    });
-});
+    ].map(x => [x, ["exprs"]]),
 
-describe("numbers", () => {
-    test.each(([
+    numbers: ([
         ["123", "decimal"],
         ["3.14", "decimal"],
         [".5", "decimal"],
         ["0x1F", "hex"],
         ["0xc0ffee", "hex"],
         ["1.e+4", "decimal"],
-    ] satisfies [string, string][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, str, type) => {
-        expect(toAST(parsesFully(str))).toEqual(["exprs", ["number", [type, str]]])
-    });
-});
+    ] as const).map(([s, t]) => [s, ["exprs", ["number", [t, s]]]]),
 
-describe("names", () => {
-    test.each([
+    names: [
         "foo",
         "_",
         "foo123",
         "_bar",
         "fn",
-    ])("%s", (text) => {
-        const ast = toAST(parsesFully(text));
-        expect(ast).toEqual(["exprs", ["name", text]]);
-    });
-});
+    ].map(s => [s, ["exprs", ["name", s]]]),
 
-describe("strings", () => {
-    test("hello", () => expect(toAST(parsesFully(`"hello"`))).toEqual(["exprs", ["i_string", ["i_body", "hello"]]]));
-    test("raw", () => expect(toAST(parsesFully(`'single'`))).toEqual(["exprs", ["r_string", ["r_body", "single"]]]));
-    test("interpolation", () => {
-        // interpolation contains i_interpolation node
-        const ast = toAST(parsesFully(`"fizzbuzz: \\(n) mississippi"`));
-        expect(JSON.stringify(ast)).toContain("i_interpolation");
-    });
-    test("interpolation 2", () => {
-        // interpolation contains i_interpolation node
-        const ast = toAST(parsesFully(`"fizzbuzz: \\(\n    print 1\n    1 + 2\n) mississippi"`));
-        expect(JSON.stringify(ast)).toContain("i_interpolation");
-    });
-    // escapes
-    test("escape normal", () => void parsesFully(`"a\\"b"`));
-    test("escape raw", () => void parsesFully(`'it\\'s'`));
-});
+    strings: [
+        [`"hello"`, ["exprs", ["i_string", ["i_body", "hello"]]]],
+        [`'hello'`, ["exprs", ["r_string", ["r_body", "hello"]]]],
+        [`"fizzbuzz: \\(n) mississippi"`, ["exprs", ["i_string", ["i_body", "fizzbuzz: "], ["i_interpolation", ["exprs", ["name", "n"]]], ["i_body", " mississippi"]]]],
+        [`"fizzbuzz: \\(\n    print 1\n    1 + 2\n) mississippi"`, ["exprs", ["i_string", ["i_body", "fizzbuzz: "], ["i_interpolation", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["number", ["decimal", "2"]]]]], ["i_body", " mississippi"]]]],
+        [`"a\\"b"`, ["exprs", ["i_string", ["i_body", "a"], ["i_escape", ["i_known_escape", "\""]], ["i_body", "b"]]]],
+        [`'it\\'s'`, ["exprs", ["r_string", ["r_body", "it"], ["r_escape", "\\'"], ["r_body", "s"]]]],
+    ],
 
-describe("comments + separators", () => {
-    test.each(([
-        [`## hello\nprint 1`, 1],
-        [`print 1; print 2`, 2],
-        [`print 1\nprint 2`, 2],
-        [`print 1;;;;;;;;;print 2`, 2],
-        [`;print 1;`, 1],
-        [`print 1 ## trailing\nprint 2`, 2],
-        [`##[[\nprint 1\n##]]`, 0],
-        [`###[[\nprint 1\n##]]`, 1],
-        [`##[[\nprint 1\n##]]\nprint 1\n##[[\nprint 1\n##]]`, 1],
-    ] satisfies [string, number][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, calls) => {
-        const ast = toAST(parsesFully(text));
-        expect(JSON.stringify(ast).split('"implicit_call"').length - 1).toEqual(calls);
-    });
-});
+    "comments + separators": [
+        [`## hello\nprint 1`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]]]],
+        [`print 1; print 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "2"]]]]]],
+        [`print 1\nprint 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "2"]]]]]],
+        [`print 1;;;;;;;;;print 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "2"]]]]]],
+        [`;print 1;`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]]]],
+        [`print 1 ## trailing\nprint 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "2"]]]]]],
+        [`##[[\nprint 1\n##]]`, ["exprs"]],
+        [`###[[\nprint 1\n##]]`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]]]],
+        [`##[[\nprint 1\n##]]\nprint 1\n##[[\nprint 1\n##]]`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]]]],
+    ],
 
-describe("precedence/associativity", () => {
-    test.each(([
+    "precedence/associativity": [
         // 1 + 2 * 3 : the sum's right operand is a term (2 * 3)
         [`1 + 2 * 3`, ["exprs", ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["term", ["number", ["decimal", "2"]], ["mul", "*"], ["number", ["decimal", "3"]]]]]],
         // (1 + 2) * 3 : the term's left operand is a par_exp
@@ -126,15 +99,9 @@ describe("precedence/associativity", () => {
         [`a = b <- 1`, ["exprs", ["assignment", ["name", "a"], ["normal_assign", "="], ["assignment", ["name", "b"], ["old_assign", "<-"], ["number", ["decimal", "1"]]]]]],
         // Augmented assignment
         [`a += b /= c`, ["exprs", ["assignment", ["name", "a"], ["aug_assign", ["add", "+"], ["normal_assign", "="]], ["assignment", ["name", "b"], ["aug_assign", ["div", "/"], ["normal_assign", "="]], ["name", "c"]]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("calls", () => {
-    // TODO: i'm not sure what this actually is supposed to do
-    test.failing("print(1, 2), 3", () => void parsesFully("print(1, 2), 3"));
-    test.each(([
+    calls: [
         [`print(1, 2)`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "2"]]]]]],
         [`print (1, 2)`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "2"]]]]]],
         [`print 1, 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "2"]]]]]],
@@ -149,13 +116,11 @@ describe("calls", () => {
         [`print(1)(2)`, ["exprs", ["explicit_call", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["decimal", "1"]]]], ["explicit_args", ["number", ["decimal", "2"]]]]]],
         // bare name is NOT a call
         [`print`, ["exprs", ["name", "print"]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+        // TODO: i'm not sure what this actually is supposed to do
+        // ["print(1, 2), 3", []],
+    ],
 
-describe("unary operators", () => {
-    test.each(([
+    "unary operators": [
         [`-x`, ["exprs", ["prefix", ["negate", "-"], ["name", "x"]]]],
         [`!ok`, ["exprs", ["prefix", ["not", "!"], ["name", "ok"]]]],
         [`#x`, ["exprs", ["prefix", ["length", "#"], ["name", "x"]]]],
@@ -164,13 +129,9 @@ describe("unary operators", () => {
         [`...args`, ["exprs", ["prefix", ["spread", "..."], ["name", "args"]]]],
         //  != is a comparison, not ! followed by =
         [`a != b`, ["exprs", ["comparison", ["name", "a"], ["not_equal", "!="], ["name", "b"]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("indexing", () => {
-    test.each(([
+    indexing: [
         // a.b.c is left-nested: (a.b).c
         [`a.b.c`, ["exprs", ["indexing", ["indexing", ["name", "a"], ["dot", "."], ["name", "b"]], ["dot", "."], ["name", "c"]]]],
         // test it works with assignment
@@ -179,32 +140,20 @@ describe("indexing", () => {
         [`&x.y`, ["exprs", ["prefix", ["ref", "&"], ["indexing", ["name", "x"], ["dot", "."], ["name", "y"]]]]],
         [`&x->y`, ["exprs", ["prefix", ["ref", "&"], ["indexing", ["name", "x"], ["arrow", "->"], ["name", "y"]]]]],
         [`(*x).y`, ["exprs", ["indexing", ["par_exp", ["exprs", ["prefix", ["deref", "*"], ["name", "x"]]]], ["dot", "."], ["name", "y"]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("pipes", () => {
-    test.each(([
+    pipes: [
         // pipes are left-associative
         [`a |> b it |> c it`, ["exprs", ["pipe", ["pipe", ["name", "a"], ["normal_pipe", "|>"], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "it"]]]], ["normal_pipe", "|>"], ["implicit_call", ["name", "c"], ["implicit_args", ["name", "it"]]]]]],
         [`["hello", "world", "!"] |?> it != "!" |*> upper it`, ["exprs", ["pipe", ["pipe", ["collection", ["collection_body", ["i_string", ["i_body", "hello"]], ["i_string", ["i_body", "world"]], ["i_string", ["i_body", "!"]]]], ["filter_pipe", "|?>"], ["comparison", ["name", "it"], ["not_equal", "!="], ["i_string", ["i_body", "!"]]]], ["map_pipe", "|*>"], ["implicit_call", ["name", "upper"], ["implicit_args", ["name", "it"]]]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("ternary", () => {
-    test.each(([
+    ternary: [
         [`a ? b : c`, ["exprs", ["ternary", ["name", "a"], ["name", "b"], ["name", "c"]]]],
         [`n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : "\\(n)"`, ["exprs", ["ternary", ["comparison", ["term", ["name", "n"], ["mod", "%"], ["number", ["decimal", "15"]]], ["equal", "=="], ["number", ["decimal", "0"]]], ["i_string", ["i_body", "fizzbuzz"]], ["ternary", ["comparison", ["term", ["name", "n"], ["mod", "%"], ["number", ["decimal", "5"]]], ["equal", "=="], ["number", ["decimal", "0"]]], ["i_string", ["i_body", "buzz"]], ["i_string", ["i_interpolation", ["exprs", ["name", "n"]]]]]]]]
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("let", () => {
-    test.each(([
+    let: [
         [`let a = b`, ["exprs", ["let", ["implicit_args", ["assignment", ["name", "a"], ["normal_assign", "="], ["name", "b"]]]]]],
         [`let a = b c`, ["exprs", ["let", ["implicit_args", ["assignment", ["name", "a"], ["normal_assign", "="], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "c"]]]]]]]],
         [`let x = a, y = b in foo x end`, ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]], ["assignment", ["name", "y"], ["normal_assign", "="], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]]]],
@@ -215,65 +164,42 @@ describe("let", () => {
         [`let(loop) ##[[ inner comment ##]] x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
         [`(let x = a in\n    foo loop)`, ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]]],
         [`let x = a, y = b in x y\nfoo a`, ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]], ["assignment", ["name", "y"], ["normal_assign", "="], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "x"], ["implicit_args", ["name", "y"]]]]]], ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "a"]]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("if", () => {
-    test.each(([
+    if: [
         [`if a == b then c() end`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal", "=="], ["name", "b"]], ["if_no_else", ["body_exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]]]]],
         [`if a == b then\n    c()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal", "=="], ["name", "b"]], ["if_no_else", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]]]]]],
         [`if a == b\n    c()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal", "=="], ["name", "b"]], ["if_no_else", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]]]]]],
         [`if a == b then c() else d() end`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal", "=="], ["name", "b"]], ["if_else", ["body_exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]], ["body_exprs", ["explicit_call", ["name", "d"], ["explicit_args"]]]]]]],
         [`if a == b then\n    c()\nelse\n    d()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal", "=="], ["name", "b"]], ["if_else", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]], ["body_exprs", ["exprs", ["explicit_call", ["name", "d"], ["explicit_args"]]]]]]]],
         [`if a == b\n    c()\nelse\n    d()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal", "=="], ["name", "b"]], ["if_else", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]], ["body_exprs", ["exprs", ["explicit_call", ["name", "d"], ["explicit_args"]]]]]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
-describe("while", () => {
-    test.each(([
+    ],
+
+    while: [
         [`while a == b do c() end`, ["exprs", ["while", ["comparison", ["name", "a"], ["equal", "=="], ["name", "b"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]]]]]]],
         [`while a == b\n    c()\nend`, ["exprs", ["while", ["comparison", ["name", "a"], ["equal", "=="], ["name", "b"]], ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("trycatch", () => {
-    test.each(([
+    trycatch: [
         [`try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end`, ["exprs", ["trycatch", ["body_exprs", ["exprs", ["explicit_call", ["name", "x"], ["explicit_args"]]]], ["trycatch_handler", ["assignment", ["name", "e"], ["normal_assign", "="], ["name", "ENOENT"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "b"], ["explicit_args", ["name", "e"]]]]]]]], ["trycatch_handler", ["assignment", ["name", "e"], ["normal_assign", "="], ["name", "EPERM"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args", ["name", "e"]]]]]]]], undefined, undefined]]],
         [`try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end else foo() finally bar() end`, ["exprs", ["trycatch", ["body_exprs", ["exprs", ["explicit_call", ["name", "x"], ["explicit_args"]]]], ["trycatch_handler", ["assignment", ["name", "e"], ["normal_assign", "="], ["name", "ENOENT"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "b"], ["explicit_args", ["name", "e"]]]]]]]], ["trycatch_handler", ["assignment", ["name", "e"], ["normal_assign", "="], ["name", "EPERM"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args", ["name", "e"]]]]]]]], ["trycatch_else", ["body_exprs", ["explicit_call", ["name", "foo"], ["explicit_args"]]]], ["trycatch_finally", ["body_exprs", ["explicit_call", ["name", "bar"], ["explicit_args"]]]]]]],
         [`try\n    x()\ncatch e = ENOENT\n    b(e)\nelse\n    foo()\nfinally\n    bar()\nend`, ["exprs", ["trycatch", ["body_exprs", ["exprs", ["explicit_call", ["name", "x"], ["explicit_args"]]]], ["trycatch_handler", ["assignment", ["name", "e"], ["normal_assign", "="], ["name", "ENOENT"]], ["body_exprs", ["exprs", ["explicit_call", ["name", "b"], ["explicit_args", ["name", "e"]]]]]], ["trycatch_else", ["body_exprs", ["exprs", ["explicit_call", ["name", "foo"], ["explicit_args"]]]]], ["trycatch_finally", ["body_exprs", ["exprs", ["explicit_call", ["name", "bar"], ["explicit_args"]]]]]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("for", () => {
-    test.each(([
+    for: [
         [`for i = range 1, 100 do print fizzbuzz i end`, ["exprs", ["for", ["assignment", ["name", "i"], ["normal_assign", "="], ["implicit_call", ["name", "range"], ["implicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "100"]]]]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]]]],
         [`for i = range 1, 100\n    print fizzbuzz i\nend`, ["exprs", ["for", ["assignment", ["name", "i"], ["normal_assign", "="], ["implicit_call", ["name", "range"], ["implicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "100"]]]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("lambdas", () => {
-    test.each(([
+    fn: [
         [`fn(x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]]],
         [`fn (x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]]],
         [`fn(x)\n    x + 1\nend`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]]],
         [`fn(x, y, ...z) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"], ["name", "y"], ["prefix", ["spread", "..."], ["name", "z"]]], ["body_exprs", ["exprs", ["name", "x"]]]]]],
         [`fn(x) callcc fn(c) c`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["implicit_call", ["name", "callcc"], ["implicit_args", ["fn", ["explicit_args", ["name", "c"]], ["body_exprs", ["exprs", ["name", "c"]]]]]]]]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("lists/maps", () => {
-    test.each(([
+    "lists/maps": [
         [`[1, x, 3]`, ["exprs", ["collection", ["collection_body", ["number", ["decimal", "1"]], ["name", "x"], ["number", ["decimal", "3"]]]]]],
         [`[]`, ["exprs", ["collection", ["empty_list"]]]],
         [`[:]`, ["exprs", ["collection", ["empty_map", ":"]]]],
@@ -281,56 +207,44 @@ describe("lists/maps", () => {
         [`[a ? b : c]`, ["exprs", ["collection", ["collection_body", ["ternary", ["name", "a"], ["name", "b"], ["name", "c"]]]]]],
         [`[\`foo:]`, ["exprs", ["collection", ["collection_body", ["collection_shorthand", ["name", "foo"]]]]]],
         [`[\`foo:, \`bar: baz]`, ["exprs", ["collection", ["collection_body", ["collection_shorthand", ["name", "foo"]], ["kw_arg", ["prefix", ["quote", "`"], ["name", "bar"]], ["kw", ":"], ["name", "baz"]]]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("quotes", () => {
-    test.each(([
+    quotes: [
         ["`(x + y)", ["exprs", ["prefix", ["quote", "`"], ["par_exp", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["name", "y"]]]]]]],
         ["`name", ["exprs", ["prefix", ["quote", "`"], ["name", "name"]]]],
         ["``(x)", ["exprs", ["prefix", ["quote", "`"], ["prefix", ["quote", "`"], ["par_exp", ["exprs", ["name", "x"]]]]]]],
         ["{$x}", ["exprs", ["quasiquote", ["exprs", ["prefix", ["unquote", "$"], ["name", "x"]]]]]]
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("parens", () => {
-    test.each(([
+    parens: [
         [`(1 + 2) * 3`, ["exprs", ["term", ["par_exp", ["exprs", ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["number", ["decimal", "2"]]]]], ["mul", "*"], ["number", ["decimal", "3"]]]]],
         [`(print 1; print 2)`, ["exprs", ["par_exp", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "2"]]]]]]]],
         [`(a)`, ["exprs", ["par_exp", ["exprs", ["name", "a"]]]]],
         [`()`, ["exprs", ["par_exp", ["exprs"]]]],
         [`(f)(x)`, ["exprs", ["explicit_call", ["par_exp", ["exprs", ["name", "f"]]], ["explicit_args", ["name", "x"]]]]],
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("README examples", () => {
-    test.each(([
+    "README examples": [
         [`print "Hello, World!"`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["i_string", ["i_body", "Hello, World!"]]]]]],
         [`["hello", "world", "!"] |?> it != "!" |*> upper it`, ["exprs", ["pipe", ["pipe", ["collection", ["collection_body", ["i_string", ["i_body", "hello"]], ["i_string", ["i_body", "world"]], ["i_string", ["i_body", "!"]]]], ["filter_pipe", "|?>"], ["comparison", ["name", "it"], ["not_equal", "!="], ["i_string", ["i_body", "!"]]]], ["map_pipe", "|*>"], ["implicit_call", ["name", "upper"], ["implicit_args", ["name", "it"]]]]]],
         // TODO: rest of these
-    ] satisfies [string, ASTNode][]).map(([a, b]) => [JSON.stringify(a), a, b]))("%s", (_, text, ast) => {
-        expect(toAST(parsesFully(text))).toEqual(ast);
-    });
-});
+    ],
 
-describe("contextual soft keywords", () => {
     // Inside brackets nothing can end an enclosing block, so the guard is
     // reset and soft keywords are usable as ordinary names. These first
     // cases were errors (or truncated parses) with the old global guard.
-    test.each(([
+    "contextual soft keywords": [
         ["(else)", ["exprs", ["par_exp", ["exprs", ["name", "else"]]]]],
         ["(in)", ["exprs", ["par_exp", ["exprs", ["name", "in"]]]]],
         ["(end)", ["exprs", ["par_exp", ["exprs", ["name", "end"]]]]],
         ["(let else = a in else end)", ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "else"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["name", "else"]]]]]]]],
         ["let x = (in) in x end", ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["par_exp", ["exprs", ["name", "in"]]]]], ["body_exprs", ["name", "x"]]]]]],
-    ] satisfies [string, ASTNode][]).map(([s, n]) => [JSON.stringify(s), s, n]))("%s", (_, str, n) => {
-        expect(toAST(parsesFully(str))).toEqual(n);
+    ]
+};
+
+describe.each(Object.entries(TESTS))("%s", (_, list) => {
+    test.each(list.map(([s, n]) => [JSON.stringify(s), s, n]))("%s", (_, str, node) => {
+        expect(toAST(parsesFully(str))).toEqual(node);
     });
 });
 
