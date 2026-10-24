@@ -379,7 +379,7 @@ export const opDefs = {
             return cst instanceof MatchFail ? cst : { ignored: true, start: cst.start, end: cst.end, children: [cst] };
         },
         hashFields: [["child", MixAction.Child]],
-        describe: ({ child }) => "," + describeCombinator(child),
+        describe: ({ child }) => ";" + describeCombinator(child),
     },
 
     // ---------------------------------------------------------------------------
@@ -532,7 +532,7 @@ export const opDefs = {
             return { start, end: i, children };
         },
         hashFields: [["items", MixAction.Children], ["separator", MixAction.AuxChild]],
-        describe: ({ items, separator }) => items.length === 0 && !separator ? "\u03B5" : (separator ? describeCombinator(separator) + ".@(" : "(") + items.map(c => describeCombinator(c)).join(" ") + ")",
+        describe: ({ items, separator }) => items.length === 0 && !separator ? "()" : (separator ? describeCombinator(separator) + ".@(" : "(") + items.map(c => describeCombinator(c)).join(" ") + ")",
     },
 
     // ---------------------------------------------------------------------------

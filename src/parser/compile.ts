@@ -58,29 +58,26 @@ const spanText = (node: CSTNode): string => node.children?.length ? node.childre
 
 const find = (node: CSTNode, type: string): CSTNode | undefined => subtrees(node).find(c => c.type === type);
 
-/** Find a descendant through single-child delegation chains (combinator -> alternatives -> alt_options). */
-const descend = (node: CSTNode, type: string): CSTNode | undefined => {
-    if (node.type === type) return node;
-    const only = subtrees(node);
-    return only.length === 1 ? descend(only[0]!, type) : undefined;
-};
-
 // ---------------------------------------------------------------------------
 // Lowering
 
-const compileSequence = (node: CSTNode, grouped: boolean): GrammarCombinator => {
-    const items = subtrees(node).map(compilePostfixed);
-    if (items.length === 1) return grouped ? seq(items[0]!) : items[0]!;
-    return seq(...items);
-};
-
-/** Compile an alternatives-level node: a whole body, or a parenthesized group when `grouped` is set. */
-const compileAlternatives = (node: CSTNode, grouped: boolean): GrammarCombinator => {
-    const options = descend(node, "alt_options") ?? node;
-    const sequences = subtrees(options).filter(c => c.type === "sequence");
-    if (sequences.length === 0) return nothing();
-    if (sequences.length === 1) return compileSequence(sequences[0]!, grouped);
-    return alt(...sequences.map(s => compileSequence(s, false)));
+/**
+ * Compile a body: a sequence or an alternatives (the two never mix),
+ * or the single postfixed a body delegates to. A one-item sequence
+ * and a one-option alternatives are the item itself; a parenthesized
+ * group compiles to whatever its body compiles to.
+ */
+const compileBody = (node: CSTNode): GrammarCombinator => {
+    if (node.type === "combinator" || node.type === "body") return compileBody(subtrees(node)[0]!);
+    if (node.type === "alternatives") {
+        const options = subtrees(node).map(compilePostfixed);
+        return options.length === 1 ? options[0]! : alt(...options);
+    }
+    if (node.type === "sequence") {
+        const items = subtrees(node).map(compilePostfixed);
+        return items.length === 1 ? items[0]! : seq(...items);
+    }
+    return compilePostfixed(node);
 };
 
 /** Compile a primary with its postfixes, applied left to right. A node that is not a postfixed chain is a primary on its own. */
@@ -105,9 +102,9 @@ const compilePostfixed = (node: CSTNode): GrammarCombinator => {
 
 const compilePrimary = (node: CSTNode): GrammarCombinator => {
     switch (node.type) {
-        case "paren": return compileAlternatives(find(node, "alternatives")!, true);
+        case "paren": return compileBody(subtrees(node)[0]!);
         case "empty_alt_form": return no();
-        case "try_form": return try_(compileAlternatives(find(node, "alternatives")!, false));
+        case "try_form": return try_(compileBody(subtrees(node)[0]!));
         case "if_form": {
             const [condition, ifTrue, ifFalse] = subtrees(node).map(compilePostfixed);
             return if_(condition!, ifTrue!, ifFalse!);
@@ -139,7 +136,7 @@ const compilePrimary = (node: CSTNode): GrammarCombinator => {
         case "rule_ref": {
             const name = spanText(find(node, "name")!).trim();
             const argList = find(node, "arg_list");
-            const args = argList ? subtrees(argList).map(compilePostfixed) : [];
+            const args = argList ? subtrees(argList).map(compileBody) : [];
             return rule(name, ...args);
         }
         case "param_ref":
@@ -166,13 +163,13 @@ const compilePrimary = (node: CSTNode): GrammarCombinator => {
 };
 
 /** Compile a combinator CST (from {@link parseCombinator}) into a combinator. */
-export const compileCombinator = (cst: CSTNode): GrammarCombinator => compileAlternatives(cst, false);
+export const compileCombinator = (cst: CSTNode): GrammarCombinator => compileBody(cst);
 
 /** Compile a rule-definition CST (from {@link parseRule}) into a grammar entry: `[name, body]`, or `[name, [params, body]]` for a parameterized rule. */
 export const compileRule = (cst: CSTNode): [string, GrammarCombinator | [string[], GrammarCombinator]] => {
     const name = spanText(find(cst, "name")!).trim();
     const paramList = find(cst, "param_list");
-    const body = compileAlternatives(find(cst, "alternatives")!, false);
+    const body = compileBody(subtrees(cst).find(c => c.type === "alternatives" || c.type === "sequence" || c.type === "body")!);
     return paramList
         ? [name, [subtrees(paramList).map(p => spanText(p).trim()), body]]
         : [name, body];

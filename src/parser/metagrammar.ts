@@ -33,7 +33,7 @@ import { alt, Grammar, ignored, lit, lookahead, opt, regex, rep, rule, seq } fro
  * * `/x/f` -> `regex(/x/f)`
  * * `%t=a/b/c/d...` -> `kw(t, a, b, c, d...)`
  * * `#t=x` -> `tag("t", x)`
- * * `,x` -> `ignored(x)`
+ * * `;x` -> `ignored(x)`
  * * `x.@(y)` -> `ssep(x, y...)`
  * * `x.y+` -> `joined(x, y)` - TODO: require2 and trailing flags
  * * `x+` -> `rep(true, x)`
@@ -74,16 +74,19 @@ export const metaGrammar: Grammar = {
     grammar: seq(ignored(rule("blank")), rep(false, seq(rule("rule_definition"), ignored(rule("blank"))))),
 
     // `name: body`, or `name(param, ...): body` for a parameterized
-    // rule. The body is an alternatives; it ends where the next
-    // definition begins because a bare rule reference may not be a
-    // definition header (see rule_ref).
-    rule_definition: seq(rule("name"), ignored(rule("blank")), opt(rule("param_list")), ignored(rule("blank")), lit(":"), rule("alternatives")),
+    // rule. The body ends where the next definition begins because
+    // a bare rule reference may not be a definition header (see
+    // rule_ref).
+    rule_definition: seq(rule("name"), ignored(rule("blank")), opt(rule("param_list")), ignored(rule("blank")), lit(":"), ignored(rule("blank")), rule("body")),
 
-    // One combinator: alternatives of sequences of postfixed
-    // primaries, with blanks tolerated at the edges.
-    combinator: seq(ignored(rule("blank")), rule("alternatives"), ignored(rule("blank"))),
-    alternatives: seq(ignored(rule("blank")), rule("alt_options"), ignored(rule("blank"))),
-    alt_options: seq(rule("sequence"), rep(false, seq(ignored(rule("blank")), lit("|"), ignored(rule("blank")), rule("sequence")))),
+    // One combinator, with blanks tolerated at the edges. A body is
+    // a sequence or an alternatives, never a mix -- `a | b c` is a
+    // parse error -- so grouping is always explicit: an alternative
+    // inside a sequence, or a sequence inside an alternative, is
+    // parenthesized (which is also how describe renders them).
+    combinator: seq(ignored(rule("blank")), rule("body"), ignored(rule("blank"))),
+    body: alt(rule("alternatives"), rule("sequence")),
+    alternatives: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), lit("|"), ignored(rule("blank")), rule("postfixed")))),
     sequence: seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), rule("postfixed")))),
 
     // A primary with its postfix constructions, applied left to
@@ -143,10 +146,10 @@ export const metaGrammar: Grammar = {
     // `(|)`: an alternatives with no options.
     empty_alt_form: seq(lit("("), ignored(rule("blank")), lit("|"), ignored(rule("blank")), lit(")")),
     // A parenthesized body: grouping for sequences and alternatives.
-    paren: seq(lit("("), rule("alternatives"), lit(")")),
+    paren: seq(lit("("), ignored(rule("blank")), rule("body"), ignored(rule("blank")), lit(")")),
 
     // `[x]`
-    try_form: seq(lit("["), rule("alternatives"), lit("]")),
+    try_form: seq(lit("["), ignored(rule("blank")), rule("body"), ignored(rule("blank")), lit("]")),
 
     // `%tag=option/option/...`
     keyword_form: seq(lit("%"), rule("name"), ignored(rule("blank")), lit("="), ignored(rule("blank")), rule("kw_options")),
@@ -163,8 +166,9 @@ export const metaGrammar: Grammar = {
     tag_form: seq(lit("#"), rule("tag_name"), ignored(rule("blank")), lit("="), ignored(rule("blank")), rule("postfixed")),
     tag_name: regex(/[A-Za-z0-9_-]+/),
 
-    // `,item`
-    ignored_form: seq(lit(","), ignored(rule("blank")), rule("postfixed")),
+    // `;item` -- a semicolon, not a comma, so the comma stays free
+    // for argument lists.
+    ignored_form: seq(lit(";"), ignored(rule("blank")), rule("postfixed")),
 
     literal: alt(rule("string_literal"), rule("regex_literal")),
     // A JSON string, as produced by stringify.
@@ -195,11 +199,10 @@ export const metaGrammar: Grammar = {
         seq(lookahead(false, rule("definition_header")), rule("name"), opt(rule("arg_list"))),
     ),
     definition_header: seq(rule("name"), ignored(rule("blank")), opt(rule("param_list")), ignored(rule("blank")), lit(":")),
-    // Arguments are single combinators (postfixed level): a
-    // composite argument is parenthesized, as describe renders it.
-    // (Parsing arguments at the alternatives level would make the
-    // separating commas ambiguous with the ignored form `,x`.)
-    arg_list: seq(lit("("), ignored(rule("blank")), opt(seq(rule("postfixed"), rep(false, seq(ignored(rule("blank")), lit(","), ignored(rule("blank")), rule("postfixed"))))), ignored(rule("blank")), lit(")")),
+    // Arguments are bodies, comma-separated. (With the ignored form
+    // spelled `;x`, nothing in a body can be mistaken for the comma
+    // that separates arguments.)
+    arg_list: seq(lit("("), ignored(rule("blank")), opt(seq(rule("body"), rep(false, seq(ignored(rule("blank")), lit(","), ignored(rule("blank")), rule("body"))))), ignored(rule("blank")), lit(")")),
     param_list: seq(lit("("), ignored(rule("blank")), opt(seq(rule("name"), rep(false, seq(ignored(rule("blank")), lit(","), ignored(rule("blank")), rule("name"))))), ignored(rule("blank")), lit(")")),
 
     // `$name` or `$name:default`
