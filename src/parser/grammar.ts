@@ -271,7 +271,7 @@ export const backolonGrammar: Grammar = {
     ),
 
     // right associative
-    ternary: alt(ssep(rule("blank"), rule("logical"), tag("operator", lit("?")), cut(), rule("assignment"), cut(), tag("operator", lit(":")), rule("ternary")), rule("logical")),
+    ternary: alt(ssep(rule("blank"), rule("logical"), ignored(tag("operator", lit("?"))), cut(), rule("assignment"), cut(), ignored(tag("operator", lit(":"))), rule("ternary")), rule("logical")),
 
     // left associative
     logical: alt(ssep(rule("blank"), rule("logical"), rule("logical_op"), lookahead(false, rule("assign_op")), cut(), rule("comparison")), rule("comparison")),
@@ -467,7 +467,7 @@ export const backolonGrammar: Grammar = {
         rule("i_interpolation"),
         rule("i_body"),
     ),
-    i_escape: tag("escape", seq(regex(/\\(?!\()/), cut(), rule("i_escape_body"))),
+    i_escape: tag("escape", seq(ignored(regex(/\\(?!\()/)), cut(), rule("i_escape_body"))),
     i_escape_body: alt(
         rule("i_known_escape"),
         rule("i_x_escape"),
@@ -475,9 +475,9 @@ export const backolonGrammar: Grammar = {
         rule("i_U_escape"),
     ),
     i_known_escape: regex(/[abefnrtvz"']/), // cSpell: ignore abefnrtvz
-    i_x_escape: seq(lit("x"), cut(), regex(/[0-9a-f]{2}/)),
-    i_u_escape: seq(lit("u"), cut(), regex(/[0-9a-f]{4}/)),
-    i_U_escape: seq(lit("U"), cut(), regex(/\{[0-9a-f]+\}/)),
+    i_x_escape: seq(ignored(lit("x")), cut(), regex(/[0-9a-f]{2}/)),
+    i_u_escape: seq(ignored(lit("u")), cut(), regex(/[0-9a-f]{4}/)),
+    i_U_escape: seq(ignored(lit("U")), cut(), regex(/\{[0-9a-f]+\}/)),
     i_interpolation: seq(ignored(tag("escape", lit("\\("))), cut(), guardReset(rule("exprs")), ignored(tag("escape", lit(")")))),
     i_body: tag("string", regex(/[^"\\]+/)),
 
@@ -499,7 +499,7 @@ export const backolonGrammar: Grammar = {
         rule("empty_list"),
         rule("empty_map"),
     ),
-    empty_list: eps(),
+    empty_list: ignored(eps()),
     empty_map: tag("operator", lit(":")),
     collection_item: alt(
         rule("collection_shorthand"),
