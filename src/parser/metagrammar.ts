@@ -14,26 +14,26 @@ import { alt, Grammar, ignored, lit, opt, regex, rep, rule, seq } from "./combin
  * * `x.y+` -> `joined(x, y)` - TODO: require2 and trailing flags
  * * `x+` -> `rep(true, x)`
  * * `x*` -> `rep(false, x)`
- * * `[x]` -> `opt(x)`
- * * `(?(x) y / z)` -> `if_(x, y, z)` - TODO: use this syntax
+ * * `x?` -> `opt(x)` - TODO: use this syntax
+ * * `(?(x) y // z)` -> `if_(x, y, z)` - TODO: use this syntax
  * * `(?=x)` -> `lookahead(true, x)`
  * * `(?!x)` -> `lookahead(false, x)`
- * * `(??x)` -> `try_(x)`
+ * * `[x]` -> `try_(x)` - TODO: use this syntax
  * * `(=x)` -> `sameline(x)`
  * * `(+x)` -> `nonempty(x)` - TODO: use this syntax
  * * `!n` -> `cut(n)` - TODO: implement number
  * * `x y z` -> `seq(x, y, z)`
- * * `x | y | z` -> alt(x, y, z)` - TODO: how to do `alt()` / `altFirst()`
+ * * `x | y | z` -> alt(x, y, z)` - TODO: how to denote `alt()` vs `altFirst()`
  * * `<x>` -> `rule("x")` - TODO: implement brackets syntax
  * * `<x(y, z)>` -> `rule("x", y, z...)` - TODO: implement parameter list parsing
  * * `()` -> `nothing()` / `yes()`
  * * `(|)` -> `alt()` / `no()`
  * * `$x` -> `param("x")`
- * * `$x:y` -> `param("x", y)`
+ * * `$x:y` -> `param("x", y)` - TODO: use this syntax
  * * `@x` -> `ambient("x")`
- * * `@x:y` -> `ambient("x", y)`
- * * `&x=y {z}` -> `bind("x", false, y, z)`
- * * `&+x=y {z}` -> `bind("x", true, y, z)`
+ * * `@x:y` -> `ambient("x", y)` - TODO: use this syntax
+ * * `&x=y-z` -> `bind("x", false, y, z)` - TODO: use this syntax
+ * * `&+x=y-z` -> `bind("x", true, y, z)` - TODO: use this syntax
  * * `^"x"` -> `die("x")`
  */
 export const metaGrammar: Grammar = {
