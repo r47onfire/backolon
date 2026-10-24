@@ -310,15 +310,7 @@ export interface OpContext {
  * entry in {@link opDefs} is more precise (its `call` and `describe` are
  * typed against the exact node shape its own `create` returns).
  */
-export interface GrammarOpDef {
-    create: (...args: any[]) => any;
-    call: (ctx: OpContext, node: any, path: string, i: number, locals: Locals, dynamics: Dynamics) => CSTNode | MatchFail;
-    hashFields: readonly (readonly [field: string, action: MixAction])[];
-    describe: (node: any) => string;
-}
-
-/** A {@link GrammarOpDef} made precise for one operation's node shape `N`: `create` returns `N`, `call` and `describe` receive the whole node (`N` plus the common base), and `hashFields` may only name fields of `N`. */
-export interface GrammarOpDefFor<N> {
+export interface GrammarOpDef<N> {
     create: (...args: any[]) => N;
     call: (ctx: OpContext, node: N, path: string, i: number, locals: Locals, dynamics: Dynamics) => CSTNode | MatchFail;
     hashFields: readonly (readonly [field: keyof N, action: MixAction])[];
@@ -328,7 +320,7 @@ export interface GrammarOpDefFor<N> {
 const singleChild = (n: GrammarCombinator) => ({ child: n });
 
 /** The (weak) type of {@link opDefs}: every operation's definition, tied to its declared node shape in {@link OpNodeShapes}. */
-export type OpDefs = { [O in GrammarOp]: GrammarOpDefFor<OpNodeShapes[O]> };
+export type OpDefs = { [O in GrammarOp]: GrammarOpDef<OpNodeShapes[O]> };
 
 /** The definition of every grammar operation, keyed by its `op`. */
 export const opDefs = {
@@ -819,7 +811,7 @@ export const opDefs = {
 } satisfies OpDefs;
 
 function createCombinator<T extends GrammarOp>(type: T, ...args: Parameters<typeof opDefs[T]["create"]>): CombinatorBase & { readonly op: T } & OpNodeShapes[T] {
-    const fields = (opDefs[type] as GrammarOpDef).create(...args) as OpNodeShapes[T];
+    const fields = (opDefs[type] as GrammarOpDef<any>).create(...args) as OpNodeShapes[T];
     return { ...fields, op: type };
 }
 function createCombinatorMaker<T extends GrammarOp>(type: T) {
@@ -885,5 +877,5 @@ export function describeCombinator(node: GrammarCombinator): string {
     // The lookup goes through the loose def type: indexing the table by a
     // not-yet-narrowed op cannot be typed precisely (the precise def for an
     // op is keyed by that op's own node shape).
-    return (opDefs[node.op] as GrammarOpDef).describe(node);
+    return (opDefs[node.op] as GrammarOpDef<any>).describe(node);
 }
