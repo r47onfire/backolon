@@ -1,11 +1,21 @@
 import { describe, expect, test } from "bun:test";
-import { alt, altFirst, ambient, backolonGrammar, bind, cut, describeCombinator, die, nothing, GrammarCombinator, if_, ignored, joined, kw, lit, lookahead, metaGrammar, nonempty, no, opt, param, parseToCST, regex, rep, rule, sameline, seq, ssep, tag, try_ } from "../src";
+import { alt, altFirst, ambient, backolonGrammar, bind, cut, describeCombinator, die, nothing, GrammarCombinator, if_, ignored, joined, kw, lit, lookahead, metaGrammar, nonempty, no, opt, param, parseToCST, regex, rep, rule, sameline, seq, ssep, tag, try_, CSTNode } from "../src";
+
+type ASTNode = string | number | undefined | ASTNode[];
+const toAST = (cst: CSTNode): ASTNode => {
+    const c = () => cst.children?.filter(c => !c.ignored).flatMap(c => c.type ? [toAST(c)] : toAST(c)) ?? [];
+    if (cst.errorExpected) return [cst.type, describeCombinator(cst.errorExpected), cst.end, cst.text];
+    if (cst.type) return [cst.type, ...c()];
+    if (cst.children) return c();
+    return cst.text;
+}
 
 /** Parse a combinator description with the metagrammar and require a full, error-free parse. */
 const parsesFully = (text: string) => {
     const cst = parseToCST(text, 0, "combinator", metaGrammar, "combinator");
     expect(JSON.stringify(cst)).not.toContain('"errorExpected"');
     expect(cst.end).toBe(text.length);
+    console.log(text + "\n" + JSON.stringify(toAST(cst)) + "\n");
 };
 
 /** A combinator's description must be matched in full by the metagrammar. */

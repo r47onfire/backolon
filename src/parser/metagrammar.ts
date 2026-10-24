@@ -2,31 +2,39 @@ import { alt, Grammar, ignored, lit, opt, regex, rep, rule, seq } from "./combin
 
 /**
  * The metagrammar: a grammar for the textual form of combinators, i.e.
- * the notation {@link describeCombinator} renders. The `describe`
- * function of each operation in {@link opDefs} is the normative source
- * for the form of that operation here.
+ * the notation {@link describeCombinator} renders.
  *
- * The entry rule is `combinator`, which matches one combinator
- * description. The rules are layered like the precedence levels of the
- * main grammar: `combinator` is built from `postfixed` (a primary with
- * a postfix construction), which is built from `primary` (the atomic
- * and delimited forms), and each form is its own rule, so the CST of a
- * description mirrors the combinator it describes.
+ * Recognized forms:
  *
- * Whitespace is insignificant: a `blank` may appear around any
- * structural token, and the canonical single spaces of a fresh
- * description are just the smallest case. Two spellings deserve note:
- * `()` is the empty form, nothing (compare the main grammar, where an
- * empty `exprs` is an empty `begin`), and `(|)` is an alternatives
- * with no options, i.e. `no()`.
- *
- * `describe` is lossy in a few corners, and this grammar inherits
- * that: a keyword's tag, a cut's depth, a joined's require2/trailing
- * flags, and an alternatives' first flag are not rendered, so they
- * cannot be recovered from a description either. (Param and ambient
- * defaults likewise are not rendered.) A repeat renders its items
- * back to back, so only the single-item form -- the only one
- * descriptions of real grammars contain -- is recognized here.
+ * * `"x"` -> `lit("x")`
+ * * `/x/f` -> `regex(/x/f)`
+ * * `%t=a/b/c/d...` -> `kw(t, a, b, c, d...)` - TODO: implement this in the grammar and describe
+ * * `#t=x` -> `tag("t", x)`
+ * * `x.@(y)` -> `ssep(x, y...)`
+ * * `x.y+` -> `joined(x, y)` - TODO: require2 and trailing flags
+ * * `x+` -> `rep(true, x)`
+ * * `x*` -> `rep(false, x)`
+ * * `[x]` -> `opt(x)`
+ * * `(?(x) y / z)` -> `if_(x, y, z)` - TODO: use this syntax
+ * * `(?=x)` -> `lookahead(true, x)`
+ * * `(?!x)` -> `lookahead(false, x)`
+ * * `(??x)` -> `try_(x)`
+ * * `(=x)` -> `sameline(x)`
+ * * `(+x)` -> `nonempty(x)` - TODO: use this syntax
+ * * `!n` -> `cut(n)` - TODO: implement number
+ * * `x y z` -> `seq(x, y, z)`
+ * * `x | y | z` -> alt(x, y, z)` - TODO: how to do `alt()` / `altFirst()`
+ * * `<x>` -> `rule("x")` - TODO: implement brackets syntax
+ * * `<x(y, z)>` -> `rule("x", y, z...)` - TODO: implement parameter list parsing
+ * * `()` -> `nothing()` / `yes()`
+ * * `(|)` -> `alt()` / `no()`
+ * * `$x` -> `param("x")`
+ * * `$x:y` -> `param("x", y)`
+ * * `@x` -> `ambient("x")`
+ * * `@x:y` -> `ambient("x", y)`
+ * * `&x=y {z}` -> `bind("x", false, y, z)`
+ * * `&+x=y {z}` -> `bind("x", true, y, z)`
+ * * `^"x"` -> `die("x")`
  */
 export const metaGrammar: Grammar = {
     combinator: seq(ignored(rule("blank")), rule("postfixed"), ignored(rule("blank"))),
