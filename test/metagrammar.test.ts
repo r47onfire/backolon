@@ -89,7 +89,7 @@ describe("mixed alt/seq forms do not parse", () => {
     ];
     test.each(texts.map(s => [JSON.stringify(s), s]))("%s", (_, str) => {
         const cst = parseToCST(str, 0, "combinator", metaGrammar, "combinator");
-        console.log(JSON.stringify(toAST(cst)));
+        // console.log(JSON.stringify(toAST(cst)));
         expect(/errorExpected/.test(JSON.stringify(cst)) || cst.end !== str.length).toBe(true);
     });
 });
