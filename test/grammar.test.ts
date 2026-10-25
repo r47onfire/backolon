@@ -192,12 +192,13 @@ const TESTS: Record<string, [string, ASTNode][]> = {
     ],
 
     fn: [
-        [`fn(x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]]],
-        [`fn (x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]]],
+        [`fn(x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]],
+        [`fn (x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]],
         [`fn(x)\n    x + 1\nend`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]]],
-        [`fn(x, y, ...z) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"], ["name", "y"], ["prefix", ["spread", "..."], ["name", "z"]]], ["body_exprs", ["exprs", ["name", "x"]]]]]],
-        [`fn(x) callcc fn(c) c`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["implicit_call", ["name", "callcc"], ["implicit_args", ["fn", ["explicit_args", ["name", "c"]], ["body_exprs", ["exprs", ["name", "c"]]]]]]]]]]],
-        [`fn(x) x;\nfn(x) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["name", "x"]]]], ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["name", "x"]]]]]],
+        [`fn(x, y, ...z) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"], ["name", "y"], ["prefix", ["spread", "..."], ["name", "z"]]], ["body_exprs", ["name", "x"]]]]],
+        [`fn(x) callcc fn(c) c`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["implicit_call", ["name", "callcc"], ["implicit_args", ["fn", ["explicit_args", ["name", "c"]], ["body_exprs", ["name", "c"]]]]]]]]],
+        [`fn(x) x;\nfn(x) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]], ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]]]],
+        [`fn(x) x\nfn(x) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]], ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]]]],
     ],
 
     "lists/maps": [

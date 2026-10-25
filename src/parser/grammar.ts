@@ -162,7 +162,7 @@ export const backolonGrammar: Grammar = {
         rule("body_exprs", kw("keyword", "end"), yes()),
     )),
 
-    fn: ssep(rule("blank"), kw("keyword", "fn"), ignored(tag("operator", lit("("))), cut(), rule("explicit_args"), ignored(tag("operator", lit(")"))), rule("body_exprs", kw("keyword", "end"), yes())),
+    fn: ssep(rule("blank"), kw("keyword", "fn"), ignored(tag("operator", lit("("))), cut(), rule("explicit_args"), seq(ignored(tag("operator", lit(")"))), rule("body_exprs", kw("keyword", "end"), yes()))),
 
     always: ssep(rule("blank"), kw("keyword", "always"), seq(
         cut(),
