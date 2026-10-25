@@ -13,7 +13,7 @@ const toAST = (cst: CSTNode): ASTNode => {
 const parse = (text: string): CSTNode => {
     const cst = parseToCST(text, 0, "toplevel_exprs", backolonGrammar, "exprs");
     // console.log(text + "\n" + JSON.stringify(toAST(cst)));
-    return cst as CSTNode;
+    return cst;
 };
 
 /** concatenating the leaves must exactly reproduce the source span */
@@ -98,7 +98,7 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         // Right associative: a = (b <- 1)
         [`a = b <- 1`, ["exprs", ["assignment", ["name", "a"], ["normal_assign", "="], ["assignment", ["name", "b"], ["old_assign", "<-"], ["number", ["decimal", "1"]]]]]],
         // Augmented assignment
-        [`a += b /= c`, ["exprs", ["assignment", ["name", "a"], ["aug_assign", ["add", "+"], ["normal_assign", "="]], ["assignment", ["name", "b"], ["aug_assign", ["div", "/"], ["normal_assign", "="]], ["name", "c"]]]]],
+        [`a += b /= c`, ["exprs", ["assignment", ["name", "a"], ["aug_assign", ["add", "+"]], ["assignment", ["name", "b"], ["aug_assign", ["div", "/"]], ["name", "c"]]]]],
     ],
 
     calls: [
@@ -154,8 +154,8 @@ const TESTS: Record<string, [string, ASTNode][]> = {
     ],
 
     let: [
-        [`let a = b`, ["exprs", ["let", ["implicit_args", ["assignment", ["name", "a"], ["normal_assign", "="], ["name", "b"]]]]]],
-        [`let a = b c`, ["exprs", ["let", ["implicit_args", ["assignment", ["name", "a"], ["normal_assign", "="], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "c"]]]]]]]],
+        [`let a = b`, ["exprs", ["let", ["simple_let", ["implicit_args", ["assignment", ["name", "a"], ["normal_assign", "="], ["name", "b"]]]]]]],
+        [`let a = b c`, ["exprs", ["let", ["simple_let", ["implicit_args", ["assignment", ["name", "a"], ["normal_assign", "="], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "c"]]]]]]]]],
         [`let x = a, y = b in foo x end`, ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]], ["assignment", ["name", "y"], ["normal_assign", "="], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]]]],
         [`let x = a, y = b in foo x end a b`, ["exprs", ["let", ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]], ["assignment", ["name", "y"], ["normal_assign", "="], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]], ["implicit_call", ["name", "a"], ["implicit_args", ["name", "b"]]]]],
         [`let(loop) x = a in foo loop end`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["assignment", ["name", "x"], ["normal_assign", "="], ["name", "a"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]],
@@ -197,12 +197,13 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`fn(x)\n    x + 1\nend`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]]],
         [`fn(x, y, ...z) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"], ["name", "y"], ["prefix", ["spread", "..."], ["name", "z"]]], ["body_exprs", ["exprs", ["name", "x"]]]]]],
         [`fn(x) callcc fn(c) c`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["implicit_call", ["name", "callcc"], ["implicit_args", ["fn", ["explicit_args", ["name", "c"]], ["body_exprs", ["exprs", ["name", "c"]]]]]]]]]]],
+        [`fn(x) x;\nfn(x) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["name", "x"]]]], ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["name", "x"]]]]]],
     ],
 
     "lists/maps": [
         [`[1, x, 3]`, ["exprs", ["collection", ["collection_body", ["number", ["decimal", "1"]], ["name", "x"], ["number", ["decimal", "3"]]]]]],
         [`[]`, ["exprs", ["collection", ["empty_list"]]]],
-        [`[:]`, ["exprs", ["collection", ["empty_map", ":"]]]],
+        [`[:]`, ["exprs", ["collection", ["empty_map"]]]],
         [`[foo: 1, bar: 2]`, ["exprs", ["collection", ["collection_body", ["kw_arg", ["name", "foo"], ["kw", ":"], ["number", ["decimal", "1"]]], ["kw_arg", ["name", "bar"], ["kw", ":"], ["number", ["decimal", "2"]]]]]]],
         [`[a ? b : c]`, ["exprs", ["collection", ["collection_body", ["ternary", ["name", "a"], ["name", "b"], ["name", "c"]]]]]],
         [`[\`foo:]`, ["exprs", ["collection", ["collection_body", ["collection_shorthand", ["name", "foo"]]]]]],

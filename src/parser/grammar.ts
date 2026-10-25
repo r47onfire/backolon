@@ -33,7 +33,7 @@ export const backolonGrammar: Grammar = {
     blank_sameline: ignored(sameline(rule("blank_required"))),
 
     comment: ignored(tag("comment", alt(rule("block_comment"), rule("line_comment")))),
-    block_comment: seq(lit("##[["), rep(false, alt(rule("block_comment"), seq(lookahead(false, lit("##]]")), regex(/./s)))), lit("##]]")),
+    block_comment: seq(lit("##[["), rep(false, alt(rule("block_comment"), seq(lookahead(false, lit("##]]")), regex(/((?!##).)+|./s)))), lit("##]]")),
     line_comment: regex(/##(?!\[\[)[^\n]*(\n|$)/),
 
     expr_sep: ignored(rep(true, alt(rule("semi"), rule("nl"), rule("comment")))),
@@ -77,10 +77,12 @@ export const backolonGrammar: Grammar = {
         rule("let_block"),
         rule("simple_let"),
     )),
-    simple_let: bind("guard", true, lookahead(false, kw("keyword", "in")), rule("implicit_args")),
+    // add a blank node before to prevent the single rule wrapped from being elided
+    simple_let: seq(ignored(nothing()), rule("let_header")),
+    let_header: bind("guard", true, lookahead(false, kw("keyword", "in")), rule("implicit_args")),
     let_block: ssep(
         rule("blank"),
-        rule("simple_let"),
+        rule("let_header"),
         seq(
             kw("keyword", "in"),
             // no sep here!
@@ -199,7 +201,7 @@ export const backolonGrammar: Grammar = {
     normal_pipe: tag("operator", lit("|>")),
     filter_pipe: tag("operator", lit("|?>")),
     map_pipe: tag("operator", lit("|*>")),
-    reduce_pipe: seq(tag("operator", lit("|+>")), cut(), tag("operator", lit("[")), bind("guard", false, nothing(), rule("exprs")), tag("operator", lit("]"))),
+    reduce_pipe: seq(ignored(tag("operator", lit("|+>"))), cut(), ignored(tag("operator", lit("["))), bind("guard", false, nothing(), rule("exprs")), ignored(tag("operator", lit("]")))),
 
     // right associative
     // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try kw_arg
@@ -234,7 +236,7 @@ export const backolonGrammar: Grammar = {
         rule("normal_assign"),
     ),
     old_assign: tag("operator", lit("<-")),
-    aug_assign: seq(rule("aug_assign_prefix"), rule("normal_assign")),
+    aug_assign: seq(rule("aug_assign_prefix"), ignored(rule("normal_assign"))),
     normal_assign: tag("operator", regex(/=(?!=)/)),
     aug_assign_prefix: alt(
         rule("logical_op"),
@@ -302,8 +304,8 @@ export const backolonGrammar: Grammar = {
         rule("bitwise_or"),
         rule("bitwise_xor"),
     ),
-    bitwise_and: tag("operator", lit("&")),
-    bitwise_or: tag("operator", regex(/\|(?![?*+>])/)),
+    bitwise_and: tag("operator", regex(/&(?!&)/)),
+    bitwise_or: tag("operator", regex(/\|(?![?*+>|])/)),
     bitwise_xor: tag("operator", lit("^")),
 
     // left associative
@@ -452,7 +454,7 @@ export const backolonGrammar: Grammar = {
     i_known_escape: regex(/[abefnrtvz"']/), // cSpell: ignore abefnrtvz
     i_x_escape: seq(ignored(lit("x")), cut(), regex(/[0-9a-f]{2}/)),
     i_u_escape: seq(ignored(lit("u")), cut(), regex(/[0-9a-f]{4}/)),
-    i_U_escape: seq(ignored(lit("U")), cut(), regex(/\{[0-9a-f]+\}/)),
+    i_U_escape: seq(ignored(lit("U")), cut(), ignored(lit("{")), regex(/[0-9a-f]+/), ignored(lit("}"))),
     i_interpolation: seq(ignored(tag("escape", lit("\\("))), cut(), bind("guard", false, nothing(), rule("exprs")), ignored(tag("escape", lit(")")))),
     i_body: tag("string", regex(/[^"\\]+/)),
 
@@ -475,7 +477,7 @@ export const backolonGrammar: Grammar = {
         rule("empty_map"),
     ),
     empty_list: ignored(nothing()),
-    empty_map: tag("operator", lit(":")),
+    empty_map: ignored(tag("operator", lit(":"))),
     collection_item: alt(
         rule("collection_shorthand"),
         rule("expr"),
