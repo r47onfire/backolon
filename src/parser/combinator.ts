@@ -541,7 +541,7 @@ export const opDefs = {
                 const thisMatch = ctx.applyRule(path + "/" + j, items[j]!, i, locals, dynamics);
                 if (thisMatch instanceof MatchFail) {
                     const childCut = thisMatch.cut;
-                    const d = max(thisMatch.cut, ctx.cutDepth());
+                    const d = max(childCut, ctx.cutDepth() > depthBefore ? ctx.cutDepth() : 0);
                     if (d === 0) {
                         // track the furthest failure for better error messages
                         if (!furthestFail || thisMatch.i > furthestFail.i) furthestFail = thisMatch;
