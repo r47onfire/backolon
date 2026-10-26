@@ -422,11 +422,11 @@ export const backolonGrammar: Grammar = {
     number: tag("number", alt(
         rule("hex"),
         rule("bin"),
-        rule("decimal"),
+        rule("dec"),
     )),
-    hex: regex(/0x[a-f0-9]+/i),
-    bin: regex(/0b[01]+/i),
-    decimal: regex(/((?!0\d)\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?/i),
+    hex: seq(ignored(lit("0x")), cut(), regex(/[a-f0-9]+/i)),
+    bin: seq(ignored(lit("0b")), cut(), regex(/[01]+/i)),
+    dec: regex(/((?!0\d)\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?/i),
 
     string: alt(rule("r_string"), rule("i_string")),
 
@@ -451,7 +451,7 @@ export const backolonGrammar: Grammar = {
         rule("i_u_escape"),
         rule("i_U_escape"),
     ),
-    i_known_escape: regex(/[abefnrtvz"']/), // cSpell: ignore abefnrtvz
+    i_known_escape: regex(/[abefnrtvz"'\\]/), // cSpell: ignore abefnrtvz
     i_x_escape: seq(ignored(lit("x")), cut(), regex(/[0-9a-f]{2}/)),
     i_u_escape: seq(ignored(lit("u")), cut(), regex(/[0-9a-f]{4}/)),
     i_U_escape: seq(ignored(lit("U")), cut(), ignored(lit("{")), regex(/[0-9a-f]+/), ignored(lit("}"))),
@@ -462,7 +462,7 @@ export const backolonGrammar: Grammar = {
     regex_body: regex(/(\[([^\]]|\\\])+\]|\\.|[^\\/\n])*/),
     regex_flags: regex(/[gimsuvy]*/), // cSpell: ignore gimsuvy
 
-    boolean: alt(rule("boolean_true"), rule("boolean_false")),
+    boolean: seq(ignored(nothing()), alt(rule("boolean_true"), rule("boolean_false"))),
     boolean_true: kw("boolean", "true", "True", "TRUE"),
     boolean_false: kw("boolean", "false", "False", "FALSE"),
 

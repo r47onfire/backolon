@@ -1,13 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { backolonGrammar, CSTNode, describeCombinator, parseToCST } from "../src";
+import { backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST } from "../src";
 
 type ASTNode = string | number | undefined | ASTNode[];
 const toAST = (cst: CSTNode): ASTNode => {
-    const c = () => cst.children?.filter(c => !c.ignored).flatMap(c => c.type ? [toAST(c)] : toAST(c)) ?? [];
-    if (cst.errorExpected) return [cst.type, describeCombinator(cst.errorExpected), cst.end, cst.text];
-    if (cst.type) return [cst.type, ...c()];
-    if (cst.children) return c();
-    return cst.text;
+    const recur = (cst: CSTNode): ASTNode => {
+        if (cst.errorExpected) return [cst.type, describeCombinator(cst.errorExpected), cst.end, cst.text];
+        if (cst.type) return [cst.type, ...cst.children!.map(recur)];
+        return cst.text;
+    }
+    return recur(condenseCST(cst));
 }
 
 const parse = (text: string): CSTNode => {
@@ -43,13 +44,13 @@ const TESTS: Record<string, [string, ASTNode][]> = {
     ].map(x => [x, ["exprs"]]),
 
     numbers: ([
-        ["123", "decimal"],
-        ["3.14", "decimal"],
-        [".5", "decimal"],
-        ["0x1F", "hex"],
-        ["0xc0ffee", "hex"],
-        ["1.e+4", "decimal"],
-    ] as const).map(([s, t]) => [s, ["exprs", ["number", [t, s]]]]),
+        ["123", "dec", "123"],
+        ["3.14", "dec", "3.14"],
+        [".5", "dec", ".5"],
+        ["0x1F", "hex", "1F"],
+        ["0xc0ffee", "hex", "c0ffee"], // cSpell: ignore ffee
+        ["1.e+4", "dec", "1.e+4"],
+    ] as const).map(([s, t, r]) => [s, ["exprs", ["number", [t, r]]]]),
 
     names: [
         "foo",
@@ -63,57 +64,57 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`"hello"`, ["exprs", ["i_string", ["i_body", "hello"]]]],
         [`'hello'`, ["exprs", ["r_string", ["r_body", "hello"]]]],
         [`"fizzbuzz: \\(n) mississippi"`, ["exprs", ["i_string", ["i_body", "fizzbuzz: "], ["i_interpolation", ["exprs", ["name", "n"]]], ["i_body", " mississippi"]]]],
-        [`"fizzbuzz: \\(\n    print 1\n    1 + 2\n) mississippi"`, ["exprs", ["i_string", ["i_body", "fizzbuzz: "], ["i_interpolation", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["number", ["decimal", "2"]]]]], ["i_body", " mississippi"]]]],
+        [`"fizzbuzz: \\(\n    print 1\n    1 + 2\n) mississippi"`, ["exprs", ["i_string", ["i_body", "fizzbuzz: "], ["i_interpolation", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["sum", ["number", ["dec", "1"]], ["add", "+"], ["number", ["dec", "2"]]]]], ["i_body", " mississippi"]]]],
         [`"a\\"b"`, ["exprs", ["i_string", ["i_body", "a"], ["i_escape", ["i_known_escape", "\""]], ["i_body", "b"]]]],
         [`'it\\'s'`, ["exprs", ["r_string", ["r_body", "it"], ["r_escape", "\\'"], ["r_body", "s"]]]],
     ],
 
     "comments + separators": [
-        [`## hello\nprint 1`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]]]],
-        [`print 1; print 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "2"]]]]]],
-        [`print 1\nprint 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "2"]]]]]],
-        [`print 1;;;;;;;;;print 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "2"]]]]]],
-        [`;print 1;`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]]]],
-        [`print 1 ## trailing\nprint 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "2"]]]]]],
+        [`## hello\nprint 1`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
+        [`print 1; print 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
+        [`print 1\nprint 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
+        [`print 1;;;;;;;;;print 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
+        [`;print 1;`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
+        [`print 1 ## trailing\nprint 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
         [`##[[\nprint 1\n##]]`, ["exprs"]],
-        [`###[[\nprint 1\n##]]`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]]]],
-        [`##[[\nprint 1\n##]]\nprint 1\n##[[\nprint 1\n##]]`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]]]],
+        [`###[[\nprint 1\n##]]`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
+        [`##[[\nprint 1\n##]]\nprint 1\n##[[\nprint 1\n##]]`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
     ],
 
     "precedence/associativity": [
         // 1 + 2 * 3 : the sum's right operand is a term (2 * 3)
-        [`1 + 2 * 3`, ["exprs", ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["term", ["number", ["decimal", "2"]], ["mul", "*"], ["number", ["decimal", "3"]]]]]],
+        [`1 + 2 * 3`, ["exprs", ["sum", ["number", ["dec", "1"]], ["add", "+"], ["term", ["number", ["dec", "2"]], ["mul", "*"], ["number", ["dec", "3"]]]]]],
         // (1 + 2) * 3 : the term's left operand is a par_exp
-        [`(1 + 2) * 3`, ["exprs", ["term", ["par_exp", ["exprs", ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["number", ["decimal", "2"]]]]], ["mul", "*"], ["number", ["decimal", "3"]]]]],
+        [`(1 + 2) * 3`, ["exprs", ["term", ["par_exp", ["exprs", ["sum", ["number", ["dec", "1"]], ["add", "+"], ["number", ["dec", "2"]]]]], ["mul", "*"], ["number", ["dec", "3"]]]]],
         // left assoc: 1 + 2 + 3 nests the sum on the left
-        [`1 + 2 + 3`, ["exprs", ["sum", ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["number", ["decimal", "2"]]], ["add", "+"], ["number", ["decimal", "3"]]]]],
+        [`1 + 2 + 3`, ["exprs", ["sum", ["sum", ["number", ["dec", "1"]], ["add", "+"], ["number", ["dec", "2"]]], ["add", "+"], ["number", ["dec", "3"]]]]],
         // right assoc pow: 2 ** 3 ** 2 nests factor on the right
-        [`2 ** 3 ** 2`, ["exprs", ["factor", ["number", ["decimal", "2"]], ["pow", "**"], ["factor", ["number", ["decimal", "3"]], ["pow", "**"], ["number", ["decimal", "2"]]]]]],
+        [`2 ** 3 ** 2`, ["exprs", ["factor", ["number", ["dec", "2"]], ["pow", "**"], ["factor", ["number", ["dec", "3"]], ["pow", "**"], ["number", ["dec", "2"]]]]]],
         // -2 ** 2 is -(2 ** 2): prefix outside the factor
-        [`-2 ** 2`, ["exprs", ["prefix", ["negate", "-"], ["factor", ["number", ["decimal", "2"]], ["pow", "**"], ["number", ["decimal", "2"]]]]]],
+        [`-2 ** 2`, ["exprs", ["prefix", ["negate", "-"], ["factor", ["number", ["dec", "2"]], ["pow", "**"], ["number", ["dec", "2"]]]]]],
         // a * -b : term takes a prefix operand
         [`a * -b`, ["exprs", ["term", ["name", "a"], ["mul", "*"], ["prefix", ["negate", "-"], ["name", "b"]]]]],
         // -0.8-8 : (-0.8) - 8
-        [`-0.8-8`, ["exprs", ["sum", ["prefix", ["negate", "-"], ["number", ["decimal", "0.8"]]], ["sub", "-"], ["number", ["decimal", "8"]]]]],
+        [`-0.8-8`, ["exprs", ["sum", ["prefix", ["negate", "-"], ["number", ["dec", "0.8"]]], ["sub", "-"], ["number", ["dec", "8"]]]]],
         // Right associative: a = (b <- 1)
-        [`a = b <- 1`, ["exprs", ["assignment", ["name", "a"], ["normal_assign", "="], ["assignment", ["name", "b"], ["old_assign", "<-"], ["number", ["decimal", "1"]]]]]],
+        [`a = b <- 1`, ["exprs", ["assignment", ["name", "a"], ["normal_assign", "="], ["assignment", ["name", "b"], ["old_assign", "<-"], ["number", ["dec", "1"]]]]]],
         // Augmented assignment
         [`a += b /= c`, ["exprs", ["assignment", ["name", "a"], ["aug_assign", ["add", "+"]], ["assignment", ["name", "b"], ["aug_assign", ["div", "/"]], ["name", "c"]]]]],
     ],
 
     calls: [
-        [`print(1, 2)`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "2"]]]]]],
-        [`print (1, 2)`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "2"]]]]]],
-        [`print 1, 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "2"]]]]]],
+        [`print(1, 2)`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["dec", "1"]], ["number", ["dec", "2"]]]]]],
+        [`print (1, 2)`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["dec", "1"]], ["number", ["dec", "2"]]]]]],
+        [`print 1, 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "2"]]]]]],
         // juxtaposition is right-nested: 'print print 1, 2' parses as 'print(print(1, 2))'
-        [`print print 1, 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "2"]]]]]]]],
+        [`print print 1, 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "2"]]]]]]]],
         // zero args
         [`print()`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args"]]]],
         // (1,,2) has an empty middle arg (null)
-        [`print(1,,2)`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["decimal", "1"]], ["empty_arg", undefined], ["number", ["decimal", "2"]]]]]],
-        [`print 1,,2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]], ["empty_arg", undefined], ["number", ["decimal", "2"]]]]]],
+        [`print(1,,2)`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["dec", "1"]], ["empty_arg", undefined], ["number", ["dec", "2"]]]]]],
+        [`print 1,,2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]], ["empty_arg", undefined], ["number", ["dec", "2"]]]]]],
         // chained calls: f(x)(y)
-        [`print(1)(2)`, ["exprs", ["explicit_call", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["decimal", "1"]]]], ["explicit_args", ["number", ["decimal", "2"]]]]]],
+        [`print(1)(2)`, ["exprs", ["explicit_call", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["dec", "1"]]]], ["explicit_args", ["number", ["dec", "2"]]]]]],
         // bare name is NOT a call
         [`print`, ["exprs", ["name", "print"]]],
         // TODO: i'm not sure what this actually is supposed to do
@@ -150,7 +151,7 @@ const TESTS: Record<string, [string, ASTNode][]> = {
 
     ternary: [
         [`a ? b : c`, ["exprs", ["ternary", ["name", "a"], ["name", "b"], ["name", "c"]]]],
-        [`n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : "\\(n)"`, ["exprs", ["ternary", ["comparison", ["term", ["name", "n"], ["mod", "%"], ["number", ["decimal", "15"]]], ["equal", "=="], ["number", ["decimal", "0"]]], ["i_string", ["i_body", "fizzbuzz"]], ["ternary", ["comparison", ["term", ["name", "n"], ["mod", "%"], ["number", ["decimal", "5"]]], ["equal", "=="], ["number", ["decimal", "0"]]], ["i_string", ["i_body", "buzz"]], ["i_string", ["i_interpolation", ["exprs", ["name", "n"]]]]]]]]
+        [`n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : "\\(n)"`, ["exprs", ["ternary", ["comparison", ["term", ["name", "n"], ["mod", "%"], ["number", ["dec", "15"]]], ["equal", "=="], ["number", ["dec", "0"]]], ["i_string", ["i_body", "fizzbuzz"]], ["ternary", ["comparison", ["term", ["name", "n"], ["mod", "%"], ["number", ["dec", "5"]]], ["equal", "=="], ["number", ["dec", "0"]]], ["i_string", ["i_body", "buzz"]], ["i_string", ["i_interpolation", ["exprs", ["name", "n"]]]]]]]]
     ],
 
     let: [
@@ -187,14 +188,14 @@ const TESTS: Record<string, [string, ASTNode][]> = {
     ],
 
     for: [
-        [`for i = range 1, 100 do print fizzbuzz i end`, ["exprs", ["for", ["assignment", ["name", "i"], ["normal_assign", "="], ["implicit_call", ["name", "range"], ["implicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "100"]]]]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]]]],
-        [`for i = range 1, 100\n    print fizzbuzz i\nend`, ["exprs", ["for", ["assignment", ["name", "i"], ["normal_assign", "="], ["implicit_call", ["name", "range"], ["implicit_args", ["number", ["decimal", "1"]], ["number", ["decimal", "100"]]]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]],
+        [`for i = range 1, 100 do print fizzbuzz i end`, ["exprs", ["for", ["assignment", ["name", "i"], ["normal_assign", "="], ["implicit_call", ["name", "range"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "100"]]]]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]]]],
+        [`for i = range 1, 100\n    print fizzbuzz i\nend`, ["exprs", ["for", ["assignment", ["name", "i"], ["normal_assign", "="], ["implicit_call", ["name", "range"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "100"]]]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]],
     ],
 
     fn: [
-        [`fn(x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]],
-        [`fn (x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]],
-        [`fn(x)\n    x + 1\nend`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["decimal", "1"]]]]]]]],
+        [`fn(x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["dec", "1"]]]]]]],
+        [`fn (x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["dec", "1"]]]]]]],
+        [`fn(x)\n    x + 1\nend`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["sum", ["name", "x"], ["add", "+"], ["number", ["dec", "1"]]]]]]]],
         [`fn(x, y, ...z) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"], ["name", "y"], ["prefix", ["spread", "..."], ["name", "z"]]], ["body_exprs", ["name", "x"]]]]],
         [`fn(x) callcc fn(c) c`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["implicit_call", ["name", "callcc"], ["implicit_args", ["fn", ["explicit_args", ["name", "c"]], ["body_exprs", ["name", "c"]]]]]]]]],
         [`fn(x) x;\nfn(x) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]], ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]]]],
@@ -202,10 +203,10 @@ const TESTS: Record<string, [string, ASTNode][]> = {
     ],
 
     "lists/maps": [
-        [`[1, x, 3]`, ["exprs", ["collection", ["collection_body", ["number", ["decimal", "1"]], ["name", "x"], ["number", ["decimal", "3"]]]]]],
+        [`[1, x, 3]`, ["exprs", ["collection", ["collection_body", ["number", ["dec", "1"]], ["name", "x"], ["number", ["dec", "3"]]]]]],
         [`[]`, ["exprs", ["collection", ["empty_list"]]]],
         [`[:]`, ["exprs", ["collection", ["empty_map"]]]],
-        [`[foo: 1, bar: 2]`, ["exprs", ["collection", ["collection_body", ["kw_arg", ["name", "foo"], ["kw", ":"], ["number", ["decimal", "1"]]], ["kw_arg", ["name", "bar"], ["kw", ":"], ["number", ["decimal", "2"]]]]]]],
+        [`[foo: 1, bar: 2]`, ["exprs", ["collection", ["collection_body", ["kw_arg", ["name", "foo"], ["kw", ":"], ["number", ["dec", "1"]]], ["kw_arg", ["name", "bar"], ["kw", ":"], ["number", ["dec", "2"]]]]]]],
         [`[a ? b : c]`, ["exprs", ["collection", ["collection_body", ["ternary", ["name", "a"], ["name", "b"], ["name", "c"]]]]]],
         [`[\`foo:]`, ["exprs", ["collection", ["collection_body", ["collection_shorthand", ["name", "foo"]]]]]],
         [`[\`foo:, \`bar: baz]`, ["exprs", ["collection", ["collection_body", ["collection_shorthand", ["name", "foo"]], ["kw_arg", ["prefix", ["quote", "`"], ["name", "bar"]], ["kw", ":"], ["name", "baz"]]]]]],
@@ -219,8 +220,8 @@ const TESTS: Record<string, [string, ASTNode][]> = {
     ],
 
     parens: [
-        [`(1 + 2) * 3`, ["exprs", ["term", ["par_exp", ["exprs", ["sum", ["number", ["decimal", "1"]], ["add", "+"], ["number", ["decimal", "2"]]]]], ["mul", "*"], ["number", ["decimal", "3"]]]]],
-        [`(print 1; print 2)`, ["exprs", ["par_exp", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["decimal", "2"]]]]]]]],
+        [`(1 + 2) * 3`, ["exprs", ["term", ["par_exp", ["exprs", ["sum", ["number", ["dec", "1"]], ["add", "+"], ["number", ["dec", "2"]]]]], ["mul", "*"], ["number", ["dec", "3"]]]]],
+        [`(print 1; print 2)`, ["exprs", ["par_exp", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]]]],
         [`(a)`, ["exprs", ["par_exp", ["exprs", ["name", "a"]]]]],
         [`()`, ["exprs", ["par_exp", ["exprs"]]]],
         [`(f)(x)`, ["exprs", ["explicit_call", ["par_exp", ["exprs", ["name", "f"]]], ["explicit_args", ["name", "x"]]]]],
@@ -277,8 +278,8 @@ describe("error nodes", () => {
         expect(errors).toHaveLength(1);
         expect(errors[0]!.end).toBeLessThanOrEqual(6); // the error is before the recovered "2"
         const str = JSON.stringify(toAST(cst));
-        expect(str).toContain(`"decimal","1"`);
-        expect(str).toContain(`"decimal","2"`);
+        expect(str).toContain(`"dec","1"`);
+        expect(str).toContain(`"dec","2"`);
         expect(str).toContain(`"sum"`); // the "1 +" is preserved as a sum, not discarded
     });
     // "(+)" is invalid since + needs at least an argument after it
