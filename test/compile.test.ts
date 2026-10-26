@@ -356,12 +356,10 @@ console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs
             tbc: [callee, ...argv].map((x, i) => [x, [i]]),
         }
     }],
-    sum: [(nodes: [CSTNode, CSTNode, CSTNode]) => {
-        console.log("sum", nodes);
+    binary_op: [(nodes: [CSTNode, CSTNode, CSTNode], table?: Record<string, any>) => {
+        console.log("binary_op", nodes);
         throw 1;
-    }],
-    assignment: [(nodes: [CSTNode, CSTNode, CSTNode]) => {
-        console.log("assignment", nodes);
-        throw 1;
+    }, {
+
     }],
 }, x => x));

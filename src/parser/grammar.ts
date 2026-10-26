@@ -190,8 +190,13 @@ export const backolonGrammar: Grammar = {
 
     simple_expr: rule("pipe"),
 
+    binary_op: [["operand", "op", "lhs", "rhs", "guard"], alt(
+        ssep(rule("blank"), param("lhs"), param("op"), ignored(param("guard")), cut(), param("rhs")),
+        param("operand"),
+    )],
+
     // left associative
-    pipe: alt(ssep(rule("blank"), rule("pipe"), rule("pipe_op"), cut(), rule("implicit_call")), rule("implicit_call")),
+    pipe: rule("binary_op", rule("implicit_call"), rule("pipe_op"), rule("pipe"), rule("implicit_call"), nothing()),
     pipe_op: alt(
         rule("normal_pipe"),
         rule("filter_pipe"),
@@ -222,14 +227,14 @@ export const backolonGrammar: Grammar = {
     empty_arg: seq(nothing(), lookahead(true, rule("comma"))), // only between commas
 
     // non associative
-    kw_arg: alt(ssep(rule("blank"), rule("assignment"), rule("kw_arg_op"), cut(), rule("assignment")), rule("assignment")),
+    kw_arg: rule("binary_op", rule("assignment"), rule("kw_arg_op"), rule("assignment"), rule("assignment"), nothing()),
     kw_arg_op: alt(
         rule("kw"),
     ),
     kw: tag("operator", lit(":")),
 
     // strongly right associative
-    assignment: alt(ssep(rule("blank"), rule("ternary"), rule("assign_op"), cut(), rule("expr")), rule("ternary")),
+    assignment: rule("binary_op", rule("ternary"), rule("assign_op"), rule("ternary"), rule("expr"), nothing()),
     assign_op: alt(
         rule("old_assign"),
         rule("aug_assign"),
@@ -251,7 +256,7 @@ export const backolonGrammar: Grammar = {
     ternary: alt(ssep(rule("blank"), rule("logical"), ignored(tag("operator", lit("?"))), cut(), rule("assignment"), cut(), ignored(tag("operator", lit(":"))), rule("ternary")), rule("logical")),
 
     // left associative
-    logical: alt(ssep(rule("blank"), rule("logical"), rule("logical_op"), lookahead(false, rule("assign_op")), cut(), rule("comparison")), rule("comparison")),
+    logical: rule("binary_op", rule("comparison"), rule("logical_op"), rule("logical"), rule("comparison"), lookahead(false, rule("assign_op"))),
     logical_op: alt(
         rule("logical_and"),
         rule("logical_or"),
@@ -289,7 +294,7 @@ export const backolonGrammar: Grammar = {
     greater: tag("operator", regex(/>(?!>)/)),
 
     // non associative
-    containment: alt(ssep(rule("blank"), rule("bitwise"), rule("containment_op"), cut(), rule("bitwise")), rule("bitwise")),
+    containment: rule("binary_op", rule("bitwise"), rule("containment_op"), rule("bitwise"), rule("bitwise"), nothing()),
     containment_op: alt(
         rule("needle_in_haystack"),
         rule("haystack_has_needle"),
@@ -298,7 +303,7 @@ export const backolonGrammar: Grammar = {
     haystack_has_needle: alt(tag("operator", lit(":>")), kw("operator", "has")),
 
     // left associative
-    bitwise: alt(ssep(rule("blank"), rule("bitwise"), rule("bitwise_op"), lookahead(false, rule("assign_op")), cut(), rule("bitshift")), rule("bitshift")),
+    bitwise: rule("binary_op", rule("bitshift"), rule("bitwise_op"), rule("bitwise"), rule("bitshift"), lookahead(false, rule("assign_op"))),
     bitwise_op: alt(
         rule("bitwise_and"),
         rule("bitwise_or"),
@@ -309,7 +314,7 @@ export const backolonGrammar: Grammar = {
     bitwise_xor: tag("operator", lit("^")),
 
     // left associative
-    bitshift: alt(ssep(rule("blank"), rule("bitshift"), rule("bitshift_op"), lookahead(false, rule("assign_op")), cut(), rule("sum")), rule("sum")),
+    bitshift: rule("binary_op", rule("sum"), rule("bitshift_op"), rule("bitshift"), rule("sum"), lookahead(false, rule("assign_op"))),
     bitshift_op: alt(
         rule("shift_left"),
         rule("shift_right"),
@@ -318,7 +323,7 @@ export const backolonGrammar: Grammar = {
     shift_right: tag("operator", lit(">>")),
 
     // left associative
-    sum: alt(ssep(rule("blank"), rule("sum"), rule("sum_op"), lookahead(false, rule("assign_op")), cut(), rule("term")), rule("term")),
+    sum: rule("binary_op", rule("term"), rule("sum_op"), rule("sum"), rule("term"), lookahead(false, rule("assign_op"))),
     sum_op: alt(
         rule("add"),
         rule("sub"),
@@ -327,7 +332,7 @@ export const backolonGrammar: Grammar = {
     sub: tag("operator", regex(/-(?![>])/)),
 
     // left associative
-    term: alt(ssep(rule("blank"), rule("term"), rule("term_op"), lookahead(false, rule("assign_op")), cut(), rule("factor")), rule("factor")),
+    term: rule("binary_op", rule("factor"), rule("term_op"), rule("term"), rule("factor"), lookahead(false, rule("assign_op"))),
     term_op: alt(
         rule("mul"),
         rule("div"),
@@ -338,14 +343,14 @@ export const backolonGrammar: Grammar = {
     mod: tag("operator", lit("%")),
 
     // right associative
-    factor: alt(ssep(rule("blank"), rule("indexing"), rule("factor_op"), lookahead(false, rule("assign_op")), cut(), rule("factor")), rule("indexing")),
+    factor: rule("binary_op", rule("indexing"), rule("factor_op"), rule("indexing"), rule("factor"), lookahead(false, rule("assign_op"))),
     factor_op: alt(
         rule("pow"),
     ),
     pow: tag("operator", lit("**")),
 
     // left associative
-    indexing: alt(ssep(rule("blank"), rule("indexing"), rule("indexing_op"), cut(), rule("primary")), rule("primary")),
+    indexing: rule("binary_op", rule("primary"), rule("indexing_op"), rule("indexing"), rule("primary"), nothing()),
     indexing_op: alt(
         rule("dot"),
         rule("up_dot"),
