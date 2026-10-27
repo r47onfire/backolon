@@ -47,15 +47,21 @@ export interface CompileBuilder {
     post?: string | null;
 }
 
-export function syncCompile(node: CSTNode, tab: CompilerTable<(items: any, table?: Record<string, any>) => CompileBuilder>, wrap: (compiled: any, node: CSTNode) => any): any {
+export function syncCompile(node: CSTNode, tab: CompilerTable<(items: any, table?: Record<string, any>) => CompileBuilder>, wrap: (compiled: any, node: CSTNode) => any, handleError: (message: any) => any): any {
     const entry = tab[node.type!];
-    if (!entry) throw new Error(`don't know how to compile ${JSON.stringify(node.type)} node`);
-    var { tbc, val, post } = entry[0](node.children!, entry[1]);
-    if (tbc) for (var [node2, path] of tbc) {
-        val = assignPath(val, syncCompile(node2, tab, wrap), path);
-    }
-    if (post) {
-        val = syncCompile({ type: post, children: val } as CSTNode, tab, x => x);
+    var tbc, val, post;
+    if (!entry) val = handleError(`don't know how to compile ${JSON.stringify(node.type)} node`);
+    else try {
+        ({ tbc, val, post } = entry[0](node.children!, entry[1]));
+        if (tbc) for (var [node2, path] of tbc) {
+            val = assignPath(val, syncCompile(node2, tab, wrap, handleError), path);
+        }
+        if (post) {
+            val = syncCompile({ type: post, children: val } as CSTNode, tab, x => x, handleError);
+        }
+        console.log("post-compile", node.type, val);
+    } catch (e) {
+        val = handleError(e);
     }
     return wrap(val, node);
 }
@@ -64,9 +70,11 @@ export function assignPath<T>(val: T, obj: any, path: PropertyKey[]): T {
     var x: any = val;
     if (path.length > 0) {
         for (var i = 0; i < path.length - 1; i++) {
-            x = [path[i]!];
+            x = x[path[i]!];
         }
+        console.log("before set", x, path[i], obj);
         x[path[i]!] = obj;
+        console.log("after set", x);
     }
     else val = obj;
     return val;

@@ -2,238 +2,240 @@ import { last } from "lib0/array";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 
 const SAMPLE_SCRIPT = `
-## comments: comment, line_comment, block_comment, blank
-## a trailing line comment
-##[[ a block comment ##]]
-##[[ nested ##[[ block comment ##]] still a comment ##]]
+foo bar: 1, baz: 2, bing: 3, bax: 4`;
 
-## numbers: number, hex, bin, decimal
-0x1F;
-0xc0ffee;
-0b1010;
-123;
-3.14;
-.5;
-1.e+4;
-1.e+400; ## Should be turned into BigInt so as to not overflow
-1.5e-3;
+// ## comments: comment, line_comment, block_comment, blank
+// ## a trailing line comment
+// ##[[ a block comment ##]]
+// ##[[ nested ##[[ block comment ##]] still a comment ##]]
 
-## names and booleans: name, boolean, boolean_true, boolean_false
-true;
-false;
-True;
-FALSE;
-foo;
-_bar;
-foo123;
-𓆏;  ## unicode name test
+// ## numbers: number, hex, bin, decimal
+// 0x1F;
+// 0xc0ffee;
+// 0b1010;
+// 123;
+// 3.14;
+// .5;
+// 1.e+4;
+// 1.e+400; ## Should be turned into BigInt so as to not overflow
+// 1.5e-3;
 
-## soft keywords as names (the guard is reset inside parens): par_exp
-(else);
-(in);
-(end);
+// ## names and booleans: name, boolean, boolean_true, boolean_false
+// true;
+// false;
+// True;
+// FALSE;
+// foo;
+// _bar;
+// foo123;
+// 𓆏;  ## unicode name test
 
-## strings: string, r_string, r_part, r_body, r_escape
-'hello';
-'it\\'s';
-## i_string, i_part, i_body, i_escape, i_escape_body, i_known_escape
-"hello";
-"esc: \\n \\t \\" \\' \\a \\z";
-## i_x_escape, i_u_escape, i_U_escape
-"\\x41\\x5c";
-"\\u00e9";
-"\\U{1f600}";
-## i_interpolation
-"fizzbuzz: \\(n) mississippi";
-"multi: \\(
-    print 1
-    1 + 2
-) done";
+// ## soft keywords as names (the guard is reset inside parens): par_exp
+// (else);
+// (in);
+// (end);
 
-## regex: regex, regex_body, regex_flags
-re1 = /ab+c/;
-re2 = /[a-z]+\\d/gi;
+// ## strings: string, r_string, r_part, r_body, r_escape
+// 'hello';
+// 'it\\'s';
+// ## i_string, i_part, i_body, i_escape, i_escape_body, i_known_escape
+// "hello";
+// "esc: \\n \\t \\" \\' \\a \\z";
+// ## i_x_escape, i_u_escape, i_U_escape
+// "\\x41\\x5c";
+// "\\u00e9";
+// "\\U{1f600}";
+// ## i_interpolation
+// "fizzbuzz: \\(n) mississippi";
+// "multi: \\(
+//     print 1
+//     1 + 2
+// ) done";
 
-## collections: collection, collection_body, collection_item,
-## ws_comma, comma, empty_collection, empty_list, empty_map
-[1, x, 3];
-[];
-[:];
-[1, 2, 3,];
-[[1, 2], [3]];
-## kw_arg, kw_arg_op, kw (map entries are keyword arguments)
-[foo: 1, bar: 2];
-## collection_shorthand
-[\`foo:];
-[\`foo:, \`bar: baz];
+// ## regex: regex, regex_body, regex_flags
+// re1 = /ab+c/;
+// re2 = /[a-z]+\\d/gi;
 
-## quasiquote, quote, unquote, unquote_splicing
-{x + 1};
-{$x};
-{$.xs};
-\`(x + y);
-\`name;
+// ## collections: collection, collection_body, collection_item,
+// ## ws_comma, comma, empty_collection, empty_list, empty_map
+// [1, x, 3];
+// [];
+// [:];
+// [1, 2, 3,];
+// [[1, 2], [3]];
+// ## kw_arg, kw_arg_op, kw (map entries are keyword arguments)
+// [foo: 1, bar: 2];
+// ## collection_shorthand
+// [\`foo:];
+// [\`foo:, \`bar: baz];
 
-## par_exp (parenthesized expressions)
-(1 + 2) * 3;
-(a);
-();
+// ## quasiquote, quote, unquote, unquote_splicing
+// {x + 1};
+// {$x};
+// {$.xs};
+// \`(x + y);
+// \`name;
 
-## calls: explicit_call, explicit_args, implicit_call,
-## implicit_args, empty_arg, blank_sameline, blank_required
-print(1, 2);
-print (1, 2);
-print();
-print(1,,2);
-print(1,);
-print(1)(2);
-print 1, 2;
-print print 1, 2;
-print 1,,2;
-configure mode: "fast", level: 3;
+// ## par_exp (parenthesized expressions)
+// (1 + 2) * 3;
+// (a);
+// ();
 
-## indexing: indexing, indexing_op, dot, up_dot, arrow
-a.b.c;
-a..b;
-a->b;
-a.b.c = d.e.f;
+// ## calls: explicit_call, explicit_args, implicit_call,
+// ## implicit_args, empty_arg, blank_sameline, blank_required
+// print(1, 2);
+// print (1, 2);
+// print();
+// print(1,,2);
+// print(1,);
+// print(1)(2);
+// print 1, 2;
+// print print 1, 2;
+// print 1,,2;
+// configure mode: "fast", level: 3;
 
-## prefix: prefix, prefix_op, negate, abs, not, bit_not, length,
-## spread, ref, deref, special, lazy, unquote, unquote_splicing
--x;
-+x;
-!ok;
-~mask;
-#list;
-...args;
-&ptr;
-*ptr;
-@special;
-^lazy;
-$val;
-$.vals;
+// ## indexing: indexing, indexing_op, dot, up_dot, arrow
+// a.b.c;
+// a..b;
+// a->b;
+// a.b.c = d.e.f;
 
-## sum, sum_op, add, sub, term, term_op, mul, div, mod,
-## factor, factor_op, pow
-1 + 2 * 3 - 4 / 5 % 6;
-2 ** 3 ** 2;
-## bitshift, bitshift_op, shift_left, shift_right
-a << 2 >> 1;
-## bitwise, bitwise_op, bitwise_and, bitwise_or, bitwise_xor
-a & b | c ^ d;
-## containment, containment_op, needle_in_haystack, haystack_has_needle
-needle <: haystack;
-needle in haystack;
-haystack :> needle;
-haystack has needle;
-## comparison, comparison_op, equal, not_equal, lte, gte, less, greater
-a == b != c <= d >= e < f > g;
-## logical, logical_op, logical_and, logical_or
-a || b;
-a && b;
-a and b or c;
-## ternary
-a ? b : c;
-n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : "\\(n)";
+// ## prefix: prefix, prefix_op, negate, abs, not, bit_not, length,
+// ## spread, ref, deref, special, lazy, unquote, unquote_splicing
+// -x;
+// +x;
+// !ok;
+// ~mask;
+// #list;
+// ...args;
+// &ptr;
+// *ptr;
+// @special;
+// ^lazy;
+// $val;
+// $.vals;
 
-## pipes: pipe, pipe_op, normal_pipe, filter_pipe, map_pipe, reduce_pipe
-a |> b it |> c it;
-["hello", "world", "!"] |?> it != "!" |*> upper it;
-xs |+>[init] _ + it;
+// ## sum, sum_op, add, sub, term, term_op, mul, div, mod,
+// ## factor, factor_op, pow
+// 1 + 2 * 3 - 4 / 5 % 6;
+// 2 ** 3 ** 2;
+// ## bitshift, bitshift_op, shift_left, shift_right
+// a << 2 >> 1;
+// ## bitwise, bitwise_op, bitwise_and, bitwise_or, bitwise_xor
+// a & b | c ^ d;
+// ## containment, containment_op, needle_in_haystack, haystack_has_needle
+// needle <: haystack;
+// needle in haystack;
+// haystack :> needle;
+// haystack has needle;
+// ## comparison, comparison_op, equal, not_equal, lte, gte, less, greater
+// a == b != c <= d >= e < f > g;
+// ## logical, logical_op, logical_and, logical_or
+// a || b;
+// a && b;
+// a and b or c;
+// ## ternary
+// a ? b : c;
+// n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : "\\(n)";
 
-## assignment: assignment, assign_op, normal_assign, old_assign,
-## aug_assign, aug_assign_prefix
-x = 1;
-a = b <- 1;
-x += 1;
-x -= 1;
-x *= 2;
-x /= 2;
-x %= 2;
-x **= 2;
-x &= mask;
-x |= mask;
-x ^= mask;
-x <<= 1;
-x >>= 1;
-x &&= y;
-x and= y;
-x ||= y;
-x or= y;
+// ## pipes: pipe, pipe_op, normal_pipe, filter_pipe, map_pipe, reduce_pipe
+// a |> b it |> c it;
+// ["hello", "world", "!"] |?> it != "!" |*> upper it;
+// xs |+>[init] _ + it;
 
-## let, simple_let, let_block, let_loop_block
-let a = b;
-let x = a, y = b in foo x end;
-let(loop) x = a in foo loop end;
+// ## assignment: assignment, assign_op, normal_assign, old_assign,
+// ## aug_assign, aug_assign_prefix
+// x = 1;
+// a = b <- 1;
+// x += 1;
+// x -= 1;
+// x *= 2;
+// x /= 2;
+// x %= 2;
+// x **= 2;
+// x &= mask;
+// x |= mask;
+// x ^= mask;
+// x <<= 1;
+// x >>= 1;
+// x &&= y;
+// x and= y;
+// x ||= y;
+// x or= y;
 
-## if, if_else, if_no_else, body_exprs
-if a == b then c() end;
-if a == b then c() else d() end;
-if a == b
-    c()
-else
-    d()
-end;
-if a == b
-    c()
-end;
+// ## let, simple_let, let_block, let_loop_block
+// let a = b;
+// let x = a, y = b in foo x end;
+// let(loop) x = a in foo loop end;
 
-## while
-while a == b do c() end;
-while a == b
-    c()
-end;
+// ## if, if_else, if_no_else, body_exprs
+// if a == b then c() end;
+// if a == b then c() else d() end;
+// if a == b
+//     c()
+// else
+//     d()
+// end;
+// if a == b
+//     c()
+// end;
 
-## for
-for i = range 1, 100 do print fizzbuzz i end;
-for i = range 1, 100
-    print fizzbuzz i
-end;
+// ## while
+// while a == b do c() end;
+// while a == b
+//     c()
+// end;
 
-## trycatch, trycatch_guarded, trycatch_handler,
-## trycatch_else, trycatch_finally
-try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end;
-try
-    x()
-catch e = ENOENT
-    b(e)
-else
-    foo()
-finally
-    bar()
-end;
+// ## for
+// for i = range 1, 100 do print fizzbuzz i end;
+// for i = range 1, 100
+//     print fizzbuzz i
+// end;
 
-## with, always, do, strong_block
-with resource
-    use resource
-end;
-always @(tick)
-    print "tick changed"
-end;
-do
-    print "block"
-end;
-begin
-    print "block"
-end;
-schedule do print "later" end;
+// ## trycatch, trycatch_guarded, trycatch_handler,
+// ## trycatch_else, trycatch_finally
+// try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end;
+// try
+//     x()
+// catch e = ENOENT
+//     b(e)
+// else
+//     foo()
+// finally
+//     bar()
+// end;
 
-## fn
-fn(x) x + 1;
-fn(x)
-    x + 1
-end;
-fn(x, y, ...z) x;
-fn() 42;
-fn(x) callcc fn(c) c;
-map xs, fn(x) x * 2;
+// ## with, always, do, strong_block
+// with resource
+//     use resource
+// end;
+// always @(tick)
+//     print "tick changed"
+// end;
+// do
+//     print "block"
+// end;
+// begin
+//     print "block"
+// end;
+// schedule do print "later" end;
 
-## separators: exprs, expr_sep, semi, nl
-print 1; print 2;
-print 1
-print 2
-print 1;;;;;;;;;print 2
-`;
+// ## fn
+// fn(x) x + 1;
+// fn(x)
+//     x + 1
+// end;
+// fn(x, y, ...z) x;
+// fn() 42;
+// fn(x) callcc fn(c) c;
+// map xs, fn(x) x * 2;
+
+// ## separators: exprs, expr_sep, semi, nl
+// print 1; print 2;
+// print 1
+// print 2
+// print 1;;;;;;;;;print 2
+// `;
 
 console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs", backolonGrammar, "exprs", "BAD")), {
     exprs: [(nodes: CSTNode[]) => {
@@ -284,6 +286,13 @@ console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs
         return {
             val: ["local", nodes[0]!.text],
         };
+    }],
+    regex: [(nodes: [CSTNode, CSTNode]) => {
+        const body = nodes[0].children![0]!.text!;
+        const flags = nodes[1].children![0]!.text!;
+        return {
+            val: new RegExp(body, flags),
+        }
     }],
     r_string: [(nodes: CSTNode[]) => {
         return {
@@ -354,12 +363,69 @@ console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs
         return {
             val: [],
             tbc: [callee, ...argv].map((x, i) => [x, [i]]),
+            post: "callPOST",
         }
     }],
-    binary_op: [(nodes: [CSTNode, CSTNode, CSTNode], table?: Record<string, any>) => {
-        console.log("binary_op", nodes);
-        throw 1;
-    }, {
-
+    // TODO: this is the same as implicit_call
+    explicit_call: [(nodes: [CSTNode, CSTNode]) => {
+        const callee = nodes[0];
+        const argv = nodes[1].children!;
+        return {
+            val: [],
+            tbc: [callee, ...argv].map((x, i) => [x, [i]]),
+            post: "callPOST",
+        }
     }],
-}, x => x));
+    empty_arg: [() => ({ val: ["empty"] })],
+    callPOST: [(node: any[]) => {
+        if (Array.isArray(node[0]) && node[0][0] === "local") {
+            return { val: [node[0][1], ...node.slice(1)] }
+        }
+        return { val: node };
+    }],
+    binary_op: [(nodes: [CSTNode, CSTNode, CSTNode], table?: Record<string, [template: any, left: PropertyKey[], right: PropertyKey[], child?: PropertyKey[]]>) => {
+        const left = nodes[0];
+        const right = nodes[2];
+        const op = nodes[1];
+        const child = op.children?.[0];
+        const opName = op.type!;
+        const entry = table![opName];
+        if (!entry) throw new Error("unknown binary operator type " + opName);
+        const [template, leftPath, rightPath, childPath] = entry;
+        return {
+            val: template,
+            tbc: [[left, leftPath], [right, rightPath], ...(childPath ? [[child, childPath] as [CSTNode, PropertyKey[]]] : [])],
+        }
+    }, {
+        add: [["add"], [1], [2]],
+        sub: [["sub"], [1], [2]],
+        mul: [["mul"], [1], [2]],
+        div: [["div"], [1], [2]],
+        normal_assign: [["set"], [1], [2]],
+        kw: [["kw"], [1], [2]],
+    } as Record<string, [template: any, left: PropertyKey[], right: PropertyKey[], child?: PropertyKey[]]>],
+    prefix: [(nodes: [CSTNode, CSTNode], table?: Record<string, string>) => {
+        const func = table![nodes[0].type!];
+        if (!func) throw new Error("unknown prefix operator type " + nodes[0].type);
+        return {
+            val: [func],
+            tbc: [[nodes[1], [1]]],
+        };
+    }, {
+        quote: "quote",
+        unquote: "unquote",
+        unquote_splicing: "unquote_splicing"
+    }],
+    collection: [(nodes: [CSTNode]) => {
+        console.log("collection", nodes);
+        const hasMap = nodes.some(n => n.type === "");
+        console.log("TODO TODO");
+        return { val: "__COLLECTION_HERE__" };
+    }],
+    quasiquote: [(nodes: [CSTNode]) => {
+        return {
+            val: ["quasiquote"],
+            tbc: [[nodes[0], [1]]],
+        }
+    }],
+}, x => x, x => { throw x instanceof Error ? x : Error(x); }));

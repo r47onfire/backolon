@@ -146,7 +146,7 @@ const TESTS: Record<string, [string, ASTNode][]> = {
     pipes: [
         // pipes are left-associative
         [`a |> b it |> c it`, ["exprs", ["binary_op", ["binary_op", ["name", "a"], ["normal_pipe", "|>"], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "it"]]]], ["normal_pipe", "|>"], ["implicit_call", ["name", "c"], ["implicit_args", ["name", "it"]]]]]],
-        [`["hello", "world", "!"] |?> it != "!" |*> upper it`, ["exprs", ["binary_op", ["binary_op", ["collection", ["collection_body", ["i_string", ["i_body", "hello"]], ["i_string", ["i_body", "world"]], ["i_string", ["i_body", "!"]]]], ["filter_pipe", "|?>"], ["comparison", ["name", "it"], ["not_equal", "!="], ["i_string", ["i_body", "!"]]]], ["map_pipe", "|*>"], ["implicit_call", ["name", "upper"], ["implicit_args", ["name", "it"]]]]]],
+        [`["hello", "world", "!"] |?> it != "!" |*> upper it`, ["exprs", ["binary_op", ["binary_op", ["collection", ["i_string", ["i_body", "hello"]], ["i_string", ["i_body", "world"]], ["i_string", ["i_body", "!"]]], ["filter_pipe", "|?>"], ["comparison", ["name", "it"], ["not_equal", "!="], ["i_string", ["i_body", "!"]]]], ["map_pipe", "|*>"], ["implicit_call", ["name", "upper"], ["implicit_args", ["name", "it"]]]]]],
     ],
 
     ternary: [
@@ -203,13 +203,13 @@ const TESTS: Record<string, [string, ASTNode][]> = {
     ],
 
     "lists/maps": [
-        [`[1, x, 3]`, ["exprs", ["collection", ["collection_body", ["number", ["dec", "1"]], ["name", "x"], ["number", ["dec", "3"]]]]]],
+        [`[1, x, 3]`, ["exprs", ["collection", ["number", ["dec", "1"]], ["name", "x"], ["number", ["dec", "3"]]]]],
         [`[]`, ["exprs", ["collection", ["empty_list"]]]],
         [`[:]`, ["exprs", ["collection", ["empty_map"]]]],
-        [`[foo: 1, bar: 2]`, ["exprs", ["collection", ["collection_body", ["binary_op", ["name", "foo"], ["kw", ":"], ["number", ["dec", "1"]]], ["binary_op", ["name", "bar"], ["kw", ":"], ["number", ["dec", "2"]]]]]]],
-        [`[a ? b : c]`, ["exprs", ["collection", ["collection_body", ["ternary", ["name", "a"], ["name", "b"], ["name", "c"]]]]]],
-        [`[\`foo:]`, ["exprs", ["collection", ["collection_body", ["collection_shorthand", ["name", "foo"]]]]]],
-        [`[\`foo:, \`bar: baz]`, ["exprs", ["collection", ["collection_body", ["collection_shorthand", ["name", "foo"]], ["binary_op", ["prefix", ["quote", "`"], ["name", "bar"]], ["kw", ":"], ["name", "baz"]]]]]],
+        [`[foo: 1, bar: 2]`, ["exprs", ["collection", ["binary_op", ["name", "foo"], ["kw", ":"], ["number", ["dec", "1"]]], ["binary_op", ["name", "bar"], ["kw", ":"], ["number", ["dec", "2"]]]]]],
+        [`[a ? b : c]`, ["exprs", ["collection", ["ternary", ["name", "a"], ["name", "b"], ["name", "c"]]]]],
+        [`[\`foo:]`, ["exprs", ["collection", ["collection_shorthand", ["name", "foo"]]]]],
+        [`[\`foo:, \`bar: baz]`, ["exprs", ["collection", ["collection_shorthand", ["name", "foo"]], ["binary_op", ["prefix", ["quote", "`"], ["name", "bar"]], ["kw", ":"], ["name", "baz"]]]]],
     ],
 
     quotes: [
@@ -229,7 +229,7 @@ const TESTS: Record<string, [string, ASTNode][]> = {
 
     "README examples": [
         [`print "Hello, World!"`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["i_string", ["i_body", "Hello, World!"]]]]]],
-        [`["hello", "world", "!"] |?> it != "!" |*> upper it`, ["exprs", ["binary_op", ["binary_op", ["collection", ["collection_body", ["i_string", ["i_body", "hello"]], ["i_string", ["i_body", "world"]], ["i_string", ["i_body", "!"]]]], ["filter_pipe", "|?>"], ["comparison", ["name", "it"], ["not_equal", "!="], ["i_string", ["i_body", "!"]]]], ["map_pipe", "|*>"], ["implicit_call", ["name", "upper"], ["implicit_args", ["name", "it"]]]]]],
+        [`["hello", "world", "!"] |?> it != "!" |*> upper it`, ["exprs", ["binary_op", ["binary_op", ["collection", ["i_string", ["i_body", "hello"]], ["i_string", ["i_body", "world"]], ["i_string", ["i_body", "!"]]], ["filter_pipe", "|?>"], ["comparison", ["name", "it"], ["not_equal", "!="], ["i_string", ["i_body", "!"]]]], ["map_pipe", "|*>"], ["implicit_call", ["name", "upper"], ["implicit_args", ["name", "it"]]]]]],
         // TODO: rest of these
     ],
 

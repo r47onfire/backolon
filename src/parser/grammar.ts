@@ -471,11 +471,10 @@ export const backolonGrammar: Grammar = {
     boolean_true: kw("boolean", "true", "True", "TRUE"),
     boolean_false: kw("boolean", "false", "False", "FALSE"),
 
-    collection: ssep(rule("blank"), ignored(tag("operator", lit("["))), cut(), rule("collection_body"), ignored(tag("operator", lit("]")))),
-    collection_body: bind("guard", false, nothing(), alt(
+    collection: ssep(rule("blank"), ignored(tag("operator", lit("["))), cut(), bind("guard", false, nothing(), alt(
         rule("empty_collection"),
         joined(ignored(rule("ws_comma")), rule("collection_item"), false, true),
-    )),
+    )), ignored(tag("operator", lit("]")))),
     ws_comma: seq(rule("blank"), rule("comma"), rule("blank")),
     empty_collection: alt(
         rule("empty_list"),
