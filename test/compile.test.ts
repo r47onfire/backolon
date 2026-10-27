@@ -393,7 +393,7 @@ console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs
         if (!entry) throw new Error("unknown binary operator type " + opName);
         const [template, leftPath, rightPath, childPath] = entry;
         return {
-            val: template,
+            val: template.slice(),
             tbc: [[left, leftPath], [right, rightPath], ...(childPath ? [[child, childPath] as [CSTNode, PropertyKey[]]] : [])],
         }
     }, {
