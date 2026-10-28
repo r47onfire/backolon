@@ -426,7 +426,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
         kw: [["kw"], [1], [2]],
         dot: ["dotPRE", [], []],
         up_dot: ["up_dotPRE", [], []],
-        normal_pipe: [[["fn", true, ["it"]]], [1], [0, ]],
+        normal_pipe: [[["fn", true, ["it"]]], [1], [0, 3]],
         map_pipe: [["map", , ["fn", true, ["it"]]], [1], [2, 3]],
         filter_pipe: [["filter", , ["fn", true, ["it"]]], [1], [2, 3]],
         reduce_pipe: [["reduce", , , ["fn", true, ["_", "it"]]], [1], [3, 3], [2]],
