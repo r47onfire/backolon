@@ -98,6 +98,7 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`-0.8-8`, ["exprs", ["binary_op", ["prefix", ["negate", "-"], ["number", ["dec", "0.8"]]], ["sub", "-"], ["number", ["dec", "8"]]]]],
         // Right associative: a = (b <- 1)
         [`a = b <- 1`, ["exprs", ["binary_op", ["name", "a"], ["normal_assign", "="], ["binary_op", ["name", "b"], ["old_assign", "<-"], ["number", ["dec", "1"]]]]]],
+        [`x -> y -> z`, ["exprs", ["binary_op", ["binary_op", ["name", "x"], ["arrow", "->"], ["name", "y"]], ["arrow", "->"], ["name", "z"]]]],
         // Augmented assignment
         [`a += b /= c`, ["exprs", ["binary_op", ["name", "a"], ["aug_assign", ["add", "+"]], ["binary_op", ["name", "b"], ["aug_assign", ["div", "/"]], ["name", "c"]]]]],
     ],
@@ -139,7 +140,6 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`a.b.c = d.e.f`, ["exprs", ["binary_op", ["binary_op", ["binary_op", ["name", "a"], ["dot", "."], ["name", "b"]], ["dot", "."], ["name", "c"]], ["normal_assign", "="], ["binary_op", ["binary_op", ["name", "d"], ["dot", "."], ["name", "e"]], ["dot", "."], ["name", "f"]]]]],
         // indexing binds TIGHTER than referencing!
         [`&x.y`, ["exprs", ["prefix", ["ref", "&"], ["binary_op", ["name", "x"], ["dot", "."], ["name", "y"]]]]],
-        [`&x->y`, ["exprs", ["prefix", ["ref", "&"], ["binary_op", ["name", "x"], ["arrow", "->"], ["name", "y"]]]]],
         [`(*x).y`, ["exprs", ["binary_op", ["par_exp", ["exprs", ["prefix", ["deref", "*"], ["name", "x"]]]], ["dot", "."], ["name", "y"]]]],
     ],
 

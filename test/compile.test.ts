@@ -1,10 +1,9 @@
-import { last } from "lib0/array";
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `x + 1; -x`;
+const SAMPLE_SCRIPT = //`x + 1; -x; ~x`;
 
-`
+    `
 ## comments: comment, line_comment, block_comment, blank
 ## a trailing line comment
 ##[[ a block comment ##]]
@@ -249,6 +248,12 @@ else console.log(JSON.stringify(syncCompile(cst, {
             tbc: nodes.length === 1 ? [[nodes[0]!, []]] : nodes.map((i, j) => [i!, [j + 1]]),
         }
     }],
+    body_exprs: [(nodes: CSTNode[]) => {
+        return {
+            val: ["begin"],
+            tbc: nodes.length === 1 ? [[nodes[0]!, []]] : nodes.map((i, j) => [i!, [j + 1]]),
+        }
+    }],
     number: [(nodes: CSTNode[], table?: Record<string, number>) => {
         const node = nodes[0]!;
         const type = node.type!;
@@ -337,7 +342,17 @@ else console.log(JSON.stringify(syncCompile(cst, {
         "\\": "\\",
     }],
     i_stringPOST: [(nodes: (string | CSTNode)[]) => {
-        nodes = nodes.reduce((acc, item) => isString(last(acc)) && isString(item) ? [...acc.slice(-1), last(acc) + item] : [...acc, item], [] as (string | CSTNode)[]);
+        nodes = nodes.reduce((acc, item) => {
+            const lastitem = acc.pop()!;
+            console.error("lastitem", [lastitem, acc]);
+            if (typeof lastitem === "string" && typeof item == "string") {
+                acc.push(lastitem + item);
+            } else {
+                acc.push(lastitem, item);
+            }
+            return acc;
+        }, [""] as (string | CSTNode)[]);
+        console.error("asdfghjkl", nodes);
         return {
             val: nodes.slice(1).reduce((acc, cur) => ["add", acc, cur] as any, nodes[0])
         }
@@ -393,11 +408,28 @@ else console.log(JSON.stringify(syncCompile(cst, {
         sub: [["sub"], [1], [2]],
         mul: [["mul"], [1], [2]],
         div: [["div"], [1], [2]],
+        mod: [["mod"], [1], [2]],
+        pow: [["pow"], [1], [2]],
+        shift_right: [["shr"], [1], [2]],
+        shift_left: [["shl"], [1], [2]],
+        bitwise_xor: [["bitXor"], [1], [2]],
+        bitwise_and: [["bitAnd"], [1], [2]],
+        bitwise_or: [["bitOr"], [1], [2]],
+        logical_and: [["and"], [1], [2]],
+        logical_or: [["or"], [1], [2]],
+        needle_in_haystack: [["in"], [1], [2]],
+        haystack_has_needle: [["in"], [2], [1]],
         normal_assign: [["set"], [1], [2]],
+        old_assign: [["set", , , true], [1], [2]],
+        aug_assign: [["set________TODO"], [1], [2], [3]],
         arrow: [["set"], [2], [1]],
         kw: [["kw"], [1], [2]],
         dot: ["dotPRE", [], []],
         up_dot: ["up_dotPRE", [], []],
+        normal_pipe: [[["fn", true, ["it"]]], [1], [0, 3]],
+        map_pipe: [["map", , ["fn", true, ["it"]]], [1], [2, 3]],
+        filter_pipe: [["filter", , ["fn", true, ["it"]]], [1], [2, 3]],
+        reduce_pipe: [["reduce", , , ["fn", true, ["_", "it"]]], [1], [3, 3], [2]],
     } as Record<string, [template: any, left: PropertyKey[], right: PropertyKey[], child?: PropertyKey[]]>],
     dotPRE: [(nodes: [CSTNode, CSTNode]) => {
         const left = nodes[0];
@@ -420,7 +452,31 @@ else console.log(JSON.stringify(syncCompile(cst, {
             val: "__UP_DOT_HERE__",
         }
     }],
-    prefix: [(nodes: [CSTNode, CSTNode], table?: Record<string, string>) => {
+    comparison: [(nodes: CSTNode[], tab?: Record<string, any>) => {
+        const simple = nodes.length <= 3;
+        if (simple) {
+            const left = nodes[0]!;
+            const right = nodes[2]!;
+            const op = nodes[1]!;
+            const opName = op.type!;
+            const entry = tab![opName];
+            if (!entry) throw new Error("unknown comparison operator type " + opName);
+            return {
+                val: [entry],
+                tbc: [[left, [1]], [right, [2]]],
+            }
+        }
+        // make func expression, but still honor short-circuiting rules
+        // e.g. evaluate a, evaluate b, compare, if false, return false, else evaluate c and compare to b, etc.
+        // compare(a, b, c, d, e) => (fn(x, y) compare(x, y) and compare(y, c, d, e))(a, b)
+        return {
+            val: "__COMPARE_HERE__",
+        }
+    }, {
+        equal: "eq",
+        not_equal: "notEq"
+    }],
+    prefix: [(nodes: [CSTNode, CSTNode], table?: Record<string, any>) => {
         const func = table![nodes[0].type!];
         if (!func) throw new Error("unknown prefix operator type " + nodes[0].type);
         return {
@@ -430,7 +486,17 @@ else console.log(JSON.stringify(syncCompile(cst, {
     }, {
         quote: "quote",
         unquote: "unquote",
-        unquote_splicing: "unquote_splicing"
+        unquote_splicing: "unquote_splicing",
+        negate: "sub",
+        abs: "add",
+        not: "not",
+        bit_not: "bitInv",
+        length: "length",
+        spread: "splat",
+        ref: "ref",
+        deref: "deref",
+        special: "resolve",
+        lazy: "lazy",
     }],
     collection: [(nodes: [CSTNode]) => {
         console.error("collection", nodes);
@@ -444,4 +510,42 @@ else console.log(JSON.stringify(syncCompile(cst, {
             tbc: [[nodes[0], [1]]],
         }
     }],
+    ternary: [(nodes: [CSTNode, CSTNode, CSTNode]) => {
+        return {
+            val: ["if"],
+            tbc: [[nodes[0], [1]], [nodes[1], [2]], [nodes[2], [3]]],
+        }
+    }],
+    if: [(nodes: [CSTNode, CSTNode]) => {
+        const cond = nodes[0], body = nodes[1];
+        if (body.type === "if_no_else") {
+            return {
+                val: ["if"],
+                tbc: [[cond, [1]], [body.children![0]!, [2]]],
+            }
+        }
+        const [ifTrue, ifFalse] = body.children!;
+        return {
+            val: ["if"],
+            tbc: [[cond, [1]], [ifTrue!, [2]], [ifFalse!, [3]]],
+        }
+    }],
+    let: [(nodes: [CSTNode]) => {
+        const node = nodes[0];
+        const type = node.type!;
+        switch (type) {
+            case "simple_let":
+                console.error("LET_SIMPLE", node.children);
+                break;
+            case "let_block":
+                console.error("LET_BLOCK", node.children);
+                break;
+            case "let_loop_block":
+                console.error("LET_LOOP_BLOCK", node.children);
+                break;
+            default:
+                throw new Error("unknown let type " + type);
+        }
+        return { val: "__LET_HERE__" }
+    }]
 }, x => x, x => { throw x instanceof Error ? x : Error(x); }), (_, x) => typeof x === "bigint" ? ["BIGINT", x + ""] : x, 2));
