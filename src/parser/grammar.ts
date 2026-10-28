@@ -408,7 +408,7 @@ export const backolonGrammar: Grammar = {
 
     length: tag("operator", lit("#")),
     spread: tag("operator", lit("...")),
-    negate: tag("operator", regex(/-(?![^>])/)),
+    negate: tag("operator", regex(/-(?!>)/)),
     abs: tag("operator", lit("+")),
     not: tag("operator", regex(/!(?!=)/)),
     bit_not: tag("operator", lit("~")),
