@@ -98,7 +98,8 @@ export const hashCombinator = (g: GrammarCombinator, resolve?: ReferenceResolver
         const value = (g as any)[field] as unknown;
         if (value === undefined) continue;
         switch (action) {
-            case MixAction.String: mix(javaHash(value as string), 31); break;
+            case MixAction.String:
+            case MixAction.Tag: mix(javaHash(value as string), 31); break;
             case MixAction.Number: mix(value as number, 31); break;
             case MixAction.Boolean: mix(value ? 1 : 0, 31); break;
             case MixAction.Text:
@@ -153,9 +154,9 @@ export const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dyn
                 body: hashCombinator(body, resolveWith(scopeLocals, inner)),
             };
             var h = javaHash(node.op);
-            for (var { 0: field, 1: action } of opDefs.bind.hashFields) {
+            for (var { 0: field, 1: action } of opDefs[node.op].hashFields) {
                 if (action === MixAction.Child) h = (imul(h, 31) + childHashes[field]!) >>> 0;
-                else if (action === MixAction.String) h = (imul(h, 31) + javaHash((node as any)[field] as string)) >>> 0;
+                else if (action === MixAction.String || action === MixAction.Tag) h = (imul(h, 31) + javaHash((node as any)[field] as string)) >>> 0;
             }
             return h;
         }
@@ -230,6 +231,8 @@ export type Dynamics = DynBindingFrame | undefined;
 export enum MixAction {
     /** a string, hashed with javaHash */
     String,
+    /** same as {@link String} but semantically a tag */
+    Tag,
     /** a number, mixed as-is */
     Number,
     /** a boolean, mixed as 1 or 0 */
@@ -242,7 +245,9 @@ export enum MixAction {
     Child,
     /** an array of sub-combinators, each hashed recursively */
     Children,
-    /** a single sub-combinator in the auxiliary role (separator, joiner, condition), hashed recursively with a different constant so it cannot be confused with a sequential child */
+    /** a single sub-combinator in the auxiliary role (separator, joiner, condition),
+     * hashed recursively with a different constant so it cannot be confused with a
+     * sequential child */
     AuxChild,
 }
 
@@ -357,7 +362,7 @@ export const opDefs = {
             const match = re.exec(ctx.text);
             return match ? { text: match[0], tag, start: i, end: i + match[0].length, ignored: true } : new MatchFail(i, 0, node as GrammarCombinator);
         },
-        hashFields: [["tag", MixAction.String], ["options", MixAction.StringArray]],
+        hashFields: [["tag", MixAction.Tag], ["options", MixAction.StringArray]],
         describe: ({ tag, options }) => "%" + tag + "=" + options.join("/"),
     },
 
@@ -715,7 +720,7 @@ export const opDefs = {
             const cst = ctx.applyRule(path + "/", child, i, locals, dynamics);
             return cst instanceof MatchFail ? cst : { tag: tagName, start: cst.start, end: cst.end, children: [cst] };
         },
-        hashFields: [["tag", MixAction.String], ["child", MixAction.Child]],
+        hashFields: [["tag", MixAction.Tag], ["child", MixAction.Child]],
         describe: ({ tag, child }) => "#" + tag + "=" + describeCombinator(child),
     },
 
