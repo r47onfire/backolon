@@ -9,6 +9,7 @@ import { alt, altFirst, ambient, bind, cut, Grammar, if_, ignored, joined, kw, l
  * * pipe
  * * implicit_call
  * * kw_arg
+ * * assign_rev
  * * assignment
  * * ternary
  * * logical
@@ -190,9 +191,9 @@ export const backolonGrammar: Grammar = {
 
     simple_expr: rule("pipe"),
 
-    binary_op: [["operand", "op", "lhs", "rhs", "guard"], alt(
+    binary_op: [["nomatch", "op", "lhs", "rhs", "guard"], alt(
         ssep(rule("blank"), param("lhs"), param("op"), ignored(param("guard")), cut(), param("rhs")),
-        param("operand"),
+        param("nomatch"),
     )],
 
     // left associative
@@ -227,11 +228,18 @@ export const backolonGrammar: Grammar = {
     empty_arg: seq(nothing(), lookahead(true, rule("comma"))), // only between commas
 
     // non associative
-    kw_arg: rule("binary_op", rule("assignment"), rule("kw_arg_op"), rule("assignment"), rule("assignment"), nothing()),
+    kw_arg: rule("binary_op", rule("assign_rev"), rule("kw_arg_op"), rule("assign_rev"), rule("assign_rev"), nothing()),
     kw_arg_op: alt(
         rule("kw"),
     ),
     kw: tag("operator", lit(":")),
+
+    // left associative
+    assign_rev: rule("binary_op", rule("assignment"), rule("assign_rev_op"), rule("assign_rev"), rule("assignment"), nothing()),
+    assign_rev_op: alt(
+        rule("arrow"),
+    ),
+    arrow: tag("operator", lit("->")),
 
     // strongly right associative
     assignment: rule("binary_op", rule("ternary"), rule("assign_op"), rule("ternary"), rule("expr"), nothing()),
@@ -343,22 +351,33 @@ export const backolonGrammar: Grammar = {
     mod: tag("operator", lit("%")),
 
     // right associative
-    factor: rule("binary_op", rule("indexing"), rule("factor_op"), rule("indexing"), rule("factor"), lookahead(false, rule("assign_op"))),
+    factor: rule("binary_op", rule("postfix"), rule("factor_op"), rule("postfix"), rule("factor"), lookahead(false, rule("assign_op"))),
     factor_op: alt(
         rule("pow"),
     ),
     pow: tag("operator", lit("**")),
 
+    // postfix: a call binds to a whole indexing chain, so calls and
+    // indexing are one left-associative level entered through here
+    postfix: altFirst(rule("explicit_call"), rule("indexing")),
+
+    explicit_call: ssep(rule("blank"), rule("postfix"), ignored(tag("operator", lit("("))), cut(), rule("explicit_args"), ignored(tag("operator", lit(")")))), explicit_args: alt(
+        bind("guard", false, nothing(), joined(
+            ignored(rule("ws_comma")),
+            alt(rule("expr"), rule("empty_arg")),
+            false, true,
+        )),
+        seq(), // empty args
+    ), // allow blank arguments
+
     // left associative
-    indexing: rule("binary_op", rule("primary"), rule("indexing_op"), rule("indexing"), rule("primary"), nothing()),
+    indexing: rule("binary_op", rule("primary"), rule("indexing_op"), rule("postfix"), rule("primary"), nothing()),
     indexing_op: alt(
         rule("dot"),
         rule("up_dot"),
-        rule("arrow"),
     ),
     dot: tag("operator", lit(".")),
     up_dot: tag("operator", lit("..")),
-    arrow: tag("operator", lit("->")),
 
     // primary: unary operators or atom
     primary: alt(
@@ -367,19 +386,8 @@ export const backolonGrammar: Grammar = {
     ),
     // these are all prefix unary
     unary: alt(
-        rule("explicit_call"),
         rule("prefix"),
     ),
-
-    explicit_call: ssep(rule("blank"), rule("primary"), ignored(tag("operator", lit("("))), cut(), rule("explicit_args"), ignored(tag("operator", lit(")")))),
-    explicit_args: alt(
-        bind("guard", false, nothing(), joined(
-            ignored(rule("ws_comma")),
-            alt(rule("expr"), rule("empty_arg")),
-            false, true,
-        )),
-        seq(), // empty args
-    ), // allow blank arguments
 
     prefix: ssep(rule("blank"), rule("prefix_op"), cut(), rule("factor")),
     prefix_op: alt(
@@ -400,7 +408,7 @@ export const backolonGrammar: Grammar = {
 
     length: tag("operator", lit("#")),
     spread: tag("operator", lit("...")),
-    negate: tag("operator", lit("-")),
+    negate: tag("operator", regex(/-(?![^>])/)),
     abs: tag("operator", lit("+")),
     not: tag("operator", regex(/!(?!=)/)),
     bit_not: tag("operator", lit("~")),
@@ -443,29 +451,25 @@ export const backolonGrammar: Grammar = {
     r_escape: tag("escape", regex(/\\./)),
     r_body: tag("string", regex(/[^'\\]+/)),
 
-    i_string: seq(ignored(tag("string", lit("\""))), cut(), rep(false, rule("i_part")), ignored(tag("string", lit("\"")))),
-    i_part: alt(
-        rule("i_escape"),
+    i_string: seq(ignored(tag("string", lit("\""))), cut(), rep(false, alt(
+        tag("escape", seq(ignored(regex(/\\(?!\()/)), cut(), rule("i_escape"))),
         rule("i_interpolation"),
         rule("i_body"),
-    ),
-    i_escape: tag("escape", seq(ignored(regex(/\\(?!\()/)), cut(), rule("i_escape_body"))),
-    i_escape_body: alt(
+    )), ignored(tag("string", lit("\"")))),
+    i_escape: alt(
         rule("i_known_escape"),
         rule("i_x_escape"),
         rule("i_u_escape"),
         rule("i_U_escape"),
     ),
-    i_known_escape: regex(/[abefnrtvz"'\\]/), // cSpell: ignore abefnrtvz
+    i_known_escape: regex(/./),
     i_x_escape: seq(ignored(lit("x")), cut(), regex(/[0-9a-f]{2}/)),
     i_u_escape: seq(ignored(lit("u")), cut(), regex(/[0-9a-f]{4}/)),
     i_U_escape: seq(ignored(lit("U")), cut(), ignored(lit("{")), regex(/[0-9a-f]+/), ignored(lit("}"))),
     i_interpolation: seq(ignored(tag("escape", lit("\\("))), cut(), bind("guard", false, nothing(), rule("exprs")), ignored(tag("escape", lit(")")))),
     i_body: tag("string", regex(/[^"\\]+/)),
 
-    regex: tag("regex", seq(ignored(lit("/")), rule("regex_body"), ignored(lit("/")), rule("regex_flags"))),
-    regex_body: regex(/(\[([^\]]|\\\])+\]|\\.|[^\\/\n])*/),
-    regex_flags: regex(/[gimsuvy]*/), // cSpell: ignore gimsuvy
+    regex: tag("regex", seq(ignored(lit("/")), regex(/(\[([^\]]|\\\])+\]|\\.|[^\\/\n])*/), ignored(lit("/")), regex(/[gimsuvy]*/))), // cSpell: ignore gimsuvy
 
     boolean: seq(ignored(nothing()), alt(rule("boolean_true"), rule("boolean_false"))),
     boolean_true: kw("boolean", "true", "True", "TRUE"),

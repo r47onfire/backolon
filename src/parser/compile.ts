@@ -59,7 +59,7 @@ export function syncCompile(node: CSTNode, tab: CompilerTable<(items: any, table
         if (post) {
             val = syncCompile({ type: post, children: val } as CSTNode, tab, x => x, handleError);
         }
-        console.log("post-compile", node.type, val);
+        // console.log("post-compile", node.type, val);
     } catch (e) {
         val = handleError(e);
     }
@@ -72,9 +72,9 @@ export function assignPath<T>(val: T, obj: any, path: PropertyKey[]): T {
         for (var i = 0; i < path.length - 1; i++) {
             x = x[path[i]!];
         }
-        console.log("before set", x, path[i], obj);
+        // console.log("before set", x, path[i], obj);
         x[path[i]!] = obj;
-        console.log("after set", x);
+        // console.log("after set", x);
     }
     else val = obj;
     return val;

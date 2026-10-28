@@ -1,243 +1,248 @@
 import { last } from "lib0/array";
+import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `
-foo bar: 1, baz: 2, bing: 3, bax: 4`;
+const SAMPLE_SCRIPT = `x + 1; -x`;
 
-// ## comments: comment, line_comment, block_comment, blank
-// ## a trailing line comment
-// ##[[ a block comment ##]]
-// ##[[ nested ##[[ block comment ##]] still a comment ##]]
+`
+## comments: comment, line_comment, block_comment, blank
+## a trailing line comment
+##[[ a block comment ##]]
+##[[ nested ##[[ block comment ##]] still a comment ##]]
 
-// ## numbers: number, hex, bin, decimal
-// 0x1F;
-// 0xc0ffee;
-// 0b1010;
-// 123;
-// 3.14;
-// .5;
-// 1.e+4;
-// 1.e+400; ## Should be turned into BigInt so as to not overflow
-// 1.5e-3;
+## numbers: number, hex, bin, decimal
+0x1F;
+0xc0ffee;
+0b1010;
+123;
+3.14;
+.5;
+1.e+4;
+1.e+400; ## Should be turned into BigInt so as to not overflow
+1.5e-3;
 
-// ## names and booleans: name, boolean, boolean_true, boolean_false
-// true;
-// false;
-// True;
-// FALSE;
-// foo;
-// _bar;
-// foo123;
-// 𓆏;  ## unicode name test
+## names and booleans: name, boolean, boolean_true, boolean_false
+true;
+false;
+True;
+FALSE;
+foo;
+_bar;
+foo123;
+𓆏;  ## unicode name test
 
-// ## soft keywords as names (the guard is reset inside parens): par_exp
-// (else);
-// (in);
-// (end);
+## soft keywords as names (the guard is reset inside parens): par_exp
+(else);
+(in);
+(end);
 
-// ## strings: string, r_string, r_part, r_body, r_escape
-// 'hello';
-// 'it\\'s';
-// ## i_string, i_part, i_body, i_escape, i_escape_body, i_known_escape
-// "hello";
-// "esc: \\n \\t \\" \\' \\a \\z";
-// ## i_x_escape, i_u_escape, i_U_escape
-// "\\x41\\x5c";
-// "\\u00e9";
-// "\\U{1f600}";
-// ## i_interpolation
-// "fizzbuzz: \\(n) mississippi";
-// "multi: \\(
-//     print 1
-//     1 + 2
-// ) done";
+## strings: string, r_string, r_part, r_body, r_escape
+'hello';
+'it\\'s';
+## i_string, i_part, i_body, i_escape, i_escape_body, i_known_escape
+"hello";
+"esc: \\n \\t \\" \\' \\a \\z";
+## i_x_escape, i_u_escape, i_U_escape
+"\\x41\\x5c";
+"\\u00e9";
+"\\U{1f600}";
+## i_interpolation
+"fizzbuzz: \\(n) mississippi";
+"multi: \\(
+    print 1
+    1 + 2
+) done";
 
-// ## regex: regex, regex_body, regex_flags
-// re1 = /ab+c/;
-// re2 = /[a-z]+\\d/gi;
+## regex: regex, regex_body, regex_flags
+re1 = /ab+c/;
+re2 = /[a-z]+\\d/gi;
 
-// ## collections: collection, collection_body, collection_item,
-// ## ws_comma, comma, empty_collection, empty_list, empty_map
-// [1, x, 3];
-// [];
-// [:];
-// [1, 2, 3,];
-// [[1, 2], [3]];
-// ## kw_arg, kw_arg_op, kw (map entries are keyword arguments)
-// [foo: 1, bar: 2];
-// ## collection_shorthand
-// [\`foo:];
-// [\`foo:, \`bar: baz];
+## collections: collection, collection_body, collection_item,
+## ws_comma, comma, empty_collection, empty_list, empty_map
+[1, x, 3];
+[];
+[:];
+[1, 2, 3,];
+[[1, 2], [3]];
+## kw_arg, kw_arg_op, kw (map entries are keyword arguments)
+[foo: 1, bar: 2];
+## collection_shorthand
+[\`foo:];
+[\`foo:, \`bar: baz];
 
-// ## quasiquote, quote, unquote, unquote_splicing
-// {x + 1};
-// {$x};
-// {$.xs};
-// \`(x + y);
-// \`name;
+## quasiquote, quote, unquote, unquote_splicing
+{x + 1};
+{$x};
+{$.xs};
+\`(x + y);
+\`name;
 
-// ## par_exp (parenthesized expressions)
-// (1 + 2) * 3;
-// (a);
-// ();
+## par_exp (parenthesized expressions)
+(1 + 2) * 3;
+(a);
+();
 
-// ## calls: explicit_call, explicit_args, implicit_call,
-// ## implicit_args, empty_arg, blank_sameline, blank_required
-// print(1, 2);
-// print (1, 2);
-// print();
-// print(1,,2);
-// print(1,);
-// print(1)(2);
-// print 1, 2;
-// print print 1, 2;
-// print 1,,2;
-// configure mode: "fast", level: 3;
+## calls: explicit_call, explicit_args, implicit_call,
+## implicit_args, empty_arg, blank_sameline, blank_required
+print(1, 2);
+print (1, 2);
+print();
+print(1,,2);
+print(1,);
+print(1)(2);
+print 1, 2;
+print print 1, 2;
+print 1,,2;
+configure mode: "fast", level: 3;
 
-// ## indexing: indexing, indexing_op, dot, up_dot, arrow
-// a.b.c;
-// a..b;
-// a->b;
-// a.b.c = d.e.f;
+## indexing: indexing, indexing_op, dot, up_dot
+a.b.c;
+a.b()..c();
+a.(b);
+a.b.c = d.e.f;
 
-// ## prefix: prefix, prefix_op, negate, abs, not, bit_not, length,
-// ## spread, ref, deref, special, lazy, unquote, unquote_splicing
-// -x;
-// +x;
-// !ok;
-// ~mask;
-// #list;
-// ...args;
-// &ptr;
-// *ptr;
-// @special;
-// ^lazy;
-// $val;
-// $.vals;
+## prefix: prefix, prefix_op, negate, abs, not, bit_not, length,
+## spread, ref, deref, special, lazy, unquote, unquote_splicing
+-x;
++x;
+!ok;
+~mask;
+#list;
+...args;
+&ptr;
+*ptr;
+@special;
+^lazy;
+$val;
+$.vals;
 
-// ## sum, sum_op, add, sub, term, term_op, mul, div, mod,
-// ## factor, factor_op, pow
-// 1 + 2 * 3 - 4 / 5 % 6;
-// 2 ** 3 ** 2;
-// ## bitshift, bitshift_op, shift_left, shift_right
-// a << 2 >> 1;
-// ## bitwise, bitwise_op, bitwise_and, bitwise_or, bitwise_xor
-// a & b | c ^ d;
-// ## containment, containment_op, needle_in_haystack, haystack_has_needle
-// needle <: haystack;
-// needle in haystack;
-// haystack :> needle;
-// haystack has needle;
-// ## comparison, comparison_op, equal, not_equal, lte, gte, less, greater
-// a == b != c <= d >= e < f > g;
-// ## logical, logical_op, logical_and, logical_or
-// a || b;
-// a && b;
-// a and b or c;
-// ## ternary
-// a ? b : c;
-// n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : "\\(n)";
+## sum, sum_op, add, sub, term, term_op, mul, div, mod,
+## factor, factor_op, pow
+1 + 2 * 3 - 4 / 5 % 6;
+2 ** 3 ** 2;
+## bitshift, bitshift_op, shift_left, shift_right
+a << 2 >> 1;
+## bitwise, bitwise_op, bitwise_and, bitwise_or, bitwise_xor
+a & b | c ^ d;
+## containment, containment_op, needle_in_haystack, haystack_has_needle
+needle <: haystack;
+needle in haystack;
+haystack :> needle;
+haystack has needle;
+## comparison, comparison_op, equal, not_equal, lte, gte, less, greater
+a == b != c <= d >= e < f > g;
+## logical, logical_op, logical_and, logical_or
+a || b;
+a && b;
+a and b or c;
+## ternary
+a ? b : c;
+n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : "\\(n)";
 
-// ## pipes: pipe, pipe_op, normal_pipe, filter_pipe, map_pipe, reduce_pipe
-// a |> b it |> c it;
-// ["hello", "world", "!"] |?> it != "!" |*> upper it;
-// xs |+>[init] _ + it;
+## pipes: pipe, pipe_op, normal_pipe, filter_pipe, map_pipe, reduce_pipe
+a |> b it |> c it;
+["hello", "world", "!"] |?> it != "!" |*> upper it;
+xs |+>[init] _ + it;
 
-// ## assignment: assignment, assign_op, normal_assign, old_assign,
-// ## aug_assign, aug_assign_prefix
-// x = 1;
-// a = b <- 1;
-// x += 1;
-// x -= 1;
-// x *= 2;
-// x /= 2;
-// x %= 2;
-// x **= 2;
-// x &= mask;
-// x |= mask;
-// x ^= mask;
-// x <<= 1;
-// x >>= 1;
-// x &&= y;
-// x and= y;
-// x ||= y;
-// x or= y;
+## assignment: assignment, transposed_assignment, assign_op, normal_assign, old_assign,
+## aug_assign, aug_assign_prefix
+x = 1;
+1 -> x;
+a = b <- 1;
+x += 1;
+x -= 1;
+x *= 2;
+x /= 2;
+x %= 2;
+x **= 2;
+x &= mask;
+x |= mask;
+x ^= mask;
+x <<= 1;
+x >>= 1;
+x &&= y;
+x and= y;
+x ||= y;
+x or= y;
 
-// ## let, simple_let, let_block, let_loop_block
-// let a = b;
-// let x = a, y = b in foo x end;
-// let(loop) x = a in foo loop end;
+## let, simple_let, let_block, let_loop_block
+let a = b;
+let x = a, y = b in foo x end;
+let(loop) x = a in foo loop end;
 
-// ## if, if_else, if_no_else, body_exprs
-// if a == b then c() end;
-// if a == b then c() else d() end;
-// if a == b
-//     c()
-// else
-//     d()
-// end;
-// if a == b
-//     c()
-// end;
+## if, if_else, if_no_else, body_exprs
+if a == b then c() end;
+if a == b then c() else d() end;
+if a == b
+    c()
+else
+    d()
+end;
+if a == b
+    c()
+end;
 
-// ## while
-// while a == b do c() end;
-// while a == b
-//     c()
-// end;
+## while
+while a == b do c() end;
+while a == b
+    c()
+end;
 
-// ## for
-// for i = range 1, 100 do print fizzbuzz i end;
-// for i = range 1, 100
-//     print fizzbuzz i
-// end;
+## for
+for i = range 1, 100 do print fizzbuzz i end;
+for i = range 1, 100
+    print fizzbuzz i
+end;
 
-// ## trycatch, trycatch_guarded, trycatch_handler,
-// ## trycatch_else, trycatch_finally
-// try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end;
-// try
-//     x()
-// catch e = ENOENT
-//     b(e)
-// else
-//     foo()
-// finally
-//     bar()
-// end;
+## trycatch, trycatch_guarded, trycatch_handler,
+## trycatch_else, trycatch_finally
+try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end;
+try
+    x()
+catch e = ENOENT
+    b(e)
+else
+    foo()
+finally
+    bar()
+end;
 
-// ## with, always, do, strong_block
-// with resource
-//     use resource
-// end;
-// always @(tick)
-//     print "tick changed"
-// end;
-// do
-//     print "block"
-// end;
-// begin
-//     print "block"
-// end;
-// schedule do print "later" end;
+## with, always, do, strong_block
+with resource
+    use resource
+end;
+always @(tick)
+    print "tick changed"
+end;
+do
+    print "block"
+end;
+begin
+    print "block"
+end;
+schedule do print "later" end;
 
-// ## fn
-// fn(x) x + 1;
-// fn(x)
-//     x + 1
-// end;
-// fn(x, y, ...z) x;
-// fn() 42;
-// fn(x) callcc fn(c) c;
-// map xs, fn(x) x * 2;
+## fn
+fn(x) x + 1;
+fn(x)
+    x + 1
+end;
+fn(x, y, ...z) x;
+fn() 42;
+fn(x) callcc fn(c) c;
+map xs, fn(x) x * 2;
 
-// ## separators: exprs, expr_sep, semi, nl
-// print 1; print 2;
-// print 1
-// print 2
-// print 1;;;;;;;;;print 2
-// `;
+## separators: exprs, expr_sep, semi, nl
+print 1; print 2;
+print 1
+print 2
+print 1;;;;;;;;;print 2
+`;
 
-console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs", backolonGrammar, "exprs", "BAD")), {
+const cst = condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs", backolonGrammar, "exprs", "BAD"));
+if (process.argv.includes("--dump")) console.log(JSON.stringify(cst, null, 2));
+
+else console.log(JSON.stringify(syncCompile(cst, {
     exprs: [(nodes: CSTNode[]) => {
         return {
             val: ["begin"],
@@ -288,8 +293,8 @@ console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs
         };
     }],
     regex: [(nodes: [CSTNode, CSTNode]) => {
-        const body = nodes[0].children![0]!.text!;
-        const flags = nodes[1].children![0]!.text!;
+        const body = nodes[0].text!;
+        const flags = nodes[1].text!;
         return {
             val: new RegExp(body, flags),
         }
@@ -300,63 +305,44 @@ console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs
         };
     }],
     i_string: [(nodes: CSTNode[], table: any) => {
-        const x = nodes.reduce((prev, cur) => table.part[cur.type!](prev, cur.children![0]!, table), [""] as (string | CSTNode)[]);
         return {
-            val: x,
-            tbc: (x as CSTNode[]).flatMap((i, j) => typeof i !== "string" ? [[i, [j]]] : []),
+            val: [],
+            tbc: nodes.map((i, j) => [i, [j]]),
             post: "i_stringPOST",
         }
+    }],
+    i_body: [(nodes: [CSTNode]) => ({ val: nodes[0].text })],
+    i_interpolation: [(nodes: [CSTNode]) => ({ val: 0, tbc: [[nodes[0], []]] })],
+    i_x_escape: [(nodes: [CSTNode]) => ({ val: String.fromCodePoint(parseInt(nodes[0].text!, 16)) })],
+    i_u_escape: [(nodes: [CSTNode]) => ({ val: String.fromCodePoint(parseInt(nodes[0].text!, 16)) })],
+    i_U_escape: [(nodes: [CSTNode]) => ({ val: String.fromCodePoint(parseInt(nodes[0].text!, 16)) })],
+    i_known_escape: [(nodes: [CSTNode], tab?: Record<string, string>) => {
+        const text = nodes[0].text!;
+        if (!Reflect.has(tab!, text)) {
+            throw new Error(`unknown escape \\` + text);
+        }
+        return { val: tab![text] };
     }, {
-        part: {
-            i_body(acc, cur) {
-                if (typeof last(acc) !== "string") acc.push("");
-                acc[acc.length - 1]! += cur.text!;
-                return acc;
-            },
-            i_escape(acc, cur, table) {
-                if (typeof last(acc) !== "string") acc.push("");
-                const type = cur.type!;
-                const txt = cur.children![0]!.text!;
-                acc[acc.length - 1]! += type === "i_known_escape" ? table.known[txt] : table.decode[type](txt);
-                return acc;
-            },
-            i_interpolation(acc, cur) {
-                acc.push(cur);
-                return acc;
-            },
-        } as Record<string, (acc: (string | CSTNode)[], cur: CSTNode, table: any) => (string | CSTNode)[]>,
-        known: {
-            a: "\a",
-            b: "\b",
-            e: "\x1b",
-            f: "\f",
-            n: "\n",
-            r: "\r",
-            t: "\t",
-            v: "\v",
-            z: "\0",
-            '"': '"',
-            "'": "'",
-            "\\": "\\",
-        },
-        decode: {
-            i_x_escape: text => String.fromCodePoint(parseInt(text, 16)),
-            i_u_escape: text => String.fromCodePoint(parseInt(text, 16)),
-            i_U_escape: text => String.fromCodePoint(parseInt(text, 16)),
-        }
-    } as { known: Record<string, string>, decode: Record<string, (x: string) => string> }],
+        a: "\a",
+        b: "\b",
+        e: "\x1b",
+        f: "\f",
+        n: "\n",
+        r: "\r",
+        t: "\t",
+        v: "\v",
+        z: "\0",
+        '"': '"',
+        "'": "'",
+        "\\": "\\",
+    }],
     i_stringPOST: [(nodes: (string | CSTNode)[]) => {
-        const val = nodes.slice(1).reduce((acc, cur) => ["add", acc, cur] as any, nodes[0]);
+        nodes = nodes.reduce((acc, item) => isString(last(acc)) && isString(item) ? [...acc.slice(-1), last(acc) + item] : [...acc, item], [] as (string | CSTNode)[]);
         return {
-            val
+            val: nodes.slice(1).reduce((acc, cur) => ["add", acc, cur] as any, nodes[0])
         }
     }],
-    par_exp: [(nodes: [CSTNode]) => {
-        return {
-            val: undefined,
-            tbc: [[nodes[0], []]],
-        }
-    }],
+    par_exp: [(nodes: [CSTNode]) => ({ val: 0, tbc: [[nodes[0], []]] })],
     implicit_call: [(nodes: [CSTNode, CSTNode]) => {
         const callee = nodes[0];
         const argv = nodes[1].children!;
@@ -392,8 +378,14 @@ console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs
         const entry = table![opName];
         if (!entry) throw new Error("unknown binary operator type " + opName);
         const [template, leftPath, rightPath, childPath] = entry;
+        if (isString(template)) {
+            return {
+                val: [left, right],
+                post: template,
+            }
+        }
         return {
-            val: template.slice(),
+            val: structuredClone(template),
             tbc: [[left, leftPath], [right, rightPath], ...(childPath ? [[child, childPath] as [CSTNode, PropertyKey[]]] : [])],
         }
     }, {
@@ -402,8 +394,32 @@ console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs
         mul: [["mul"], [1], [2]],
         div: [["div"], [1], [2]],
         normal_assign: [["set"], [1], [2]],
+        arrow: [["set"], [2], [1]],
         kw: [["kw"], [1], [2]],
+        dot: ["dotPRE", [], []],
+        up_dot: ["up_dotPRE", [], []],
     } as Record<string, [template: any, left: PropertyKey[], right: PropertyKey[], child?: PropertyKey[]]>],
+    dotPRE: [(nodes: [CSTNode, CSTNode]) => {
+        const left = nodes[0];
+        const right = nodes[1];
+        if (right.type === "name") {
+            return {
+                val: ["index", , right.children![0]!.text],
+                tbc: [[left, [1]]]
+            }
+        }
+        return {
+            val: ["index"],
+            tbc: [[left, [1]], [right, [2]]]
+        }
+    }],
+    up_dotPRE: [(nodes: [CSTNode, CSTNode]) => {
+        // TODO: a.foo()..bar().baz()..bing()..bam() => ((fn(x) x.baz(); x.bing(); x.bam)(((fn(x) x.foo(); x.bar)(a))()))()
+        console.error("UP_DOT", nodes);
+        return {
+            val: "__UP_DOT_HERE__",
+        }
+    }],
     prefix: [(nodes: [CSTNode, CSTNode], table?: Record<string, string>) => {
         const func = table![nodes[0].type!];
         if (!func) throw new Error("unknown prefix operator type " + nodes[0].type);
@@ -417,9 +433,9 @@ console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs
         unquote_splicing: "unquote_splicing"
     }],
     collection: [(nodes: [CSTNode]) => {
-        console.log("collection", nodes);
+        console.error("collection", nodes);
         const hasMap = nodes.some(n => n.type === "");
-        console.log("TODO TODO");
+        console.error("TODO TODO");
         return { val: "__COLLECTION_HERE__" };
     }],
     quasiquote: [(nodes: [CSTNode]) => {
@@ -428,4 +444,4 @@ console.log(syncCompile(condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs
             tbc: [[nodes[0], [1]]],
         }
     }],
-}, x => x, x => { throw x instanceof Error ? x : Error(x); }));
+}, x => x, x => { throw x instanceof Error ? x : Error(x); }), (_, x) => typeof x === "bigint" ? ["BIGINT", x + ""] : x, 2));

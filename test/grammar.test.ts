@@ -65,7 +65,7 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`'hello'`, ["exprs", ["r_string", ["r_body", "hello"]]]],
         [`"fizzbuzz: \\(n) mississippi"`, ["exprs", ["i_string", ["i_body", "fizzbuzz: "], ["i_interpolation", ["exprs", ["name", "n"]]], ["i_body", " mississippi"]]]],
         [`"fizzbuzz: \\(\n    print 1\n    1 + 2\n) mississippi"`, ["exprs", ["i_string", ["i_body", "fizzbuzz: "], ["i_interpolation", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["binary_op", ["number", ["dec", "1"]], ["add", "+"], ["number", ["dec", "2"]]]]], ["i_body", " mississippi"]]]],
-        [`"a\\"b"`, ["exprs", ["i_string", ["i_body", "a"], ["i_escape", ["i_known_escape", "\""]], ["i_body", "b"]]]],
+        [`"a\\"b"`, ["exprs", ["i_string", ["i_body", "a"], ["i_known_escape", "\""], ["i_body", "b"]]]],
         [`'it\\'s'`, ["exprs", ["r_string", ["r_body", "it"], ["r_escape", "\\'"], ["r_body", "s"]]]],
     ],
 
