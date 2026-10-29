@@ -8,14 +8,14 @@ export interface CombinatorWalker<T, E> {
     leaf(node: GrammarCombinator, field: string, action: MixAction, value: unknown, env: E): T;
     /** Fold one node from its folded fields: child fields carry the child's
      *  fold result, array fields appear as repeated entries in order. */
-    fold(node: GrammarCombinator, env: E, fields: readonly (readonly [field: string, action: MixAction, value: T])[]): T;    /** Substitute a node (and its environment) before folding it -- references. */
+    fold(fields: readonly (readonly [field: string, action: MixAction, value: T])[], node: GrammarCombinator, env: E): T;    /** Substitute a node (and its environment) before folding it -- references. */
     resolve?(node: GrammarCombinator, env: E): { node: GrammarCombinator, env: E } | undefined;
     /** Adjust the environment for one child field -- scope-introducing nodes. */
     childEnv?(node: GrammarCombinator, field: string, action: MixAction, env: E): E;
     /** A finished value for this node, if already known: cancels the walk below it. */
     precomputed?: (node: GrammarCombinator, env: E) => T | undefined;
     /** Record a node's folded value for future `precomputed` hits. */
-    memoize?: (node: GrammarCombinator, env: E, value: T) => void;
+    memoize?: (node: GrammarCombinator, value: T, env: E) => void;
 }
 
 export const walkCombinator = <T, E>(g: GrammarCombinator, env: E, walker: CombinatorWalker<T, E>): T => {
@@ -44,8 +44,8 @@ export const walkCombinator = <T, E>(g: GrammarCombinator, env: E, walker: Combi
                 }
         }
     }
-    const result = walker.fold(g, env, fields);
-    walker.memoize?.(g, env, result);
+    const result = walker.fold(fields, g, env);
+    walker.memoize?.(g, result, env);
     return result;
 };
 
@@ -61,14 +61,14 @@ const basicHash: CombinatorWalker<number, void> = {
             default: throw new Error("unknown action " + MixAction[action]);
         }
     },
-    fold(node, _env, fields) {
+    fold(fields, node) {
         var h = javaHash(node.op);
         for (var { 1: action, 2: value } of fields)
             h = (imul(h, action === MixAction.AuxChild ? 37 : 31) + value!) >>> 0;
         return h;
     },
     precomputed: (node) => node.hash,
-    memoize: (node, _env, value) => { node.hash = value; },
+    memoize: (node, value) => { node.hash = value; },
 };
 
 /**

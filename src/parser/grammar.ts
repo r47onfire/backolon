@@ -1,4 +1,5 @@
-import { alt, altFirst, ambient, bind, cut, Grammar, if_, ignored, joined, kw, lit, lookahead, no, nonempty, nothing, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_, yes } from "./combinator";
+import { alt, altFirst, ambient, bind, cut, Grammar, GrammarCombinator, if_, ignored, joined, kw, lit, lookahead, MixAction, no, nonempty, nothing, op, opDefs, opt, param, regex, rep, rule, sameline, seq, ssep, tag, try_, yes } from "./combinator";
+import { walkCombinator } from "./walk";
 
 /**
  * The Backolon grammar, as plain combinator data.
@@ -38,9 +39,9 @@ export const backolonGrammar: Grammar = {
     line_comment: regex(/##(?!\[\[)[^\n]*(\n|$)/),
 
     expr_sep: ignored(rep(true, alt(rule("semi"), rule("nl"), rule("comment")))),
-    semi: ignored(tag("punctuation", lit(";"))),
+    semi: op("punctuation", ";"),
     nl: lit("\n"),
-    comma: ignored(tag("punctuation", lit(","))),
+    comma: op("punctuation", ","),
 
     exprs: seq(
         rep(false,
@@ -92,10 +93,10 @@ export const backolonGrammar: Grammar = {
     ),
     let_loop_block: ssep(
         rule("blank"),
-        ignored(tag("punctuation", lit("("))),
+        op("punctuation", "("),
         cut(),
         rule("name"),
-        ignored(tag("punctuation", lit(")"))),
+        op("punctuation", ")"),
         rule("let_block"),
     ),
 
@@ -163,7 +164,7 @@ export const backolonGrammar: Grammar = {
         rule("body_exprs", kw("keyword", "end"), yes()),
     )),
 
-    fn: ssep(rule("blank"), kw("keyword", "fn"), ignored(tag("operator", lit("("))), cut(), rule("explicit_args"), seq(ignored(tag("operator", lit(")"))), rule("body_exprs", kw("keyword", "end"), yes()))),
+    fn: ssep(rule("blank"), kw("keyword", "fn"), op("punctuation", "("), cut(), rule("explicit_args"), seq(op("punctuation", ")"), rule("body_exprs", kw("keyword", "end"), yes()))),
 
     always: ssep(rule("blank"), kw("keyword", "always"), seq(
         cut(),
@@ -204,10 +205,10 @@ export const backolonGrammar: Grammar = {
         rule("map_pipe"),
         rule("reduce_pipe"),
     ),
-    normal_pipe: tag("operator", lit("|>")),
-    filter_pipe: tag("operator", lit("|?>")),
-    map_pipe: tag("operator", lit("|*>")),
-    reduce_pipe: seq(ignored(tag("operator", lit("|+>"))), cut(), ignored(tag("operator", lit("["))), bind("guard", false, nothing(), rule("exprs")), ignored(tag("operator", lit("]")))),
+    normal_pipe: op("operator", "|>"),
+    filter_pipe: op("operator", "|?>"),
+    map_pipe: op("operator", "|*>"),
+    reduce_pipe: seq(op("operator", "|+>"), cut(), op("punctuation", "["), bind("guard", false, nothing(), rule("exprs")), op("punctuation", "]")),
 
     // right associative
     // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try kw_arg
@@ -232,14 +233,14 @@ export const backolonGrammar: Grammar = {
     kw_arg_op: alt(
         rule("kw"),
     ),
-    kw: tag("operator", lit(":")),
+    kw: op("operator", ":"),
 
     // left associative
     assign_rev: rule("binary_op", rule("assignment"), rule("assign_rev_op"), rule("assign_rev"), rule("assignment"), nothing()),
     assign_rev_op: alt(
         rule("arrow"),
     ),
-    arrow: tag("operator", lit("->")),
+    arrow: op("operator", "->"),
 
     // strongly right associative
     assignment: rule("binary_op", rule("ternary"), rule("assign_op"), rule("ternary"), rule("expr"), nothing()),
@@ -248,9 +249,9 @@ export const backolonGrammar: Grammar = {
         rule("aug_assign"),
         rule("normal_assign"),
     ),
-    old_assign: tag("operator", lit("<-")),
+    old_assign: op("operator", "<-"),
     aug_assign: seq(rule("aug_assign_prefix"), ignored(rule("normal_assign"))),
-    normal_assign: tag("operator", regex(/=(?!=)/)),
+    normal_assign: op("operator", "="),
     aug_assign_prefix: alt(
         rule("logical_op"),
         rule("bitwise_op"),
@@ -261,7 +262,7 @@ export const backolonGrammar: Grammar = {
     ),
 
     // right associative
-    ternary: alt(ssep(rule("blank"), rule("logical"), ignored(tag("operator", lit("?"))), cut(), rule("assignment"), cut(), ignored(tag("operator", lit(":"))), rule("ternary")), rule("logical")),
+    ternary: alt(ssep(rule("blank"), rule("logical"), op("operator", "?"), cut(), rule("assignment"), cut(), op("operator", ":"), rule("ternary")), rule("logical")),
 
     // left associative
     logical: rule("binary_op", rule("comparison"), rule("logical_op"), rule("logical"), rule("comparison"), lookahead(false, rule("assign_op"))),
@@ -269,8 +270,8 @@ export const backolonGrammar: Grammar = {
         rule("logical_and"),
         rule("logical_or"),
     ),
-    logical_and: alt(tag("operator", lit("&&")), kw("operator", "and")),
-    logical_or: alt(tag("operator", lit("||")), kw("operator", "or")),
+    logical_and: alt(op("operator", "&&"), kw("operator", "and")),
+    logical_or: alt(op("operator", "||"), kw("operator", "or")),
 
     // chain associative
     comparison: alt(
@@ -294,12 +295,12 @@ export const backolonGrammar: Grammar = {
         rule("less"),
         rule("greater"),
     ),
-    equal: tag("operator", lit("==")),
-    not_equal: tag("operator", lit("!=")),
-    lte: tag("operator", lit("<=")),
-    gte: tag("operator", lit(">=")),
-    less: tag("operator", regex(/<(?![<-])/)),
-    greater: tag("operator", regex(/>(?!>)/)),
+    equal: op("operator", "=="),
+    not_equal: op("operator", "!="),
+    lte: op("operator", "<="),
+    gte: op("operator", ">="),
+    less: op("operator", "<"),
+    greater: op("operator", ">"),
 
     // non associative
     containment: rule("binary_op", rule("bitwise"), rule("containment_op"), rule("bitwise"), rule("bitwise"), nothing()),
@@ -307,8 +308,8 @@ export const backolonGrammar: Grammar = {
         rule("needle_in_haystack"),
         rule("haystack_has_needle"),
     ),
-    needle_in_haystack: alt(tag("operator", lit("<:")), seq(ignored(ambient("guard", nothing())), kw("operator", "in"))),
-    haystack_has_needle: alt(tag("operator", lit(":>")), kw("operator", "has")),
+    needle_in_haystack: alt(op("operator", "<:"), seq(ignored(ambient("guard", nothing())), kw("operator", "in"))),
+    haystack_has_needle: alt(op("operator", ":>"), kw("operator", "has")),
 
     // left associative
     bitwise: rule("binary_op", rule("bitshift"), rule("bitwise_op"), rule("bitwise"), rule("bitshift"), lookahead(false, rule("assign_op"))),
@@ -317,9 +318,9 @@ export const backolonGrammar: Grammar = {
         rule("bitwise_or"),
         rule("bitwise_xor"),
     ),
-    bitwise_and: tag("operator", regex(/&(?!&)/)),
-    bitwise_or: tag("operator", regex(/\|(?![?*+>|])/)),
-    bitwise_xor: tag("operator", lit("^")),
+    bitwise_and: op("operator", "&"),
+    bitwise_or: op("operator", "|"),
+    bitwise_xor: op("operator", "^"),
 
     // left associative
     bitshift: rule("binary_op", rule("sum"), rule("bitshift_op"), rule("bitshift"), rule("sum"), lookahead(false, rule("assign_op"))),
@@ -327,8 +328,8 @@ export const backolonGrammar: Grammar = {
         rule("shift_left"),
         rule("shift_right"),
     ),
-    shift_left: tag("operator", lit("<<")),
-    shift_right: tag("operator", lit(">>")),
+    shift_left: op("operator", "<<"),
+    shift_right: op("operator", ">>"),
 
     // left associative
     sum: rule("binary_op", rule("term"), rule("sum_op"), rule("sum"), rule("term"), lookahead(false, rule("assign_op"))),
@@ -336,8 +337,8 @@ export const backolonGrammar: Grammar = {
         rule("add"),
         rule("sub"),
     ),
-    add: tag("operator", lit("+")),
-    sub: tag("operator", regex(/-(?![>])/)),
+    add: op("operator", "+"),
+    sub: op("operator", "-"),
 
     // left associative
     term: rule("binary_op", rule("factor"), rule("term_op"), rule("term"), rule("factor"), lookahead(false, rule("assign_op"))),
@@ -346,22 +347,22 @@ export const backolonGrammar: Grammar = {
         rule("div"),
         rule("mod"),
     ),
-    mul: tag("operator", regex(/\*(?!\*)/)),
-    div: tag("operator", lit("/")),
-    mod: tag("operator", lit("%")),
+    mul: op("operator", "*"),
+    div: op("operator", "/"),
+    mod: op("operator", "%"),
 
     // right associative
     factor: rule("binary_op", rule("postfix"), rule("factor_op"), rule("postfix"), rule("factor"), lookahead(false, rule("assign_op"))),
     factor_op: alt(
         rule("pow"),
     ),
-    pow: tag("operator", lit("**")),
+    pow: op("operator", "**"),
 
     // postfix: a call binds to a whole indexing chain, so calls and
     // indexing are one left-associative level entered through here
     postfix: altFirst(rule("explicit_call"), rule("indexing")),
 
-    explicit_call: ssep(rule("blank"), rule("postfix"), ignored(tag("operator", lit("("))), cut(), rule("explicit_args"), ignored(tag("operator", lit(")")))), explicit_args: alt(
+    explicit_call: ssep(rule("blank"), rule("postfix"), op("punctuation", "("), cut(), rule("explicit_args"), op("punctuation", ")")), explicit_args: alt(
         bind("guard", false, nothing(), joined(
             ignored(rule("ws_comma")),
             alt(rule("expr"), rule("empty_arg")),
@@ -376,8 +377,8 @@ export const backolonGrammar: Grammar = {
         rule("dot"),
         rule("up_dot"),
     ),
-    dot: tag("operator", lit(".")),
-    up_dot: tag("operator", lit("..")),
+    dot: op("operator", "."),
+    up_dot: op("operator", ".."),
 
     // primary: unary operators or atom
     primary: alt(
@@ -406,19 +407,19 @@ export const backolonGrammar: Grammar = {
         rule("deref"),
     ),
 
-    length: tag("operator", lit("#")),
-    spread: tag("operator", lit("...")),
-    negate: tag("operator", regex(/-(?!>)/)),
-    abs: tag("operator", lit("+")),
-    not: tag("operator", regex(/!(?!=)/)),
-    bit_not: tag("operator", lit("~")),
-    quote: tag("operator", lit("`")),
-    unquote: tag("operator", lit("$")),
-    unquote_splicing: tag("operator", lit("$.")),
-    special: tag("operator", lit("@")),
-    lazy: tag("operator", lit("^")),
-    ref: tag("operator", regex(/&/)),
-    deref: tag("operator", lit("*")),
+    length: op("operator", "#"),
+    spread: op("operator", "..."),
+    negate: op("operator", "-"),
+    abs: op("operator", "+"),
+    not: op("operator", "!"),
+    bit_not: op("operator", "~"),
+    quote: op("operator", "`"),
+    unquote: op("operator", "$"),
+    unquote_splicing: op("operator", "$."),
+    special: op("operator", "@"),
+    lazy: op("operator", "^"),
+    ref: op("operator", "&"),
+    deref: op("operator", "*"),
 
     // atoms: number, string, regex, boolean, null, collection literal, quasiquote, parenthesized expression, name
     atom: alt(
@@ -475,33 +476,33 @@ export const backolonGrammar: Grammar = {
     boolean_true: kw("boolean", "true", "True", "TRUE"),
     boolean_false: kw("boolean", "false", "False", "FALSE"),
 
-    collection: ssep(rule("blank"), ignored(tag("operator", lit("["))), cut(), bind("guard", false, nothing(), alt(
+    collection: ssep(rule("blank"), op("punctuation", "["), cut(), bind("guard", false, nothing(), alt(
         rule("empty_collection"),
         joined(ignored(rule("ws_comma")), rule("collection_item"), false, true),
-    )), ignored(tag("operator", lit("]")))),
+    )), op("punctuation", "]")),
     ws_comma: seq(rule("blank"), rule("comma"), rule("blank")),
     empty_collection: alt(
         rule("empty_list"),
         rule("empty_map"),
     ),
     empty_list: ignored(nothing()),
-    empty_map: ignored(tag("operator", lit(":"))),
+    empty_map: op("operator", ":"),
     collection_item: alt(
         rule("collection_shorthand"),
         rule("expr"),
     ),
-    collection_shorthand: ssep(rule("blank"), ignored(rule("quote")), alt(rule("atom"), rule("par_exp")), ignored(tag("operator", lit(":")))),
+    collection_shorthand: ssep(rule("blank"), ignored(rule("quote")), alt(rule("atom"), rule("par_exp")), op("operator", ":")),
 
-    quasiquote: tag("quoted", ssep(rule("blank"), ignored(tag("operator", lit("{"))), cut(), bind("guard", false, nothing(), rule("exprs")), ignored(tag("operator", lit("}"))))),
-    par_exp: ssep(rule("blank"), ignored(tag("operator", lit("("))), cut(), bind("guard", false, nothing(), rule("exprs")), ignored(tag("operator", lit(")")))),
+    quasiquote: tag("quoted", ssep(rule("blank"), op("punctuation", "{"), cut(), bind("guard", false, nothing(), rule("exprs")), op("punctuation", "}"))),
+    par_exp: ssep(rule("blank"), op("punctuation", "("), cut(), bind("guard", false, nothing(), rule("exprs")), op("punctuation", ")")),
     name: tag("name", regex(/[_\p{L}][_\p{L}\p{N}]*/u)),
 };
 
 /** Every highlight tag name used anywhere in {@link backolonGrammar}, collected by walking all of its combinator trees (e.g. for building a syntax-highlight theme). */
-export const all_tags = new Set(function walk(g: any): string[] {
-    if (typeof g !== "object") return [];
-    return (g.op === "tag" || g.op === "kw" ? [g.tag] : []).concat(Object.values(g).flatMap(walk));
-}(backolonGrammar));
+export const all_tags = new Set(Object.values(backolonGrammar).map((x): GrammarCombinator => Array.isArray(x) ? x[1] : x as GrammarCombinator).reduce((prev, x) => [...prev, ...walkCombinator(x, undefined, {
+    leaf: node => opDefs[node.op].hashFields.flatMap(f => f[1] === MixAction.Tag ? [f[0]] : []).map(f => (node as any)[f]),
+    fold: fields => fields.flatMap(x => x[2]),
+})], [] as string[]));
 // console.log({ all_tags });
 // Object.entries(backolonGrammar).forEach(([rule, g]) => {
 //     console.log(`${rule}: ${describeCombinator(Array.isArray(g) ? g[1] : g)}`);

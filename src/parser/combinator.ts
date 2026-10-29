@@ -2,7 +2,8 @@ import { isArray } from "lib0/array";
 import { stringify } from "lib0/json";
 import { max } from "lib0/math";
 import { CSTNode } from "./cst";
-import { hashResolved } from "./walk";
+import { Memo } from "./parseToCST";
+import { hashResolved, walkCombinator } from "./walk";
 
 /** A grammar: rule names mapped to their definitions. */
 export type Grammar = Readonly<Record<string, GrammarCombinator | ParameterizedRule>>;
@@ -26,6 +27,7 @@ export type ParameterizedRule = readonly [params: readonly string[], body: Gramm
 export interface OpNodeShapes {
     literal: { pattern: string | [string, string] };
     keyword: { tag: string, options: string[] };
+    opsym: { tag: string, sym: string };
     ignored: { child: GrammarCombinator };
     rule: { name: string, args: GrammarCombinator[] };
     param: { name: string, default: GrammarCombinator | undefined };
@@ -165,6 +167,7 @@ export enum MixAction {
  */
 export interface OpContext {
     readonly text: string;
+    readonly memo: Memo;
     readonly grammar: Grammar;
     applyRule(path: string, node: GrammarCombinator, i: number, locals: Locals, dynamics: Dynamics): CSTNode | MatchFail;
     errorNode(start: number, end: number, expected: GrammarCombinator): CSTNode;
@@ -270,6 +273,28 @@ export const opDefs = {
         },
         hashFields: [["tag", MixAction.Tag], ["options", MixAction.StringArray]],
         describe: ({ tag, options }) => "%" + tag + "=" + options.join("/"),
+    },
+
+    // ---------------------------------------------------------------------------
+    // op
+    opsym: {
+        create: (t: string, op: string) => ({ tag: t, sym: op }),
+        call(ctx, node, _, i) {
+            type OpMemo = Record<string, string[]>;
+            const memo = ((ctx.memo as any).__operator ??= ((): OpMemo => {
+                const allOps = Object.values(ctx.grammar).map((x): GrammarCombinator => Array.isArray(x) ? x[1] : x as GrammarCombinator).reduce((prev, x) => [...prev, ...walkCombinator(x, undefined, {
+                    leaf: node => node.op === "opsym" ? [node.sym] : [],
+                    fold: fields => fields.flatMap(x => x[2]),
+                })], [] as string[]);
+                const memo = Object.fromEntries(allOps.map(x => [x, allOps.filter(op => op !== x && op.startsWith(x)).map(op => op.slice(x.length))]));
+                // console.log(memo);
+                return memo;
+            })()) as OpMemo;
+            const { sym, tag } = node;
+            return ctx.text.startsWith(sym, i) && memo[sym]!.every(s => !ctx.text.startsWith(s, i + sym.length)) ? { text: sym, start: i, end: i + sym.length, ignored: true, tag } : new MatchFail(i, 0, node as GrammarCombinator);
+        },
+        hashFields: [["sym", MixAction.String], ["tag", MixAction.Tag]],
+        describe: ({ tag, sym }) => "~" + tag + "=" + stringify(sym),
     },
 
     // ---------------------------------------------------------------------------
@@ -686,7 +711,7 @@ export const opDefs = {
     // eps
 
     nothing: {
-        create: () => {},
+        create: () => { },
         call: (_, __, ___, i) => ({ start: i, end: i }),
         hashFields: [],
         describe: () => "()",
@@ -739,6 +764,8 @@ export const lit = (s: string) => createCombinator("literal", s);
 export const regex = (p: RegExp) => createCombinator("literal", [p.source, p.flags]);
 /** Matches any one of the given options between regex \b separators; the result is tagged `t` and ignored. */
 export const kw = createCombinatorMaker("keyword");
+/** Matches this operator, but also asserts that it doesn't also simultaneously match any other longer operator defined elsewhere in the grammar. */
+export const op = createCombinatorMaker("opsym");
 /** Parses `n` but flags the result `ignored`: its text stays in the CST (so concatenating all leaves still reproduces the source) and it is dropped later, when the CST is lowered to an AST. */
 export const ignored = createCombinatorMaker("ignored");
 /** Invokes the named rule `r` from the grammar; the result is wrapped in a node typed `r`, unless the rule only delegated to another named rule. Extra combinators are arguments, for calling a parameterized rule. */

@@ -112,7 +112,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
      * to its definition in the op table.
      */
     const callRule = (path: string, g: GrammarCombinator, i: number, locals: Locals, dynamics: Dynamics): CSTNode | MatchFail =>
-        (opDefs[g.op] as GrammarOpDef).call(ctx, g, path, i, locals, dynamics);
+        (opDefs[g.op] as GrammarOpDef<unknown>).call(ctx, g, path, i, locals, dynamics);
     /**
      * Links `l` and every LR above it on the stack into a single head,
      * recording their rules as involved in the recursive cycle.
@@ -201,6 +201,7 @@ export const parseToCST = (text: string, startIndex: number, startRule: string, 
     const ctx: OpContext = {
         text,
         grammar,
+        memo,
         applyRule,
         errorNode,
         recover,
