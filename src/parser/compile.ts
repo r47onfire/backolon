@@ -10,7 +10,7 @@ import { CSTNode } from "./cst";
  *
  * The root is always a named node since a parse always starts at a named rule.
  */
-export function condenseCST(cst: CSTNode): CSTNode {
+export const condenseCST = (cst: CSTNode): CSTNode => {
     const condensedChildren = (node: CSTNode): CSTNode[] =>
         (node.children ?? []).filter(child => !child.ignored).flatMap(condense);
     const condense = (node: CSTNode): CSTNode[] => {
@@ -47,7 +47,7 @@ export interface CompileBuilder {
     post?: string | null;
 }
 
-export function syncCompile(node: CSTNode, tab: CompilerTable<(items: any, table?: Record<string, any>) => CompileBuilder>, wrap: (compiled: any, node: CSTNode) => any, handleError: (message: any) => any): any {
+export const syncCompile = (node: CSTNode, tab: CompilerTable<(items: any, table?: Record<string, any>) => CompileBuilder>, wrap: (compiled: any, node: CSTNode) => any, handleError: (message: any) => any): any => {
     const entry = tab[node.type!];
     var tbc, val, post;
     if (!entry) val = handleError(`don't know how to compile ${JSON.stringify(node.type)} node`);
@@ -66,7 +66,7 @@ export function syncCompile(node: CSTNode, tab: CompilerTable<(items: any, table
     return wrap(val, node);
 }
 
-export function assignPath<T>(val: T, obj: any, path: PropertyKey[]): T {
+export const assignPath = <T>(val: T, obj: any, path: PropertyKey[]): T => {
     var x: any = val;
     if (path.length > 0) {
         for (var i = 0; i < path.length - 1; i++) {

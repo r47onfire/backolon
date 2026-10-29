@@ -1,8 +1,8 @@
-import { javaHash } from "@r47onfire/game-math";
-import { imul, max } from "lib0/math";
-import { CSTNode } from "./cst";
 import { isArray } from "lib0/array";
 import { stringify } from "lib0/json";
+import { max } from "lib0/math";
+import { CSTNode } from "./cst";
+import { hashResolved } from "./walk";
 
 /** A grammar: rule names mapped to their definitions. */
 export type Grammar = Readonly<Record<string, GrammarCombinator | ParameterizedRule>>;
@@ -20,7 +20,8 @@ export type ParameterizedRule = readonly [params: readonly string[], body: Gramm
  * {@link GrammarOp} is its keys, {@link GrammarCombinator} is the union of
  * its shapes (plus the common base), and the `opDefs` table is checked
  * against it -- a `create` that returns anything else, or a `hashFields`
- * entry naming a field that does not exist, is a type error.
+ * entry naming a field that does not exist, is (or at least should be) a
+ * type error.
  */
 export interface OpNodeShapes {
     literal: { pattern: string | [string, string] };
@@ -41,7 +42,7 @@ export interface OpNodeShapes {
     lookahead: { positive: boolean, child: GrammarCombinator };
     nonempty: { child: GrammarCombinator };
     sameline: { child: GrammarCombinator };
-    nothing: {};
+    nothing: void;
     try: { child: GrammarCombinator };
     die: { message: string };
 }
@@ -67,103 +68,6 @@ interface CombinatorBase {
  * rendered) live together in the `opDefs` table below.
  */
 export type GrammarCombinator = { [O in GrammarOp]: CombinatorBase & { readonly op: O } & OpNodeShapes[O] }[GrammarOp];
-
-/**
- * Resolves a reference node (`param`, `ambient`, or `bind`) to the hash of
- * what it refers to, for {@link hashCombinator}. `hashChild` hashes a node
- * with the same resolver in effect. Returning `undefined` means "not a
- * reference I resolve": the node is hashed structurally instead.
- */
-export type ReferenceResolver = (node: GrammarCombinator, hashChild: (child: GrammarCombinator) => number) => number | undefined;
-
-/**
- * A hash of a combinator tree, driven by the `hashFields` of each
- * operation's definition: like trees hash alike. Without a resolver this is
- * a purely structural hash and is cached on the node itself, so hashing a
- * tree costs one walk, ever. With a resolver (used by the parser to tell
- * parameterized rule instances apart), reference nodes contribute the hash
- * of what they resolve to in the current scopes instead of their own shape,
- * and nothing is cached -- the result depends on the scopes, not just the
- * tree.
- */
-export const hashCombinator = (g: GrammarCombinator, resolve?: ReferenceResolver): number => {
-    if (!resolve && g.hash !== undefined) return g.hash;
-    if (resolve) {
-        const resolved = resolve(g, child => hashCombinator(child, resolve));
-        if (resolved !== undefined) return resolved;
-    }
-    var h = javaHash(g.op);
-    const mix = (x: number, prime: number) => h = (imul(h, prime) + x) >>> 0;
-    for (var { 0: field, 1: action } of opDefs[g.op].hashFields) {
-        const value = (g as any)[field] as unknown;
-        if (value === undefined) continue;
-        switch (action) {
-            case MixAction.String:
-            case MixAction.Tag: mix(javaHash(value as string), 31); break;
-            case MixAction.Number: mix(value as number, 31); break;
-            case MixAction.Boolean: mix(value ? 1 : 0, 31); break;
-            case MixAction.Text:
-                if (typeof value === "string") mix(javaHash(value), 31);
-                else for (const s of value as readonly string[]) mix(javaHash(s), 31);
-                break;
-            case MixAction.StringArray: for (const s of value as readonly string[]) mix(javaHash(s), 31); break;
-            case MixAction.Child: mix(hashCombinator(value as GrammarCombinator, resolve), 31); break;
-            case MixAction.Children: for (const child of value as readonly GrammarCombinator[]) mix(hashCombinator(child, resolve), 31); break;
-            case MixAction.AuxChild: mix(hashCombinator(value as GrammarCombinator, resolve), 37); break;
-        }
-    }
-    if (!resolve) g.hash = h;
-    return h;
-};
-
-/**
- * A hash of a combinator tree with its parameter references resolved:
- * `param` nodes contribute the hash of the argument they name (resolved in
- * the lexical scope), `ambient` nodes the hash of the dynamic binding they
- * name (resolved in the dynamic scope captured by that binding, so a
- * binding's value never depends on itself), and `bind` nodes hash their
- * body under the dynamic scope the bind creates. An unbound reference with
- * a default contributes the default's hash. This is the one hash function,
- * {@link hashCombinator}, driven by a resolver; nothing is cached, since
- * the result depends on the scopes, not just the tree.
- */
-export const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dynamics, path: string): number => {
-    const resolveWith = (scopeLocals: Locals, scopeDynamics: Dynamics): ReferenceResolver => (node, hashChild) => {
-        if (node.op === "param") {
-            for (var frame = scopeLocals; frame; frame = frame.next) {
-                const binding = frame.bindings[node.name];
-                if (binding) return hashCombinator(binding.node, resolveWith(binding.locals, scopeDynamics));
-            }
-            if (node.default) return hashChild(node.default);
-            throw new Error("unbound rule parameter " + node.name + " at " + path);
-        }
-        if (node.op === "ambient") {
-            for (var dyn = scopeDynamics; dyn; dyn = dyn.next) {
-                if (dyn.name === node.name) return hashCombinator(dyn.node, resolveWith(dyn.locals, dyn.dynamics));
-            }
-            if (node.default) return hashChild(node.default);
-            throw new Error("unbound dynamic parameter " + node.name + " at " + path);
-        }
-        if (node.op === "bind") {
-            // The body is hashed under the dynamic scope the bind creates:
-            // its own binding is visible to ambient references inside it.
-            const { name, value, body } = node;
-            const inner: Dynamics = { name, node: value, locals: scopeLocals, dynamics: scopeDynamics, next: scopeDynamics, key: "" };
-            const childHashes: Record<string, number> = {
-                value: hashCombinator(value, hashChild),
-                body: hashCombinator(body, resolveWith(scopeLocals, inner)),
-            };
-            var h = javaHash(node.op);
-            for (var { 0: field, 1: action } of opDefs[node.op].hashFields) {
-                if (action === MixAction.Child) h = (imul(h, 31) + childHashes[field]!) >>> 0;
-                else if (action === MixAction.String || action === MixAction.Tag) h = (imul(h, 31) + javaHash((node as any)[field] as string)) >>> 0;
-            }
-            return h;
-        }
-        return undefined;
-    };
-    return hashCombinator(g, resolveWith(locals, dynamics));
-}
 
 /**
  * The memo path of a parameterized rule invocation names the instance by
@@ -243,6 +147,8 @@ export enum MixAction {
     StringArray,
     /** a single sub-combinator, hashed recursively */
     Child,
+    /** a single sub-combinator, hashed recursively, which changes the scope available to its children */
+    ScopedChild,
     /** an array of sub-combinators, each hashed recursively */
     Children,
     /** a single sub-combinator in the auxiliary role (separator, joiner, condition),
@@ -483,7 +389,7 @@ export const opDefs = {
             };
             return ctx.applyRule(path + "/b", body, i, locals, frame);
         },
-        hashFields: [["name", MixAction.String], ["value", MixAction.Child], ["extend", MixAction.Boolean], ["body", MixAction.Child]],
+        hashFields: [["name", MixAction.String], ["value", MixAction.ScopedChild], ["extend", MixAction.Boolean], ["body", MixAction.Child]],
         describe: ({ name, value, extend, body }) => (extend ? "&+" : "&") + name + "=" + describeCombinator(value) + "-" + describeCombinator(body),
     },
 
@@ -780,7 +686,7 @@ export const opDefs = {
     // eps
 
     nothing: {
-        create: () => ({}),
+        create: () => {},
         call: (_, __, ___, i) => ({ start: i, end: i }),
         hashFields: [],
         describe: () => "()",
@@ -882,7 +788,7 @@ export const die = createCombinatorMaker("die");
 
 
 /** Renders a combinator in a compact PEG-like notation, via its operation's `describe` in {@link opDefs}; for debugging grammars. */
-export function describeCombinator(node: GrammarCombinator): string {
+export const describeCombinator = (node: GrammarCombinator): string => {
     // The lookup goes through the loose def type: indexing the table by a
     // not-yet-narrowed op cannot be typed precisely (the precise def for an
     // op is keyed by that op's own node shape).
