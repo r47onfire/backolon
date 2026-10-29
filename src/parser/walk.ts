@@ -50,14 +50,6 @@ export const walkCombinator = <T, E>(g: GrammarCombinator, env: E, walker: Combi
 };
 
 
-/**
- * Resolves a reference node (`param`, `ambient`, or `bind`) to the hash of
- * what it refers to, for {@link hashCombinator}. `hashChild` hashes a node
- * with the same resolver in effect. Returning `undefined` means "not a
- * reference I resolve": the node is hashed structurally instead.
- */
-export type ReferenceResolver = (node: GrammarCombinator, hashChild: (child: GrammarCombinator) => number) => number | undefined;
-
 const basicHash: CombinatorWalker<number, void> = {
     leaf(_node, _field, action, value) {
         switch (action) {
@@ -89,10 +81,7 @@ export const hashCombinator = (g: GrammarCombinator): number => {
     return walkCombinator(g, undefined, basicHash);
 }
 
-interface ResolveEnv {
-    locals: Locals;
-    dynamics: Dynamics;
-}
+type ResolveEnv = readonly [locals: Locals, dynamics: Dynamics];
 
 /**
  * A hash of a combinator tree with its parameter references resolved:
@@ -104,21 +93,21 @@ interface ResolveEnv {
  * the result depends on the scopes, not just the tree.
  */
 export const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dynamics, path: string): number => {
-    return walkCombinator(g, { locals, dynamics } as ResolveEnv, {
+    return walkCombinator(g, [locals, dynamics] as ResolveEnv, {
         leaf: (basicHash as any as CombinatorWalker<number, ResolveEnv>).leaf,
         fold: (basicHash as any as CombinatorWalker<number, ResolveEnv>).fold,
         resolve(node, env) {
             if (node.op === "param") {
-                for (var frame = env.locals; frame; frame = frame.next) {
+                for (var frame = env[0]; frame; frame = frame.next) {
                     const binding = frame.bindings[node.name];
-                    if (binding) return { node: binding.node, env: { locals: binding.locals, dynamics: env.dynamics } };
+                    if (binding) return { node: binding.node, env: [binding.locals, env[1]] as const };
                 }
                 if (node.default) return { node: node.default, env };
                 throw new Error("unbound rule parameter " + node.name + " at " + path);
             }
             if (node.op === "ambient") {
-                for (var dyn = env.dynamics; dyn; dyn = dyn.next) {
-                    if (dyn.name === node.name) return { node: dyn.node, env: { locals: dyn.locals, dynamics: dyn.dynamics } };
+                for (var dyn = env[1]; dyn; dyn = dyn.next) {
+                    if (dyn.name === node.name) return { node: dyn.node, env: [dyn.locals, dyn.dynamics] as const };
                 }
                 if (node.default) return { node: node.default, env };
                 throw new Error("unbound dynamic parameter " + node.name + " at " + path);
@@ -130,8 +119,7 @@ export const hashResolved = (g: GrammarCombinator, locals: Locals, dynamics: Dyn
                 // only bind's body is ScopedChild: it folds under the
                 // dynamic scope the bind creates
                 const { name, value } = node as typeof node & { name: string, value: GrammarCombinator };
-                const inner: Dynamics = { name, node: value, locals: env.locals, dynamics: env.dynamics, next: env.dynamics, key: "" };
-                return { locals: env.locals, dynamics: inner };
+                return [env[0], { name, node: value, locals: env[0], dynamics: env[1], next: env[1], key: "" }] as const;
             }
             return env;
         },
