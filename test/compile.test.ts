@@ -1,7 +1,7 @@
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = //`x + 1; -x; ~x`;
+const SAMPLE_SCRIPT = `x |> y it |> z it`;
 
     `
 ## comments: comment, line_comment, block_comment, blank
@@ -426,7 +426,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
         kw: [["kw"], [1], [2]],
         dot: ["dotPRE", [], []],
         up_dot: ["up_dotPRE", [], []],
-        normal_pipe: [[["fn", true, ["it"]]], [1], [0, 3]],
+        normal_pipe: [["let", [["it"]]], [1, 0, 1], [2]],
         map_pipe: [["map", , ["fn", true, ["it"]]], [1], [2, 3]],
         filter_pipe: [["filter", , ["fn", true, ["it"]]], [1], [2, 3]],
         reduce_pipe: [["reduce", , , ["fn", true, ["_", "it"]]], [1], [3, 3], [2]],
@@ -446,7 +446,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
         }
     }],
     up_dotPRE: [(nodes: [CSTNode, CSTNode]) => {
-        // TODO: a.foo()..bar().baz()..bing()..bam() => ((fn(x) x.baz(); x.bing(); x.bam)(((fn(x) x.foo(); x.bar)(a))()))()
+        // TODO: a.qw.foo()..bar().baz()..bing()..bam() => (let x = (let x = a.qw in (x.foo(); x.bar))() in x.baz(); x.bing(); x.bam)()
         console.error("UP_DOT", nodes);
         return {
             val: "__UP_DOT_HERE__",
@@ -468,7 +468,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
         }
         // make func expression, but still honor short-circuiting rules
         // e.g. evaluate a, evaluate b, compare, if false, return false, else evaluate c and compare to b, etc.
-        // compare(a, b, c, d, e) => (fn(x, y) compare(x, y) and compare(y, c, d, e))(a, b)
+        // compare(a, b, c, d, e) => let x = a, y = b in compare(x, y) and compare(y, c, d, e) end
         return {
             val: "__COMPARE_HERE__",
         }
