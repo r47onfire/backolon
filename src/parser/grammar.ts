@@ -405,6 +405,8 @@ export const backolonGrammar: Grammar = {
         rule("lazy"),
         rule("ref"),
         rule("deref"),
+        rule("sym"),
+        rule("unique_sym"),
     ),
 
     length: op("operator", "#"),
@@ -420,6 +422,8 @@ export const backolonGrammar: Grammar = {
     lazy: op("operator", "^"),
     ref: op("operator", "&"),
     deref: op("operator", "*"),
+    sym: op("operator", ":"),
+    unique_sym: op("operator", "::"),
 
     // atoms: number, string, regex, boolean, null, collection literal, quasiquote, parenthesized expression, name
     atom: alt(

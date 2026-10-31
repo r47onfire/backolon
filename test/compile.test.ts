@@ -1,9 +1,9 @@
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = //`a += b`;
+const SAMPLE_SCRIPT = //`:x; ::x`;
 
-`
+    `
 ## comments: comment, line_comment, block_comment, blank
 ## a trailing line comment
 ##[[ a block comment ##]]
@@ -114,6 +114,8 @@ a.b.c = d.e.f;
 ^lazy;
 $val;
 $.vals;
+:interned_sym;
+::unique_sym;
 
 ## sum, sum_op, add, sub, term, term_op, mul, div, mod,
 ## factor, factor_op, pow
@@ -497,7 +499,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
         const func = table![nodes[0].type!];
         if (!func) throw new Error("unknown prefix operator type " + nodes[0].type);
         return {
-            val: [func],
+            val: Array.isArray(func) ? func : [func],
             tbc: [[nodes[1], [1]]],
         };
     }, {
@@ -514,6 +516,8 @@ else console.log(JSON.stringify(syncCompile(cst, {
         deref: "deref",
         special: "resolve",
         lazy: "lazy",
+        sym: ["sym", , false],
+        unique_sym: ["sym", , true],
     }],
     collection: [(nodes: [CSTNode]) => {
         console.error("collection", nodes);
