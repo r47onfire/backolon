@@ -13,17 +13,31 @@ loadBuiltins(vm: JebVM): void
 **Parameters:**
 - `vm: JebVM`
 
+### `loadVarNamingBuiltins`
+```ts
+loadVarNamingBuiltins(vm: JebVM): void
+```
+**Parameters:**
+- `vm: JebVM`
+
+### `loadUnwrappingBuiltins`
+```ts
+loadUnwrappingBuiltins(vm: JebVM): void
+```
+**Parameters:**
+- `vm: JebVM`
+
 ## define
 
 ### `makeJSFun`
 Creates a builtin function.
 ```ts
-makeJSFun<V, T>(name: Identifier, signature: T, fn: (args: Record<ShorthandToLonghand<T>[number]["name"], unknown> & (ExtractRest<T, true> extends { name: N } ? { [x in PropertyKey]: unknown[] } : {}) & (ExtractRest<T, false> extends { name: N } ? { [x in PropertyKey]: Record<PropertyKey, unknown> } : {}), vm: V, location: Location | undefined) => any, doc: string): JSFun<V, CallableSignatureFromShorthand<T>>
+makeJSFun<V, T>(name: Identifier, signature: T, fn: (args: { [P in never as P["name"]]: P extends LonghandArgument<any, 0> ? unknown[] : P extends LonghandArgument<any, 1> ? Record<PropertyKey, unknown> : unknown }, vm: V, location: Location | undefined) => any, doc: string): JSFun<V, CallableSignatureFromShorthand<T>>
 ```
 **Parameters:**
 - `name: Identifier`
 - `signature: T` — Defines the parameters of the function and how they should be interpreted
-- `fn: (args: Record<ShorthandToLonghand<T>[number]["name"], unknown> & (ExtractRest<T, true> extends { name: N } ? { [x in PropertyKey]: unknown[] } : {}) & (ExtractRest<T, false> extends { name: N } ? { [x in PropertyKey]: Record<PropertyKey, unknown> } : {}), vm: V, location: Location | undefined) => any` — The function to implement the builtin. It should use the VM from the parameter, and **not**
+- `fn: (args: { [P in never as P["name"]]: P extends LonghandArgument<any, 0> ? unknown[] : P extends LonghandArgument<any, 1> ? Record<PropertyKey, unknown> : unknown }, vm: V, location: Location | undefined) => any` — The function to implement the builtin. It should use the VM from the parameter, and **not**
 close over the one that is passed to the `vm` parameter of `defineBuiltin` (since this builtin may be reused for a sub-VM for
 e.g. an FFI callback).
 - `doc: string`
@@ -300,14 +314,13 @@ getProtocolHandler<V>(protocols: Partial<JEBProtocols<V>>, fast: boolean, name: 
 Converts a shorthand signature into its CallableSignature longhand
 form, validating it in the process.
 ```ts
-createSignature<S>(signature: S): CallableSignatureFromShorthand<S>
+createSignature<S>(signature: S): ShorthandToLonghand<S>
 ```
 **Parameters:**
 - `signature: S`
-**Returns:** `CallableSignatureFromShorthand<S>`
-**Throws:** A JEBError (`ESYNTAX`) if the signature is malformed, e.g.
-a required parameter follows an optional one, a rest parameter has a
-default, is duplicated, or is followed by further parameters.
+**Returns:** `ShorthandToLonghand<S>`
+**Throws:** A JEBError (`ESYNTAX` or `EEXIST`) if the signature is malformed, e.g.
+a rest parameter has a default or a parameter name is duplicated.
 
 ## utils
 
@@ -369,14 +382,3 @@ peekData<T>(vm: T): any
 **Parameters:**
 - `vm: T`
 **Returns:** `any`
-
-## initializers
-
-### `__initializer`
-Registers a callback to be run for every VM created from now on
-(see __initializers).
-```ts
-__initializer(f: (x: JebVM) => void): void
-```
-**Parameters:**
-- `f: (x: JebVM) => void`

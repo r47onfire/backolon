@@ -30,13 +30,13 @@ The Javascript function has access to the VM so it can push opcodes to
 implement more than just computation.
 *implements `HasDocstring`, `ApplyMetadata`*
 ```ts
-constructor<T, S>(name: Identifier, signature: S, impl: (args: Record<S["params"][number]["name"], unknown> & (S["rest"] extends { name: N } ? { [x in PropertyKey]: unknown[] } : {}) & (S["kwRest"] extends { name: N } ? { [x in PropertyKey]: Record<PropertyKey, unknown> } : {}), vm: T, location: Location | undefined) => any, doc: string): JSFun<T, S>
+constructor<T, S>(name: Identifier, signature: S, impl: (args: { [P in LonghandArgument<any, any> as P["name"]]: P extends LonghandArgument<any, 0> ? unknown[] : P extends LonghandArgument<any, 1> ? Record<PropertyKey, unknown> : unknown }, vm: T, location: Location | undefined) => any, doc: string): JSFun<T, S>
 ```
 **Properties:**
 - `name: Identifier` — The name of the function as it should appear in a traceback.
 - `signature: S` — The declared parameter signature the runtime binds call arguments
 against (see `doargs`).
-- `impl: (args: Record<S["params"][number]["name"], unknown> & (S["rest"] extends { name: N } ? { [x in PropertyKey]: unknown[] } : {}) & (S["kwRest"] extends { name: N } ? { [x in PropertyKey]: Record<PropertyKey, unknown> } : {}), vm: T, location: Location | undefined) => any` — The javascript function implementation.
+- `impl: (args: { [P in LonghandArgument<any, any> as P["name"]]: P extends LonghandArgument<any, 0> ? unknown[] : P extends LonghandArgument<any, 1> ? Record<PropertyKey, unknown> : unknown }, vm: T, location: Location | undefined) => any` — The javascript function implementation.
 
 If the function returns the special value NOTHING, no
 value will be pushed as the result of the function call. Otherwise, the
@@ -158,7 +158,7 @@ constructor(type: AccessType): Reference
 - `set(vm: JebVM, value: any, createIfNotFound: boolean, makeConstant: boolean): void` — Set the value of the slot to the provided value,
 or throws an error if it's readonly. The stack should not be modified either way.
 
-## reference
+## builtins
 
 ### `ObjectPropertyReference`
 A reference to a property of a plain JavaScript object (host-language
@@ -289,11 +289,27 @@ constructor(obj: any, isKeyword: boolean): SplatArg
 - `isKeyword: boolean`
 *Inherits 2 properties from `Wrapper` — see [`Wrapper`](../wrapper.md)*
 
+### `OptionArg`
+Sentinel to force the parameter to use its default expression
+*extends `Wrapper`*
+```ts
+constructor(obj: string): OptionArg
+```
+*Inherits 2 properties from `Wrapper` — see [`Wrapper`](../wrapper.md)*
+
+### `EmptyArg`
+Sentinel to force the parameter to use its default expression
+*extends `Wrapper`*
+```ts
+constructor(): EmptyArg
+```
+*Inherits 2 properties from `Wrapper` — see [`Wrapper`](../wrapper.md)*
+
 ### `ReferenceWrapper`
 Wrapper for a variable reference
 *extends `Wrapper`*
 ```ts
-constructor(obj: any): ReferenceWrapper
+constructor(obj: Reference): ReferenceWrapper
 ```
 *Inherits 2 properties from `Wrapper` — see [`Wrapper`](../wrapper.md)*
 

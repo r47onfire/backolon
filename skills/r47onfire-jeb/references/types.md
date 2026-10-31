@@ -135,7 +135,7 @@ ProtocolsList<V, Result<any, string>, [Type[]], {}, void, void>
 Metadata describing a callable, returned by the `apply` protocol's `describe`.
 **Properties:**
 - `name: Identifier | undefined` — The name of the function to appear in tracebacks, if undefined it means it's a hidden callframe and won't show.
-- `signature: CallableSignature` — The callable's parameter signature, used to process its arguments.
+- `signature: readonly LonghandArgument<any, any>[]` — The callable's parameter signature, used to process its arguments.
 - `closureEnv: Env` (optional) — The environment(s) that this function closes over on order to allow default value expressions to be evaluated in that environment.
 
 ### `ApplyFlags`
@@ -182,6 +182,8 @@ overloadable math operations.
 - `bitAnd: BinaryProtocolToResult<V>`
 - `bitOr: BinaryProtocolToResult<V>`
 - `bitXor: BinaryProtocolToResult<V>`
+- `shl: BinaryProtocolToResult<V>`
+- `shr: BinaryProtocolToResult<V>`
 - `bitNot: ProtocolsList<V, Result<any, string>>`
 
 ### `ArgcForName`
@@ -226,10 +228,13 @@ The capacity in which a Reference is accessed.
 Compact form of one parameter in a callable signature. Each union member is
 a different parameter flavour (the members are documented individually);
 createSignature converts an array of these into the
-LonghandArgument form used at runtime. A bare `true`/`false` is not
-a parameter itself: it marks the preceding parameter as a rest parameter.
+LonghandArgument form used at runtime. In a parameter tuple the
+option slots may appear in any order before the name; the slot's type
+says what it is (array: flags, boolean: laziness, number: rest kind,
+plain object: named options), and at most one slot -- the default --
+may follow the name.
 ```ts
-N | readonly [name: N, defaultExpr: any] | readonly [lazy: false, name: N] | readonly [macro: true, name: N] | readonly [flags: F, name: N] | readonly [flags: F, name: N, defaultExpr: any] | readonly [flags: F, lazy: false, name: N] | true | false
+N | [...UnionPermutations<R | boolean | string[] | Record<string, any>, 1 | 2 | 3 | 4>, N, default_?: any]
 ```
 
 ### `LonghandArgument`
@@ -237,39 +242,30 @@ One parameter of a callable signature, in the expanded form produced by
 createSignature and consumed by the argument-processing machinery.
 **Properties:**
 - `name: N` — The parameter's name.
-- `required: boolean` — Whether the caller must supply the argument.
-- `defaultExpr: any` — Expression evaluated to produce the value when the argument is not supplied; only meaningful if the parameter is not `required`.
+- `required: R extends 0 | 1 ? false : boolean` — Whether the caller must supply the argument. Ignored if rest is not Rest.NONE.
+- `defaultExpr: R extends 0 ? any[] : R extends 1 ? Record<string, any> : any` — Expression evaluated to produce the value when the argument is not supplied; only meaningful if the parameter is not `required`.
 - `lazy: Laziness` — Whether (and how) the argument expression is deferred; see Laziness.
-- `flags: F` — Names of wrappers that are *not* unwrapped from this parameter's value, so the body can operate on the wrapper itself.
+- `flags: string[]` — Names of wrappers that are *not* unwrapped from this parameter's value, so the body can operate on the wrapper itself.
+- `rest: R extends undefined ? NONE : R extends 0 ? POSITIONAL : R extends 1 ? KEYWORD : Rest` — Whether the parameter is a rest parameter.
+- `options: Record<string, any>` — Named enum options.
 
 ### `ShorthandToLonghand`
 Type-level expansion of a shorthand signature's parameters into
-LonghandArguments, dropping the `true`/`false` rest markers.
+LonghandArguments.
 ```ts
-S extends readonly [ShorthandArgument<any, any>, boolean, ...(infer T extends readonly any[])] ? ShorthandToLonghand<T> : S extends readonly [ShorthandArgument<infer N, infer F>, ...(infer T extends readonly any[])] ? [LonghandArgument<N, F>, ...ShorthandToLonghand<T>] : readonly []
-```
-
-### `ExtractRest`
-Type-level extraction of a rest parameter (the parameter followed by `B`:
-`true` for the positional rest parameter, `false` for the keyword one)
-from a shorthand signature, or `undefined` if there is none.
-```ts
-S extends readonly [ShorthandArgument<infer N, infer F>, B, ...readonly any[]] ? LonghandArgument<N, F> : S extends readonly [any, ...(infer R extends readonly ShorthandArgument<any, any>[])] ? ExtractRest<R, B> : undefined
+S extends readonly [infer P, ...(infer T extends readonly any[])] ? [ShorthandParamToLonghand<P>, ...ShorthandToLonghand<T>] : readonly []
 ```
 
 ### `CallableSignature`
-The full signature of a callable: its positional parameters plus its
-optional rest parameters.
-**Properties:**
-- `params: P` — The positional parameters, in order.
-- `rest: R` — The parameter receiving all remaining positional arguments, if any.
-- `kwRest: K` — The parameter receiving all remaining keyword arguments, if any.
+```ts
+P
+```
 
 ### `CallableSignatureFromShorthand`
 The CallableSignature that createSignature produces for the
 shorthand signature `S`, computed at the type level.
 ```ts
-CallableSignature<ShorthandToLonghand<S>, ExtractRest<S, true>, ExtractRest<S, false>>
+CallableSignature<ShorthandToLonghand<S>>
 ```
 
 ### `Laziness`
@@ -277,6 +273,12 @@ How a parameter's argument expression is treated when the callable is invoked.
 - `NONE` = `0` — The argument is evaluated (and unwrapped) before the body runs.
 - `LAZY` = `1` — The argument is wrapped in a block without being evaluated.
 - `QUOTED` = `2` — The argument is passed as the raw, unevaluated expression.
+
+### `Rest`
+How the parameter accepts arguments.
+- `NONE` = `0` — A normal parameter, can be positional or keyword.
+- `POSITIONAL` = `1` — A positional rest argument that receives all the remaining positional arguments.
+- `KEYWORD` = `2` — A keyword rest argument that receives all the unmatched keyword arguments.
 
 ## utils
 
@@ -297,6 +299,26 @@ R["length"] extends N ? R : _TupleOf<T, N, [T, ...R]>
 `T` with all `readonly` modifiers removed.
 ```ts
 { -readonly [P in keyof T]: T[P] }
+```
+
+### `WrapUnionMembers`
+```ts
+T extends unknown ? [T] : never
+```
+
+### `CombinationTupleMembers`
+```ts
+T extends [] ? T : T extends [infer F, ...(infer R)] ? [...WrapUnionMembers<F>, ...CombinationTupleMembers<R>] : never
+```
+
+### `NoDuplicateElements`
+```ts
+T extends [] ? [] : T extends [infer F, ...(infer R)] ? F extends R[number] ? never : [F, ...NoDuplicateElements<R>] : never
+```
+
+### `UnionPermutations`
+```ts
+NoDuplicateElements<CombinationTupleMembers<Tuple<U, L>>>
 ```
 
 ### `DropFirst`
@@ -424,9 +446,5 @@ Errno database mapping E-code to value
 - `ENETRESET` = `52` — Network dropped connection on reset
 - `ECONNABORTED` = `53` — Software caused connection abort
 - `ECONNRESET` = `54` — Connection reset by peer
-- `ENOBUFS` = `55` — No buffer space available
-- `EISCONN` = `56` — Socket is already connected
-- `ENOTCONN` = `57` — Socket is not connected
-- `ESHUTDOWN` = `58` — Can't send after socket shutdown
 
 <!-- truncated -->
