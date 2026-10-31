@@ -1,9 +1,9 @@
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `x |> y it |> z it`;
+const SAMPLE_SCRIPT = //`a += b`;
 
-    `
+`
 ## comments: comment, line_comment, block_comment, blank
 ## a trailing line comment
 ##[[ a block comment ##]]
@@ -344,7 +344,6 @@ else console.log(JSON.stringify(syncCompile(cst, {
     i_stringPOST: [(nodes: (string | CSTNode)[]) => {
         nodes = nodes.reduce((acc, item) => {
             const lastitem = acc.pop()!;
-            console.error("lastitem", [lastitem, acc]);
             if (typeof lastitem === "string" && typeof item == "string") {
                 acc.push(lastitem + item);
             } else {
@@ -352,7 +351,6 @@ else console.log(JSON.stringify(syncCompile(cst, {
             }
             return acc;
         }, [""] as (string | CSTNode)[]);
-        console.error("asdfghjkl", nodes);
         return {
             val: nodes.slice(1).reduce((acc, cur) => ["add", acc, cur] as any, nodes[0])
         }
@@ -395,7 +393,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
         const [template, leftPath, rightPath, childPath] = entry;
         if (isString(template)) {
             return {
-                val: [left, right],
+                val: [left, right, child],
                 post: template,
             }
         }
@@ -421,7 +419,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
         haystack_has_needle: [["in"], [2], [1]],
         normal_assign: [["set"], [1], [2]],
         old_assign: [["set", , , true], [1], [2]],
-        aug_assign: [["set________TODO"], [1], [2], [3]],
+        aug_assign: ["aug_assignPRE", [], []],
         arrow: [["set"], [2], [1]],
         kw: [["kw"], [1], [2]],
         dot: ["dotPRE", [], []],
@@ -448,33 +446,52 @@ else console.log(JSON.stringify(syncCompile(cst, {
     up_dotPRE: [(nodes: [CSTNode, CSTNode]) => {
         // TODO: a.qw.foo()..bar().baz()..bing()..bam() => (let x = (let x = a.qw in (x.foo(); x.bar))() in x.baz(); x.bing(); x.bam)()
         console.error("UP_DOT", nodes);
+        throw "up_dot";
+    }],
+    aug_assignPRE: [(nodes: [CSTNode, CSTNode, CSTNode]) => {
+        const left = nodes[0];
+        const right = nodes[1];
+        const op = nodes[2];
         return {
-            val: "__UP_DOT_HERE__",
+            val: ["set"],
+            tbc: [
+                [left, [1]],
+                [{ type: "binary_op", start: op.start, end: op.end, children: [{ type: "name", start: op.start, end: op.end, children: [{ text: "_", start: op.start, end: op.end }] }, op, right] }, [2]],
+            ],
         }
     }],
     comparison: [(nodes: CSTNode[], tab?: Record<string, any>) => {
-        const simple = nodes.length <= 3;
-        if (simple) {
-            const left = nodes[0]!;
-            const right = nodes[2]!;
-            const op = nodes[1]!;
-            const opName = op.type!;
+        const simple = nodes.length < 4;
+        const getOp = (opName: string) => {
             const entry = tab![opName];
             if (!entry) throw new Error("unknown comparison operator type " + opName);
+            return entry;
+        }
+        if (simple) {
             return {
-                val: [entry],
-                tbc: [[left, [1]], [right, [2]]],
+                val: [getOp(nodes[1]!.type!)],
+                tbc: [[nodes[0]!, [1]], [nodes[2]!, [2]]],
             }
         }
         // make func expression, but still honor short-circuiting rules
         // e.g. evaluate a, evaluate b, compare, if false, return false, else evaluate c and compare to b, etc.
         // compare(a, b, c, d, e) => let x = a, y = b in compare(x, y) and compare(y, c, d, e) end
         return {
-            val: "__COMPARE_HERE__",
+            val: [[nodes.flatMap((x, i) => i & 1 ? [getOp(x.type!)] : [])], []],
+            tbc: nodes.flatMap((x, i) => i & 1 ? [] : [[x, [1, i >> 1]]]),
+            post: "comparisonPOST",
         }
     }, {
         equal: "eq",
-        not_equal: "notEq"
+        not_equal: "notEq",
+        greater: "greater",
+        less: "less",
+        gte: "greaterEq",
+        lte: "lessEq",
+    }],
+    comparisonPOST: [(nodes: [any[], CSTNode[]]) => {
+        console.error(nodes);
+        throw "compare";
     }],
     prefix: [(nodes: [CSTNode, CSTNode], table?: Record<string, any>) => {
         const func = table![nodes[0].type!];
@@ -502,7 +519,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
         console.error("collection", nodes);
         const hasMap = nodes.some(n => n.type === "");
         console.error("TODO TODO");
-        return { val: "__COLLECTION_HERE__" };
+        throw "collection";
     }],
     quasiquote: [(nodes: [CSTNode]) => {
         return {
@@ -546,6 +563,6 @@ else console.log(JSON.stringify(syncCompile(cst, {
             default:
                 throw new Error("unknown let type " + type);
         }
-        return { val: "__LET_HERE__" }
+        throw "let"
     }]
-}, x => x, x => { return ["TBC", x]; throw x instanceof Error ? x : Error(x); }), (_, x) => typeof x === "bigint" ? ["BIGINT", x + ""] : x, 2));
+}, x => x, x => { throw x instanceof Error ? x : Error(x); }), (_, x) => typeof x === "bigint" ? ["BIGINT", x + ""] : x, 2));
