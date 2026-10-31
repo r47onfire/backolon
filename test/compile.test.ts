@@ -107,6 +107,7 @@ a.b.c = d.e.f;
 !ok;
 ~mask;
 #list;
+.option;
 ...args;
 &ptr;
 *ptr;
@@ -518,6 +519,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
         lazy: "lazy",
         sym: ["sym", , false],
         unique_sym: ["sym", , true],
+        option: "option",
     }],
     collection: [(nodes: [CSTNode]) => {
         console.error("collection", nodes);
