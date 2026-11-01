@@ -128,7 +128,7 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`#x`, ["exprs", ["prefix", ["length"], ["name", "x"]]]],
         [`#"str"`, ["exprs", ["prefix", ["length"], ["i_string", ["i_body", "str"]]]]],
         //  ...args (splat)
-        [`...args`, ["exprs", ["prefix", ["spread"], ["name", "args"]]]],
+        [`...args`, ["exprs", ["prefix", ["splat"], ["name", "args"]]]],
         //  != is a comparison, not ! followed by =
         [`a != b`, ["exprs", ["comparison", ["name", "a"], ["not_equal"], ["name", "b"]]]],
     ],
@@ -196,7 +196,7 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`fn(x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["binary_op", ["name", "x"], ["add"], ["number", ["dec", "1"]]]]]]],
         [`fn (x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["binary_op", ["name", "x"], ["add"], ["number", ["dec", "1"]]]]]]],
         [`fn(x)\n    x + 1\nend`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["binary_op", ["name", "x"], ["add"], ["number", ["dec", "1"]]]]]]]],
-        [`fn(x, y, ...z) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"], ["name", "y"], ["prefix", ["spread"], ["name", "z"]]], ["body_exprs", ["name", "x"]]]]],
+        [`fn(x, y, ...z) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"], ["name", "y"], ["prefix", ["splat"], ["name", "z"]]], ["body_exprs", ["name", "x"]]]]],
         [`fn(x) callcc fn(c) c`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["implicit_call", ["name", "callcc"], ["implicit_args", ["fn", ["explicit_args", ["name", "c"]], ["body_exprs", ["name", "c"]]]]]]]]],
         [`fn(x) x;\nfn(x) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]], ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]]]],
         [`fn(x) x\nfn(x) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]], ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]]]],

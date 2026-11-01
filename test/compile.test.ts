@@ -1,9 +1,9 @@
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `x.+y`;
+const SAMPLE_SCRIPT = `...x; ...:x`;
 
-    `
+`
 ## comments: comment, line_comment, block_comment, blank
 ## a trailing line comment
 ##[[ a block comment ##]]
@@ -101,7 +101,7 @@ a.(b);
 a.b.c = d.e.f;
 
 ## prefix: prefix, prefix_op, negate, abs, not, bit_not, length,
-## spread, ref, deref, special, lazy, unquote, unquote_splicing
+## splat, ref, deref, special, lazy, unquote, unquote_splicing
 -x;
 +x;
 !ok;
@@ -512,7 +512,8 @@ else console.log(JSON.stringify(syncCompile(cst, {
         not: "not",
         bit_not: "bitInv",
         length: "length",
-        spread: "splat",
+        splat: ["splat", , false],
+        splat_kw: ["splat", , true],
         ref: "ref",
         deref: "deref",
         special: "resolve",
