@@ -1,7 +1,7 @@
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = //`:x; ::x`;
+const SAMPLE_SCRIPT = `x.+y`;
 
     `
 ## comments: comment, line_comment, block_comment, blank

@@ -394,6 +394,7 @@ export const backolonGrammar: Grammar = {
     prefix_op: alt(
         rule("length"),
         rule("spread"),
+        rule("spread_kw"),
         rule("negate"),
         rule("abs"),
         rule("not"),
@@ -412,6 +413,7 @@ export const backolonGrammar: Grammar = {
 
     length: op("operator", "#"),
     spread: op("operator", "..."),
+    spread_kw: op("operator", "...:"),
     negate: op("operator", "-"),
     abs: op("operator", "+"),
     not: op("operator", "!"),
