@@ -433,7 +433,7 @@ export const backolonGrammar: Grammar = {
     deref: op("operator", "*"),
     sym: op("operator", ":"),
     unique_sym: op("operator", "::"),
-    option: op("operator", "."),
+    option: seq(op("operator", "."), lookahead(false, rule("number"))), // check to fix ".5" from parsing as an option
 
     // atoms: number, string, regex, boolean, null, collection literal, quasiquote, parenthesized expression, name
     atom: alt(

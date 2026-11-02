@@ -69,7 +69,12 @@ describe("parameterized rules", () => {
             main: rule("w"),
             w: [["t"], param("t")],
         };
-        expect(() => parseToCST("a", 0, "main", needsOne, "exprs")).toThrow("takes 1 argument(s) but got 0");
+        expect(() => parseToCST("a", 0, "main", needsOne, "exprs")).toThrow("unbound rule parameter t");
+        const tooMany: Grammar = {
+            main: rule("w", lit("a"), lit("b"), lit("c")),
+            w: [["a", "b"], seq(param("a"), param("b"))],
+        };
+        expect(() => parseToCST("abc", 0, "main", tooMany, "exprs")).toThrow("too many arguments to rule w (expected 2 but got 3)");
         const plainWithArgs: Grammar = {
             main: rule("w", lit("a")),
             w: lit("a"),
@@ -169,6 +174,16 @@ describe("parameter defaults", () => {
         parsesFully(grammar, "main", "rulevalue");
         const cst = parseToCST("default", 0, "main", grammar, "exprs");
         expect(JSON.stringify(cst)).toContain('"errorExpected"');
+    });
+
+    test("omitted rule arguments leave parameters unbound for their defaults", () => {
+        const grammar: Grammar = {
+            main: rule("w"),
+            w: [["a", "b"], seq(param("a", lit("A")), param("b", lit("B")))],
+        };
+        parsesFully(grammar, "main", "AB");
+        const partial: Grammar = { ...grammar, main: rule("w", lit("x")) };
+        parsesFully(partial, "main", "xB");
     });
 
     test("works inside rule arguments", () => {

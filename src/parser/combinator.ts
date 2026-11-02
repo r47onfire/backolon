@@ -320,16 +320,19 @@ export const opDefs = {
             if (!entry) throw new Error("unknown named rule " + name + " at " + path);
             var body: GrammarCombinator, bodyPath = name, bodyLocals = locals;
             if (isArray(entry)) {
-                // Parameterized rule: bind the arguments (all required, no
-                // defaults), each capturing the scope in effect at this call
-                // site, and evaluate the body under a memo path that names the
+                // Parameterized rule: bind the supplied arguments, each
+                // capturing the scope in effect at this call site, and
+                // evaluate the body under a memo path that names the
                 // instance (the rule name plus the hashes of its argument
                 // combinators), so that different instances of the same rule
-                // memoize separately.
+                // memoize separately. Arguments may be omitted from the
+                // end; an omitted parameter remains unbound, so a reference
+                // through `param(name, default)` uses its default, while a
+                // reference with no default reports the parameter as unbound.
                 const { 0: params, 1: ruleBody } = entry;
-                if (args.length !== params.length) throw new Error("rule " + name + " takes " + params.length + " argument(s) but got " + args.length + " at " + path);
+                if (args.length > params.length) throw new Error(`too many arguments to rule ${name} (expected ${params.length} but got ${args.length}) at ${path}`);
                 const bindings: Record<string, ParamBinding> = {};
-                for (var k = 0; k < params.length; k++) bindings[params[k]!] = { node: args[k]!, locals };
+                for (var k = 0; k < args.length; k++) bindings[params[k]!] = { node: args[k]!, locals };
                 body = ruleBody;
                 bodyPath = instancePath(name, args, locals, dynamics, path);
                 bodyLocals = { bindings, next: locals };
