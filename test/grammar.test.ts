@@ -58,6 +58,7 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         "foo123",
         "_bar",
         "fn",
+        "𓆏",
     ].map(s => [s, ["exprs", ["name", s]]]),
 
     strings: [
