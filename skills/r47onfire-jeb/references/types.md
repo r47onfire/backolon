@@ -42,7 +42,7 @@ A source location, as an `[id, file]` pair; either entry may be
 ### `StackTreeNode`
 Tree node representing a compressed stack trace
 ```ts
-Readonly<{ leaf: false; count: number; children: StackTreeNode[]; hash: number } | { leaf: true; name: Identifier | undefined; location: Location | undefined; hash: number }>
+Readonly<{ leaf: false; count: number; children: StackTreeNode[]; hash: number } | { leaf: true; name: Identifier | undefined; location: Location | undefined; kind: StackEntryKind; hash: number }>
 ```
 
 ## math
@@ -328,7 +328,11 @@ T extends [any, ...(infer Rest)] ? Rest : []
 ```
 
 ### `Identifier`
-A variable name: either a string, or a symbol (as produced by `gensym`).
+A variable name: either a string, or a symbol (as produced by gensym).
+
+Note that when `Identifier`s are used as object keys, you should use
+`Reflect.ownKeys()` instead of `Object.keys()` since the latter only returns
+the string properties and skips symbols.
 ```ts
 string | symbol
 ```
@@ -338,15 +342,20 @@ string | symbol
 ### `Command`
 Data for the command
 ```ts
-[opcode: OpcodeFunction<any, T>, immediateArgs: any[]]
+[opcode: OpcodeFunction<A, T>, immediateArgs: A]
 ```
+
+### `StackEntry`
+**Properties:**
+- `name: Identifier | undefined` — Name of the function called, if known
+- `location: Location | undefined` — Location of the call site, if known
+- `kind: StackEntryKind`
 
 ### `StackCount`
 One compressed run of call-stack frames: `count` consecutive calls of the
 same function at the same call site, collapsed into a single traceback entry.
 **Properties:**
-- `name: Identifier | undefined` — Name of the function called, if known
-- `location: Location | undefined` — Location of the call site
+- `item: StackEntry`
 - `count: number` — Number of frames collapsed into this entry
 - `tail: boolean` — Whether these frames were entered by tail calls
 
@@ -362,6 +371,12 @@ after the VM parameter), for typing calls to JebVM.pushCommand.
 ```ts
 Parameters<T>[1] extends infer T extends any[] ? T : [void]
 ```
+
+### `StackEntryKind`
+- `FUNCTION` = `0`
+- `MACRO_EXPANSION_RESULT` = `1`
+- `PARAMETER` = `2`
+- `NONE` = `3`
 
 ## doc
 
@@ -438,13 +453,5 @@ Errno database mapping E-code to value
 - `ESOCKTNOSUPPORT` = `44` — Socket type not supported
 - `ENOTSUP` = `45` — Operation not supported
 - `EPFNOSUPPORT` = `46` — Protocol family not supported
-- `EAFNOSUPPORT` = `47` — Address family not supported by protocol family
-- `EADDRINUSE` = `48` — Address already in use
-- `EADDRNOTAVAIL` = `49` — Can't assign requested address
-- `ENETDOWN` = `50` — Network is down
-- `ENETUNREACH` = `51` — Network is unreachable
-- `ENETRESET` = `52` — Network dropped connection on reset
-- `ECONNABORTED` = `53` — Software caused connection abort
-- `ECONNRESET` = `54` — Connection reset by peer
 
 <!-- truncated -->

@@ -10,18 +10,18 @@ simple JSON evaluation virtual machine with first-class continuations
 
 ## Configuration
 
-**JEBErrorOptions** — Extra options accepted when constructing a JEBError. (1 options — see references/config.md)
+**JEBErrorOptions** — Extra options accepted when constructing a JEBError. (3 options — see references/config.md)
 
 ## Quick Reference
 
-175 exports (34 functions, 19 classes, 45 types, 5 enums, 72 constants) — see references/ for full API.
+184 exports (37 functions, 20 classes, 46 types, 6 enums, 75 constants) — see references/ for full API.
 
 ## References
 
 Load these on demand — do NOT read all at once:
 
 - When calling any function → read `references/functions.md` for full signatures, parameters, and return types
-- When using a class → read `references/classes.md` for properties, methods, and inheritance
+- When using a class → browse `references/classes/` for grouped indexes, properties, methods, and inheritance
 - When defining typed variables or function parameters → read `references/types.md`
 - When using exported constants → read `references/variables.md`
 - When configuring options → read `references/config.md` for all settings and defaults

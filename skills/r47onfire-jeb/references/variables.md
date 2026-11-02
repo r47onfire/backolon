@@ -16,6 +16,25 @@ Special symbol to represent 'no value' in contexts where `undefined` is a valid 
 const NOTHING: typeof NOTHING
 ```
 
+## doargs
+
+### `ARGUMENT_LOCATIONS`
+Key under which the finished arguments object carries the source
+locations of its parameters (see argumentLocation): a record
+from parameter name to the location of the outermost call made while
+evaluating whatever filled it -- a given argument, or the parameter's
+default expression (which is the location an `at` form heading it
+attaches to it). Only parameters whose filling evaluation actually
+made a located call have an entry.
+```ts
+const ARGUMENT_LOCATIONS: typeof ARGUMENT_LOCATIONS
+```
+
+### `OP_doargs`
+```ts
+const OP_doargs: (vm: any, __namedParameters: [readonly LonghandArgument<any, any>[], Env | undefined, boolean | undefined, Identifier | undefined]) => void
+```
+
 ## errno
 
 ### `ErrnoDesc`
@@ -41,7 +60,7 @@ const ErrnoParent: Record<ErrnoCode, ErrnoCode[] | undefined>
 Asserts that `x` matches at least one of the given types, throwing a
 JEBError (`EINVAL`) naming `paramName` if it matches none of them.
 ```ts
-const typecheck: (x: unknown, t: T, paramName?: string) => asserts x is TypeValue<T[number]>
+const typecheck: (x: unknown, t: T, paramName?: string, args?: Record<Identifier, any>) => asserts x is TypeValue<T[number]>
 ```
 
 ## builtins
@@ -53,7 +72,7 @@ const OP_wrap: (vm: any, args: [cls: any]) => void
 
 ### `OP_unwrap`
 ```ts
-const OP_unwrap: (vm: any, __namedParameters: [string[]]) => void
+const OP_unwrap: (vm: any, __namedParameters: [string[], only?: boolean]) => void
 ```
 
 ### `B_err`
@@ -133,7 +152,7 @@ const OP_get: (vm: JebVM, __namedParameters: [boolean]) => void
 
 ### `OP_if`
 ```ts
-const OP_if: (vm: T, __namedParameters: [any, any, asm?: false] | [Command<T> | null, Command<T> | null, true]) => void
+const OP_if: (vm: T, __namedParameters: [any, any, asm?: false] | [[opcode: OpcodeFunction<any[], T>, ...immediateArgs: any[]] | null, [opcode: OpcodeFunction<any[], T>, ...immediateArgs: any[]] | null, true]) => void
 ```
 
 ### `OP_index`
@@ -158,7 +177,7 @@ const OP_tbPop: (vm: any) => any
 
 ### `OP_tbPush`
 ```ts
-const OP_tbPush: (vm: JebVM, __namedParameters: [f: Identifier, Location | undefined, tail?: boolean]) => void
+const OP_tbPush: (vm: JebVM, __namedParameters: [f: Identifier, Location | undefined, kind: StackEntryKind, tail?: boolean]) => void
 ```
 
 ### `B_is_nil`
@@ -334,6 +353,11 @@ const B_let: JSFun<JebVM<any>, [LonghandArgument<"args", 0>]>
 ### `B_let_in`
 ```ts
 const B_let_in: JSFun<JebVM<any>, [LonghandArgument<"pairs", 0>]>
+```
+
+### `B_sym`
+```ts
+const B_sym: JSFun<JebVM<any>, [LonghandArgument<"name", undefined>, LonghandArgument<"unique", undefined>]>
 ```
 
 ### `B_always`

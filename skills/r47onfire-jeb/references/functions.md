@@ -32,12 +32,12 @@ loadUnwrappingBuiltins(vm: JebVM): void
 ### `makeJSFun`
 Creates a builtin function.
 ```ts
-makeJSFun<V, T>(name: Identifier, signature: T, fn: (args: { [P in never as P["name"]]: P extends LonghandArgument<any, 0> ? unknown[] : P extends LonghandArgument<any, 1> ? Record<PropertyKey, unknown> : unknown }, vm: V, location: Location | undefined) => any, doc: string): JSFun<V, CallableSignatureFromShorthand<T>>
+makeJSFun<V, T>(name: Identifier, signature: T, fn: (args: { [P in never as P["name"]]: P extends LonghandArgument<any, 0> ? unknown[] : P extends LonghandArgument<any, 1> ? Record<PropertyKey, unknown> : unknown } & { [ARGUMENT_LOCATIONS]: Record<S[number]["name"], Location | undefined> }, vm: V, location: Location | undefined) => any, doc: string): JSFun<V, CallableSignatureFromShorthand<T>>
 ```
 **Parameters:**
 - `name: Identifier`
 - `signature: T` — Defines the parameters of the function and how they should be interpreted
-- `fn: (args: { [P in never as P["name"]]: P extends LonghandArgument<any, 0> ? unknown[] : P extends LonghandArgument<any, 1> ? Record<PropertyKey, unknown> : unknown }, vm: V, location: Location | undefined) => any` — The function to implement the builtin. It should use the VM from the parameter, and **not**
+- `fn: (args: { [P in never as P["name"]]: P extends LonghandArgument<any, 0> ? unknown[] : P extends LonghandArgument<any, 1> ? Record<PropertyKey, unknown> : unknown } & { [ARGUMENT_LOCATIONS]: Record<S[number]["name"], Location | undefined> }, vm: V, location: Location | undefined) => any` — The function to implement the builtin. It should use the VM from the parameter, and **not**
 close over the one that is passed to the `vm` parameter of `defineBuiltin` (since this builtin may be reused for a sub-VM for
 e.g. an FFI callback).
 - `doc: string`
@@ -110,6 +110,36 @@ defineUnwrapper<V, T>(vm: JebVM, type: T, fn: (this: unknown, vm: V, args: [Type
 - `fn: (this: unknown, vm: V, args: [TypeValue<T[number]>], flags: void) => void`
 - `doc: string`
 
+## doargs
+
+### `argumentLocation`
+The location of the argument that filled the named parameter, as
+recorded on the arguments object under ARGUMENT_LOCATIONS, or
+`undefined` if that argument carried no location.
+```ts
+argumentLocation(args: Record<Identifier, any>, param: Identifier): Location | undefined
+```
+**Parameters:**
+- `args: Record<Identifier, any>`
+- `param: Identifier`
+**Returns:** `Location | undefined`
+
+### `parameterError`
+Builds an error blaming the named parameter: if the argument that filled
+it carried a location (see argumentLocation), the VM adds a
+`parameter &lt;name&gt;` frame at that location on top of the error's
+traceback, above the call's own frame (see
+JEBError.paramLocation).
+```ts
+parameterError(args: Record<string, any>, param: Identifier, code: ErrnoCode, message: string): JEBError
+```
+**Parameters:**
+- `args: Record<string, any>`
+- `param: Identifier`
+- `code: ErrnoCode`
+- `message: string`
+**Returns:** `JEBError`
+
 ## env
 
 ### `gensym`
@@ -141,11 +171,12 @@ Creates a leaf stack tree node for a single call frame. The node's hash is
 precomputed from the frame name and location so that equal frames can be
 recognized (and folded together) by compressStackTree.
 ```ts
-createStackLeafNode(name: Identifier | undefined, location: Location | undefined): StackTreeNode
+createStackLeafNode(name: Identifier | undefined, location: Location | undefined, kind: StackEntryKind): StackTreeNode
 ```
 **Parameters:**
 - `name: Identifier | undefined`
 - `location: Location | undefined`
+- `kind: StackEntryKind`
 **Returns:** `StackTreeNode`
 
 ### `createStackInnerNode`
@@ -168,6 +199,19 @@ compressStackTree(nodes: StackTreeNode[]): StackTreeNode[]
 ```
 **Parameters:**
 - `nodes: StackTreeNode[]`
+**Returns:** `StackTreeNode[]`
+
+### `blameParameter`
+Prepends a frame for the blamed parameter located at the argument
+that filled it, so an error can point at the specific argument that
+caused it as well as at the call itself (see JEBError.paramLocation).
+```ts
+blameParameter(nodes: StackTreeNode[], location: Location, param?: Identifier): StackTreeNode[]
+```
+**Parameters:**
+- `nodes: StackTreeNode[]`
+- `location: Location`
+- `param: Identifier` (optional)
 **Returns:** `StackTreeNode[]`
 
 ### `locationsEqual`
@@ -217,11 +261,11 @@ checkNothingOrPush<T>(vm: T, value: any): void
 Pauses the VM while the promise is pending, and then resumes it when it
 resolves or rejects.
 ```ts
-promisifyVM<T, X>(vm: T, promise: Promise<X>): typeof NOTHING
+promisifyVM<T>(vm: T, promise: Promise<any>): typeof NOTHING
 ```
 **Parameters:**
 - `vm: T`
-- `promise: Promise<X>`
+- `promise: Promise<any>`
 **Returns:** `typeof NOTHING`
 
 ## implicitBegin
@@ -282,12 +326,13 @@ typeOf(x: any): Type
 ### `withType`
 Like typecheck, but returns `x` (typed as the matched type) on success.
 ```ts
-withType<T>(x: unknown, t: T, paramName?: string): TypeValue<T[number]>
+withType<T>(x: unknown, t: T, paramName?: string, args?: Record<Identifier, any>): TypeValue<T[number]>
 ```
 **Parameters:**
 - `x: unknown`
 - `t: T`
 - `paramName: string` (optional)
+- `args: Record<Identifier, any>` (optional)
 **Returns:** `TypeValue<T[number]>`
 
 ### `getProtocolHandler`
