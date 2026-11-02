@@ -1,7 +1,8 @@
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
+import { gensym, Identifier } from "@r47onfire/jeb";
 
-const SAMPLE_SCRIPT = `a < b < c`;
+const SAMPLE_SCRIPT = `[x: 1, (y): 2]`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -241,6 +242,8 @@ print 2
 print 1;;;;;;;;;print 2
 `;
 
+const makeSyntaxErrorNode = (node: CSTNode, msg: string) => ["throw", ["err", "ESYNTAX", msg]];
+
 const cst = condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs", backolonGrammar, "exprs", "BAD"));
 if (process.argv.includes("--dump")) console.log(JSON.stringify(cst, null, 2));
 
@@ -327,7 +330,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
     i_known_escape: [(nodes: [CSTNode], tab?: Record<string, string>) => {
         const text = nodes[0].text!;
         if (!Reflect.has(tab!, text)) {
-            throw new Error(`unknown escape \\` + text);
+            return { val: makeSyntaxErrorNode(nodes[0], "unknown escape"), };
         }
         return { val: tab![text] };
     }, {
@@ -493,8 +496,22 @@ else console.log(JSON.stringify(syncCompile(cst, {
         lte: "lessEq",
     }],
     comparisonPOST: [(nodes: [any[], CSTNode[]]) => {
-        console.error(nodes);
-        throw "compare";
+        const ops = nodes[0];
+        const operands = nodes[1];
+        // Each pair is its own binary call, joined by `and`: the chain
+        // short-circuits pair by pair, so an operand is evaluated only
+        // once every comparison before it has passed. The shared operand
+        // between two adjacent pairs is bound by a let so it is still
+        // evaluated exactly once.
+        // a < b < c == d => let x = a, y = b in (less x y) and (let z = c in (less y z) and (eq z d))
+        const build = (first: any, rest: any[], restOps: string[]): any => {
+            if (restOps.length === 1) return [restOps[0], first, rest[0]];
+            const x = gensym("cmp"), y = gensym("cmp");
+            const bound = Array.isArray(first) && first[0] === "local";
+            const pairs: [Identifier, any][] = bound ? [[y, rest[0]]] : [[x, first], [y, rest[0]]];
+            return ["let", pairs, ["and", [restOps[0], bound ? first : ["local", x], ["local", y]], build(["local", y], rest.slice(1), restOps.slice(1))]];
+        };
+        return { val: build(operands[0], operands.slice(1), ops) };
     }],
     prefix: [(nodes: [CSTNode, CSTNode], table?: Record<string, any>) => {
         const func = table![nodes[0].type!];
@@ -523,10 +540,47 @@ else console.log(JSON.stringify(syncCompile(cst, {
         option: "option",
     }],
     collection: [(nodes: [CSTNode]) => {
-        console.error("collection", nodes);
-        const hasMap = nodes.some(n => n.type === "");
-        console.error("TODO TODO");
-        throw "collection";
+        if (nodes.length === 1 && nodes[0]!.type === "empty_list") return { val: ["list"] };
+        if (nodes.length === 1 && nodes[0]!.type === "empty_map") return { val: {} };
+        const isSplat = (n: CSTNode) => n.type === "prefix" && (n.children![0]!.type === "splat" || n.children![0]!.type === "splat_kw");
+        const isKeyed = (n: CSTNode) => n.type === "collection_shorthand"
+            || (n.type === "binary_op" && n.children![1]!.type === "kw")
+            || (n.type === "prefix" && n.children![0]!.type === "splat_kw");
+        if (!nodes.some(isKeyed)) {
+            return {
+                val: ["list"],
+                tbc: nodes.map((n, i) => [n, [i + 1]] as [CSTNode, PropertyKey[]]),
+            };
+        }
+        // A keyed collection is an (object key value...) call: keys are
+        // static names, values compile into the argument list after them.
+        // Splats compile through as arguments: a keyword splat merges its
+        // entries, a positional splat splices into the key/value stream
+        const keyText = (key: CSTNode): string => {
+            if (key.type === "name") return key.children![0]!.text!;
+            if (key.type === "prefix" && key.children![0]!.type === "quote")
+                return key.children![1]!.children![0]!.text!;
+            throw new Error("collection key must be a name");
+        };
+        const val: any[] = ["object"];
+        const tbc: [CSTNode, PropertyKey[]][] = [];
+        for (var n of nodes) {
+            if (isSplat(n)) {
+                val.push(null);
+                tbc.push([n, [val.length - 1]]);
+            } else if (n.type === "collection_shorthand") {
+                const nameNode = n.children![0]!;
+                val.push(nameNode.children![0]!.text!, null);
+                tbc.push([nameNode, [val.length - 1]]);
+            } else if (isKeyed(n)) {
+                val.push(keyText(n.children![0]!), null);
+                tbc.push([n.children![2]!, [val.length - 1]]);
+            } else {
+                val.push(makeSyntaxErrorNode(n, "expected key-value pair"), null);
+                tbc.push([n, [val.length - 1]]);
+            }
+        }
+        return { val, tbc };
     }],
     quasiquote: [(nodes: [CSTNode]) => {
         return {
@@ -572,4 +626,4 @@ else console.log(JSON.stringify(syncCompile(cst, {
         }
         throw "let"
     }]
-}, x => x, x => { throw x instanceof Error ? x : Error(x); }), (_, x) => typeof x === "bigint" ? ["BIGINT", x + ""] : x, 2));
+}, x => x, x => { throw x instanceof Error ? x : Error(x); }), (_, x) => typeof x === "bigint" ? ["BIGINT", x + ""] : typeof x === "symbol" ? ["SYMBOL", String(x)] : x, 2));
