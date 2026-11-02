@@ -260,6 +260,12 @@ else console.log(JSON.stringify(syncCompile(cst, {
             tbc: nodes.length === 1 ? [[nodes[0]!, []]] : nodes.map((i, j) => [i!, [j + 1]]),
         }
     }],
+    par_exp: [(nodes: CSTNode[]) => {
+        return {
+            val: ["begin"],
+            tbc: nodes.length === 1 ? [[nodes[0]!, []]] : nodes.map((i, j) => [i!, [j + 1]]),
+        }
+    }],
     number: [(nodes: CSTNode[], table?: Record<string, number>) => {
         const node = nodes[0]!;
         const type = node.type!;
@@ -361,7 +367,6 @@ else console.log(JSON.stringify(syncCompile(cst, {
             val: nodes.slice(1).reduce((acc, cur) => ["add", acc, cur] as any, nodes[0])
         }
     }],
-    par_exp: [(nodes: [CSTNode]) => ({ val: 0, tbc: [[nodes[0], []]] })],
     implicit_call: [(nodes: [CSTNode, CSTNode]) => {
         const callee = nodes[0];
         const argv = nodes[1].children!;
