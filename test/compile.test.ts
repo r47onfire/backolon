@@ -1,7 +1,7 @@
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `...x; ...:x`;
+const SAMPLE_SCRIPT = `a < b < c`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -480,7 +480,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
         // e.g. evaluate a, evaluate b, compare, if false, return false, else evaluate c and compare to b, etc.
         // compare(a, b, c, d, e) => let x = a, y = b in compare(x, y) and compare(y, c, d, e) end
         return {
-            val: [[nodes.flatMap((x, i) => i & 1 ? [getOp(x.type!)] : [])], []],
+            val: [nodes.flatMap((x, i) => i & 1 ? [getOp(x.type!)] : []), []],
             tbc: nodes.flatMap((x, i) => i & 1 ? [] : [[x, [1, i >> 1]]]),
             post: "comparisonPOST",
         }
