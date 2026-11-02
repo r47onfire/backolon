@@ -2,7 +2,7 @@ import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 import { gensym, Identifier } from "@r47onfire/jeb";
 
-const SAMPLE_SCRIPT = `let x = 1, y = 2`;
+const SAMPLE_SCRIPT = `let x + 3`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -504,14 +504,17 @@ else console.log(JSON.stringify(syncCompile(cst, {
         // between two adjacent pairs is bound by a let so it is still
         // evaluated exactly once.
         // a < b < c == d => let x = a, y = b in (less x y) and (let z = c in (less y z) and (eq z d))
-        const build = (first: any, rest: any[], restOps: string[]): any => {
+        const build = (first: any, rest: any[], restOps: string[], firstBound: boolean): any => {
             if (restOps.length === 1) return [restOps[0], first, rest[0]];
             const x = gensym("cmp"), y = gensym("cmp");
-            const bound = Array.isArray(first) && first[0] === "local";
-            const pairs: [Identifier, any][] = bound ? [[y, rest[0]]] : [[x, first], [y, rest[0]]];
-            return ["let", pairs, ["and", [restOps[0], bound ? first : ["local", x], ["local", y]], build(["local", y], rest.slice(1), restOps.slice(1))]];
+            // firstBound tracks structurally whether `first` is already a
+            // bound local (true for the recursive calls, which pass the
+            // previous step's y) instead of inspecting the compiled form,
+            // whose shape is opaque
+            const pairs: [Identifier, any][] = firstBound ? [[y, rest[0]]] : [[x, first], [y, rest[0]]];
+            return ["let", pairs, ["and", [restOps[0], firstBound ? first : ["local", x], ["local", y]], build(["local", y], rest.slice(1), restOps.slice(1), true)]];
         };
-        return { val: build(operands[0], operands.slice(1), ops) };
+        return { val: build(operands[0], operands.slice(1), ops, false) };
     }],
     prefix: [(nodes: [CSTNode, CSTNode], table?: Record<string, any>) => {
         const func = table![nodes[0].type!];
@@ -560,7 +563,9 @@ else console.log(JSON.stringify(syncCompile(cst, {
             if (key.type === "name") return key.children![0]!.text!;
             if (key.type === "prefix" && key.children![0]!.type === "quote")
                 return key.children![1]!.children![0]!.text!;
-            throw new Error("collection key must be a name");
+            // a key that is not a name becomes a deferred error in the
+            // key slot: it throws only if the collection is evaluated
+            return makeSyntaxErrorNode(n.children![0]!, "collection key must be a name") as any as string;
         };
         const val: any[] = ["object"];
         const tbc: [CSTNode, PropertyKey[]][] = [];
@@ -610,15 +615,19 @@ else console.log(JSON.stringify(syncCompile(cst, {
     }],
     let: [(nodes: [CSTNode]) => {
         const node = nodes[0];
+        // a binding target that is not a name makes the whole let a
+        // deferred error: it throws only if the let is ever evaluated
+        const badBinding = (argsNode: CSTNode) => argsNode.children!.map(b => b.children![0]!).find(t => t.type !== "name");
         const bindings = (argsNode: CSTNode) => argsNode.children!.map(binding => {
             const [target, , value] = binding.children!;
-            if (target!.type !== "name") throw new Error("let binding must be a name, got " + target!.type);
             return [target!.children![0]!.text!, value!] as [string, CSTNode];
         });
         switch (node.type) {
             case "simple_let": {
                 // no `in` body: the bindings are in scope for the rest of
                 // the enclosing block, which is exactly letIn
+                const bad = badBinding(node.children![0]!);
+                if (bad) return { val: makeSyntaxErrorNode(bad, "let binding must be a name, got " + bad.type) };
                 const pairs = bindings(node.children![0]!);
                 return {
                     val: ["letIn", ...pairs.flatMap(([name]) => [name, null])],
@@ -626,6 +635,8 @@ else console.log(JSON.stringify(syncCompile(cst, {
                 };
             }
             case "let_block": {
+                const bad = badBinding(node.children![0]!);
+                if (bad) return { val: makeSyntaxErrorNode(bad, "let binding must be a name, got " + bad.type) };
                 const pairs = bindings(node.children![0]!);
                 return {
                     val: ["let", pairs.map(([name]) => [name, null]), null],
@@ -635,6 +646,8 @@ else console.log(JSON.stringify(syncCompile(cst, {
             case "let_loop_block": {
                 const loopName = node.children![0]!.children![0]!.text!;
                 const block = node.children![1]!;
+                const bad = badBinding(block.children![0]!);
+                if (bad) return { val: makeSyntaxErrorNode(bad, "let binding must be a name, got " + bad.type) };
                 const pairs = bindings(block.children![0]!);
                 return {
                     val: ["let", loopName, pairs.map(([name]) => [name, null]), null],
