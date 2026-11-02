@@ -82,7 +82,16 @@ export const backolonGrammar: Grammar = {
     // add a blank node before to prevent the single rule wrapped from being elided
     simple_let: seq(ignored(nothing()), rule("let_header")),
     let_header: bind("guard", true, lookahead(false, kw("keyword", "in")), rule("let_bindings")),
-    let_bindings: rule("implicit_args", rule("let_binding"), rule("let_binding")),
+    let_bindings: joined(
+        ignored(seq(opt(rule("blank_sameline")), rule("comma"), opt(rule("blank_sameline")))),
+        seq(
+            ignored(ambient("guard", nothing())),
+            lookahead(false, rule("strong_block")),
+            rule("let_binding"),
+        ),
+        false,
+        false,
+    ),
     let_binding: rule("binary_op", rule("name"), rule("let_assign_op"), rule("name"), rule("expr"), nothing()),
     let_assign_op: alt(
         rule("normal_assign"),
@@ -445,6 +454,7 @@ export const backolonGrammar: Grammar = {
         rule("quasiquote"),
         rule("par_exp"),
         rule("name"),
+        rule("strong_block"),
     ),
 
     number: tag("number", alt(

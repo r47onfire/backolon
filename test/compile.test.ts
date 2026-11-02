@@ -1,8 +1,9 @@
 import { gensym, Identifier } from "@r47onfire/jeb";
+import { last } from "lib0/array";
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `(let x = z, (y) = x, z = y)`;
+const SAMPLE_SCRIPT = `print let x = 1, y + 2 in foo bar end`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -244,22 +245,31 @@ print 1;;;;;;;;;print 2
 
 const makeSyntaxErrorNode = (node: CSTNode, msg: string) => ["throw", ["err", "ESYNTAX", msg]];
 
+const beginBody = [(nodes: CSTNode[]) => {
+    return nodes.length === 1 ? {
+        val: [],
+        tbc: [[nodes[0]!, []]],
+    } : {
+        val: ["begin"],
+        tbc: nodes.map((i, j) => [i!, [j + 1]]),
+        post: "flatten_all_begin",
+    }
+}] as Parameters<typeof syncCompile>[1][number];
+const callBody = [(nodes: [CSTNode, CSTNode]) => {
+    const callee = nodes[0];
+    const argv = nodes[1].children!;
+    return {
+        val: [],
+        tbc: [callee, ...argv].map((x, i) => [x, [i]]),
+    }
+}] as Parameters<typeof syncCompile>[1][number];
+
 const cst = condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs", backolonGrammar, "exprs", "BAD"));
 if (process.argv.includes("--dump")) console.log(JSON.stringify(cst, null, 2));
 
 else console.log(JSON.stringify(syncCompile(cst, {
-    exprs: [(nodes: CSTNode[]) => {
-        return {
-            val: ["begin"],
-            tbc: nodes.length === 1 ? [[nodes[0]!, []]] : nodes.map((i, j) => [i!, [j + 1]]),
-        }
-    }],
-    body_exprs: [(nodes: CSTNode[]) => {
-        return {
-            val: ["begin"],
-            tbc: nodes.length === 1 ? [[nodes[0]!, []]] : nodes.map((i, j) => [i!, [j + 1]]),
-        }
-    }],
+    exprs: beginBody,
+    body_exprs: beginBody,
     par_exp: [(nodes: CSTNode[]) => {
         return {
             val: ["begin"],
@@ -367,32 +377,9 @@ else console.log(JSON.stringify(syncCompile(cst, {
             val: nodes.slice(1).reduce((acc, cur) => ["add", acc, cur] as any, nodes[0])
         }
     }],
-    implicit_call: [(nodes: [CSTNode, CSTNode]) => {
-        const callee = nodes[0];
-        const argv = nodes[1].children!;
-        return {
-            val: [],
-            tbc: [callee, ...argv].map((x, i) => [x, [i]]),
-            post: "callPOST",
-        }
-    }],
-    // TODO: this is the same as implicit_call
-    explicit_call: [(nodes: [CSTNode, CSTNode]) => {
-        const callee = nodes[0];
-        const argv = nodes[1].children!;
-        return {
-            val: [],
-            tbc: [callee, ...argv].map((x, i) => [x, [i]]),
-            post: "callPOST",
-        }
-    }],
+    implicit_call: callBody,
+    explicit_call: callBody,
     empty_arg: [() => ({ val: ["empty"] })],
-    callPOST: [(node: any[]) => {
-        if (Array.isArray(node[0]) && node[0][0] === "local") {
-            return { val: [node[0][1], ...node.slice(1)] }
-        }
-        return { val: node };
-    }],
     binary_op: [(nodes: [CSTNode, CSTNode, CSTNode], table?: Record<string, [template: any, left: PropertyKey[], right: PropertyKey[], child?: PropertyKey[]]>) => {
         const left = nodes[0];
         const right = nodes[2];
@@ -596,7 +583,22 @@ else console.log(JSON.stringify(syncCompile(cst, {
         return {
             val: ["quasiquote"],
             tbc: [[nodes[0], [1]]],
+            post: "flatten_final_begin",
         }
+    }],
+    flatten_final_begin: [(nodes: any[]) => {
+        if (Array.isArray(last(nodes)) && last(nodes)[0] === "begin") {
+            return { val: [...nodes.slice(0, -1), ...last(nodes).slice(1)] };
+        }
+        return { val: nodes };
+    }],
+    flatten_all_begin: [(nodes: any[]) => {
+        return {
+            val: nodes.flatMap(node => {
+                if (Array.isArray(node) && node[0] === "begin") return node.slice(1);
+                return [node];
+            }),
+        };
     }],
     ternary: [(nodes: [CSTNode, CSTNode, CSTNode]) => {
         return {
@@ -642,6 +644,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
                 return {
                     val: ["let", pairs.map(([name]) => [name, undefined])],
                     tbc: [...valueTbc(pairs, i => [1, i, 1]), [node.children![1]!, [2]]],
+                    post: "flatten_final_begin",
                 };
             }
             case "let_loop_block": {
@@ -651,6 +654,7 @@ else console.log(JSON.stringify(syncCompile(cst, {
                 return {
                     val: ["let", loopName, pairs.map(([name]) => [name, undefined])],
                     tbc: [...valueTbc(pairs, i => [2, i, 1]), [block.children![1]!, [3]]],
+                    post: "flatten_final_begin",
                 };
             }
             default:
@@ -658,7 +662,35 @@ else console.log(JSON.stringify(syncCompile(cst, {
         }
 
     }],
-    BAD: [() => ({ val: undefined })]
+    while: [(nodes: [CSTNode, CSTNode]) => {
+        return {
+            val: ["while"],
+            tbc: [[nodes[0], [1]], [nodes[1], [2]]],
+            post: "flatten_final_begin",
+        }
+    }],
+    for: [(nodes: CSTNode[]) => {
+        console.error(nodes);
+        throw "FOR";
+    }],
+    trycatch: [(nodes: CSTNode[]) => {
+        console.error(nodes);
+        throw "TRYCATCH";
+    }],
+    with: [(nodes: CSTNode[]) => {
+        console.error(nodes);
+        throw "WITH";
+    }],
+    fn: [(nodes: CSTNode[]) => {
+        console.error(nodes);
+        throw "FN";
+    }],
+    always: [(nodes: CSTNode[]) => {
+        console.error(nodes);
+        throw "ALWAYS";
+    }],
+    do: beginBody,
+    BAD: [(node) => ({ val: console.error(node) })]
 }, (x, node) => {
     if (node.errorExpected) return makeSyntaxErrorNode(node, "expected " + describeCombinator(node.errorExpected));
     return x;

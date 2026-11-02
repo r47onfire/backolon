@@ -156,16 +156,16 @@ const TESTS: Record<string, [string, ASTNode][]> = {
     ],
 
     let: [
-        [`let a = b`, ["exprs", ["let", ["simple_let", ["implicit_args", ["binary_op", ["name", "a"], ["normal_assign"], ["name", "b"]]]]]]],
-        [`let a = b c`, ["exprs", ["let", ["simple_let", ["implicit_args", ["binary_op", ["name", "a"], ["normal_assign"], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "c"]]]]]]]]],
-        [`let x = a, y = b in foo x end`, ["exprs", ["let", ["let_block", ["implicit_args", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]]]],
-        [`let x = a, y = b in foo x end a b`, ["exprs", ["let", ["let_block", ["implicit_args", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]], ["implicit_call", ["name", "a"], ["implicit_args", ["name", "b"]]]]],
-        [`let(loop) x = a in foo loop end`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]],
-        [`let(loop) x = a in\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
-        [`let(loop) x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
-        [`let(loop) ##[[ inner comment ##]] x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["implicit_args", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
-        [`(let x = a in\n    foo loop)`, ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["implicit_args", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]]],
-        [`let x = a, y = b in x y\nfoo a`, ["exprs", ["let", ["let_block", ["implicit_args", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "x"], ["implicit_args", ["name", "y"]]]]]], ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "a"]]]]],
+        [`let a = b`, ["exprs", ["let", ["simple_let", ["let_bindings", ["binary_op", ["name", "a"], ["normal_assign"], ["name", "b"]]]]]]],
+        [`let a = b c`, ["exprs", ["let", ["simple_let", ["let_bindings", ["binary_op", ["name", "a"], ["normal_assign"], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "c"]]]]]]]]],
+        [`let x = a, y = b in foo x end`, ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]]]],
+        [`let x = a, y = b in foo x end a b`, ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]], ["implicit_call", ["name", "a"], ["implicit_args", ["name", "b"]]]]],
+        [`let(loop) x = a in foo loop end`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]],
+        [`let(loop) x = a in\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
+        [`let(loop) x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
+        [`let(loop) ##[[ inner comment ##]] x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
+        [`(let x = a in\n    foo loop)`, ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]]],
+        [`let x = a, y = b in x y\nfoo a`, ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "x"], ["implicit_args", ["name", "y"]]]]]], ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "a"]]]]],
     ],
 
     if: [
@@ -241,8 +241,8 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         ["(else)", ["exprs", ["par_exp", ["exprs", ["name", "else"]]]]],
         ["(in)", ["exprs", ["par_exp", ["exprs", ["name", "in"]]]]],
         ["(end)", ["exprs", ["par_exp", ["exprs", ["name", "end"]]]]],
-        ["(let else = a in else end)", ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["implicit_args", ["binary_op", ["name", "else"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["name", "else"]]]]]]]],
-        ["let x = (in) in x end", ["exprs", ["let", ["let_block", ["implicit_args", ["binary_op", ["name", "x"], ["normal_assign"], ["par_exp", ["exprs", ["name", "in"]]]]], ["body_exprs", ["name", "x"]]]]]],
+        ["(let else = a in else end)", ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "else"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["name", "else"]]]]]]]],
+        ["let x = (in) in x end", ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["par_exp", ["exprs", ["name", "in"]]]]], ["body_exprs", ["name", "x"]]]]]],
     ]
 };
 
