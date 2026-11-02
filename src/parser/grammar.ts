@@ -81,7 +81,13 @@ export const backolonGrammar: Grammar = {
     )),
     // add a blank node before to prevent the single rule wrapped from being elided
     simple_let: seq(ignored(nothing()), rule("let_header")),
-    let_header: bind("guard", true, lookahead(false, kw("keyword", "in")), rule("implicit_args")),
+    let_header: bind("guard", true, lookahead(false, kw("keyword", "in")), rule("let_bindings")),
+    let_bindings: rule("implicit_args", rule("let_binding"), rule("let_binding")),
+    let_binding: rule("binary_op", rule("name"), rule("let_assign_op"), rule("name"), rule("expr"), nothing()),
+    let_assign_op: alt(
+        rule("normal_assign"),
+    ),
+
     let_block: ssep(
         rule("blank"),
         rule("let_header"),
@@ -213,18 +219,18 @@ export const backolonGrammar: Grammar = {
     // right associative
     // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try kw_arg
     implicit_call: alt(ssep(rule("blank_sameline"), rule("kw_arg"), try_(nonempty(rule("implicit_args")))), rule("kw_arg")),
-    implicit_args: seq(
+    implicit_args: [["first", "rest"], seq(
         // can't use joined() here since the first and second are different + there are lookahead assertions!
         ignored(ambient("guard", nothing())),
         lookahead(false, rule("strong_block")),
-        altFirst(rule("block_expr"), rule("implicit_call")),
+        param("first", altFirst(rule("block_expr"), rule("implicit_call"))),
         rep(false, seq(
             ignored(seq(opt(rule("blank_sameline")), rule("comma"), opt(rule("blank_sameline")))),
             lookahead(false, rule("strong_block")),
             ignored(ambient("guard", nothing())),
-            altFirst(rule("block_expr"), rule("implicit_call"), rule("empty_arg"))
+            param("rest", altFirst(rule("block_expr"), rule("implicit_call"), rule("empty_arg")))
         )),
-    ),
+    )],
 
     empty_arg: seq(nothing(), lookahead(true, rule("comma"))), // only between commas
 
