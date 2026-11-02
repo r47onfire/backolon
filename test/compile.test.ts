@@ -2,7 +2,7 @@ import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 import { gensym, Identifier } from "@r47onfire/jeb";
 
-const SAMPLE_SCRIPT = `[x: 1, (y): 2]`;
+const SAMPLE_SCRIPT = `let x = 1, y = 2`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -610,20 +610,40 @@ else console.log(JSON.stringify(syncCompile(cst, {
     }],
     let: [(nodes: [CSTNode]) => {
         const node = nodes[0];
-        const type = node.type!;
-        switch (type) {
-            case "simple_let":
-                console.error("LET_SIMPLE", node.children);
-                break;
-            case "let_block":
-                console.error("LET_BLOCK", node.children);
-                break;
-            case "let_loop_block":
-                console.error("LET_LOOP_BLOCK", node.children);
-                break;
+        const bindings = (argsNode: CSTNode) => argsNode.children!.map(binding => {
+            const [target, , value] = binding.children!;
+            if (target!.type !== "name") throw new Error("let binding must be a name, got " + target!.type);
+            return [target!.children![0]!.text!, value!] as [string, CSTNode];
+        });
+        switch (node.type) {
+            case "simple_let": {
+                // no `in` body: the bindings are in scope for the rest of
+                // the enclosing block, which is exactly letIn
+                const pairs = bindings(node.children![0]!);
+                return {
+                    val: ["letIn", ...pairs.flatMap(([name]) => [name, null])],
+                    tbc: pairs.map(([, value], i) => [value, [2 * i + 2]] as [CSTNode, PropertyKey[]]),
+                };
+            }
+            case "let_block": {
+                const pairs = bindings(node.children![0]!);
+                return {
+                    val: ["let", pairs.map(([name]) => [name, null]), null],
+                    tbc: [...pairs.map(([, value], i) => [value, [1, i, 1]] as [CSTNode, PropertyKey[]]), [node.children![1]!, [2]]],
+                };
+            }
+            case "let_loop_block": {
+                const loopName = node.children![0]!.children![0]!.text!;
+                const block = node.children![1]!;
+                const pairs = bindings(block.children![0]!);
+                return {
+                    val: ["let", loopName, pairs.map(([name]) => [name, null]), null],
+                    tbc: [...pairs.map(([, value], i) => [value, [2, i, 1]] as [CSTNode, PropertyKey[]]), [block.children![1]!, [3]]],
+                };
+            }
             default:
-                throw new Error("unknown let type " + type);
+                throw new Error("unknown let type " + node.type);
         }
-        throw "let"
+
     }]
 }, x => x, x => { throw x instanceof Error ? x : Error(x); }), (_, x) => typeof x === "bigint" ? ["BIGINT", x + ""] : typeof x === "symbol" ? ["SYMBOL", String(x)] : x, 2));
