@@ -1,8 +1,8 @@
-import { isString } from "lib0/function";
-import { backolonGrammar, condenseCST, CSTNode, parseToCST, syncCompile } from "../src";
 import { gensym, Identifier } from "@r47onfire/jeb";
+import { isString } from "lib0/function";
+import { backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `let x + 3`;
+const SAMPLE_SCRIPT = `(let x = z, (y) = x, z = y)`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -615,48 +615,46 @@ else console.log(JSON.stringify(syncCompile(cst, {
     }],
     let: [(nodes: [CSTNode]) => {
         const node = nodes[0];
-        // a binding target that is not a name makes the whole let a
-        // deferred error: it throws only if the let is ever evaluated
-        const badBinding = (argsNode: CSTNode) => argsNode.children!.map(b => b.children![0]!).find(t => t.type !== "name");
         const bindings = (argsNode: CSTNode) => argsNode.children!.map(binding => {
+            if (binding.type === "name") return [binding.children![0]!.text!, undefined] as [string, CSTNode | undefined];
             const [target, , value] = binding.children!;
-            return [target!.children![0]!.text!, value!] as [string, CSTNode];
+            return [target!.children![0]!.text!, value] as [string, CSTNode | undefined];
         });
+        // tbc entries for the bindings that have a value to compile;
+        // a bare binding keeps the undefined already in its value slot
+        const valueTbc = (pairs: [string, CSTNode | undefined][], path: (i: number) => PropertyKey[]) =>
+            pairs.flatMap(([, value], i) => value ? [[value, path(i)] as [CSTNode, PropertyKey[]]] : []);
         switch (node.type) {
             case "simple_let": {
-                // no `in` body: the bindings are in scope for the rest of
-                // the enclosing block, which is exactly letIn
-                const bad = badBinding(node.children![0]!);
-                if (bad) return { val: makeSyntaxErrorNode(bad, "let binding must be a name, got " + bad.type) };
                 const pairs = bindings(node.children![0]!);
                 return {
-                    val: ["letIn", ...pairs.flatMap(([name]) => [name, null])],
-                    tbc: pairs.map(([, value], i) => [value, [2 * i + 2]] as [CSTNode, PropertyKey[]]),
+                    val: ["letIn", ...pairs.flatMap(([name]) => [name, undefined])],
+                    tbc: valueTbc(pairs, i => [2 * i + 2]),
                 };
             }
             case "let_block": {
-                const bad = badBinding(node.children![0]!);
-                if (bad) return { val: makeSyntaxErrorNode(bad, "let binding must be a name, got " + bad.type) };
                 const pairs = bindings(node.children![0]!);
                 return {
-                    val: ["let", pairs.map(([name]) => [name, null]), null],
-                    tbc: [...pairs.map(([, value], i) => [value, [1, i, 1]] as [CSTNode, PropertyKey[]]), [node.children![1]!, [2]]],
+                    val: ["let", pairs.map(([name]) => [name, undefined])],
+                    tbc: [...valueTbc(pairs, i => [1, i, 1]), [node.children![1]!, [2]]],
                 };
             }
             case "let_loop_block": {
                 const loopName = node.children![0]!.children![0]!.text!;
                 const block = node.children![1]!;
-                const bad = badBinding(block.children![0]!);
-                if (bad) return { val: makeSyntaxErrorNode(bad, "let binding must be a name, got " + bad.type) };
                 const pairs = bindings(block.children![0]!);
                 return {
-                    val: ["let", loopName, pairs.map(([name]) => [name, null]), null],
-                    tbc: [...pairs.map(([, value], i) => [value, [2, i, 1]] as [CSTNode, PropertyKey[]]), [block.children![1]!, [3]]],
+                    val: ["let", loopName, pairs.map(([name]) => [name, undefined])],
+                    tbc: [...valueTbc(pairs, i => [2, i, 1]), [block.children![1]!, [3]]],
                 };
             }
             default:
                 throw new Error("unknown let type " + node.type);
         }
 
-    }]
-}, x => x, x => { throw x instanceof Error ? x : Error(x); }), (_, x) => typeof x === "bigint" ? ["BIGINT", x + ""] : typeof x === "symbol" ? ["SYMBOL", String(x)] : x, 2));
+    }],
+    BAD: [() => ({ val: undefined })]
+}, (x, node) => {
+    if (node.errorExpected) return makeSyntaxErrorNode(node, "expected " + describeCombinator(node.errorExpected));
+    return x;
+}, x => { throw x instanceof Error ? x : Error(x); }), (_, x) => typeof x === "bigint" ? ["BIGINT", x + ""] : typeof x === "symbol" ? ["SYMBOL", String(x)] : x === undefined ? ["UNDEFINED"] : x, 2));
