@@ -213,12 +213,14 @@ export const backolonGrammar: Grammar = {
         param("nomatch"),
     )],
 
-    // left associative
-    cascade: rule("binary_op", rule("pipe"), rule("cascade_op"), rule("cascade"), rule("postfix"), nothing()),
+    // right associative
+    cascade: rule("binary_op", rule("pipe"), rule("cascade_op"), rule("pipe"), rule("cascade"), nothing()),
     cascade_op: alt(
+        rule("up_dot_null"),
         rule("up_dot"),
     ),
     up_dot: op("operator", ".."),
+    up_dot_null: op("operator", "?.."),
 
     // left associative
     pipe: rule("binary_op", rule("implicit_call"), rule("pipe_op"), rule("pipe"), rule("implicit_call"), nothing()),
@@ -398,8 +400,10 @@ export const backolonGrammar: Grammar = {
     indexing: rule("binary_op", rule("primary"), rule("indexing_op"), rule("postfix"), rule("primary"), nothing()),
     indexing_op: alt(
         rule("dot"),
+        rule("null_dot"),
     ),
     dot: op("operator", "."),
+    null_dot: op("operator", "?."),
 
     // primary: unary operators or atom
     primary: alt(

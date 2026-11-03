@@ -139,21 +139,25 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`a.b.c`, ["exprs", ["binary_op", ["binary_op", ["name", "a"], ["dot"], ["name", "b"]], ["dot"], ["name", "c"]]]],
         // test it works with assignment
         [`a.b.c = d.e.f`, ["exprs", ["binary_op", ["binary_op", ["binary_op", ["name", "a"], ["dot"], ["name", "b"]], ["dot"], ["name", "c"]], ["normal_assign"], ["binary_op", ["binary_op", ["name", "d"], ["dot"], ["name", "e"]], ["dot"], ["name", "f"]]]]],
+        [`a?.b.c = d.e?.f`, ["exprs", ["binary_op", ["binary_op", ["binary_op", ["name", "a"], ["null_dot"], ["name", "b"]], ["dot"], ["name", "c"]], ["normal_assign"], ["binary_op", ["binary_op", ["name", "d"], ["dot"], ["name", "e"]], ["null_dot"], ["name", "f"]]]]],
         // indexing binds TIGHTER than referencing!
         [`&x.y`, ["exprs", ["prefix", ["ref"], ["binary_op", ["name", "x"], ["dot"], ["name", "y"]]]]],
         [`(*x).y`, ["exprs", ["binary_op", ["par_exp", ["exprs", ["prefix", ["deref"], ["name", "x"]]]], ["dot"], ["name", "y"]]]],
     ],
 
     cascade: [
-        // left-nested like any other binary_op chain: (a..b)..c
-        [`a..b..c`, ["exprs", ["binary_op", ["binary_op", ["name", "a"], ["up_dot"], ["name", "b"]], ["up_dot"], ["name", "c"]]]],
-        // the receiver is everything before the first .., calls included;
-        // a section is a postfix fragment, so its calls stay inside it
+        // right-nested: a..(b..c), so the compiler mirrors the tree --
+        // each link's right child is the rest of the chain
+        [`a..b..c`, ["exprs", ["binary_op", ["name", "a"], ["up_dot"], ["binary_op", ["name", "b"], ["up_dot"], ["name", "c"]]]]],
+        // the receiver is everything before the first .., calls included
         [`a.b()..c()`, ["exprs", ["binary_op", ["explicit_call", ["binary_op", ["name", "a"], ["dot"], ["name", "b"]], ["explicit_args"]], ["up_dot"], ["explicit_call", ["name", "c"], ["explicit_args"]]]]],
         // a section head may be computed: dynamic dispatch on a ternary-chosen name
         [`x..(foo ? 'a' : 'b')(45)`, ["exprs", ["binary_op", ["name", "x"], ["up_dot"], ["explicit_call", ["par_exp", ["exprs", ["ternary", ["name", "foo"], ["r_string", ["r_body", "a"]], ["r_string", ["r_body", "b"]]]]], ["explicit_args", ["number", ["dec", "45"]]]]]]],
         // cascades are values: assignment rhs, not assignment targets
         [`x = a..b`, ["exprs", ["binary_op", ["name", "x"], ["normal_assign"], ["binary_op", ["name", "a"], ["up_dot"], ["name", "b"]]]]],
+        // a cascade's value is always its left side, so the receiver being guarded never changes after the first link, which makes ?.. after the first link pointless, but we still support it anyway because that makes things easier to parse
+        [`a?..b..c`, ["exprs", ["binary_op", ["name", "a"], ["up_dot_null"], ["binary_op", ["name", "b"], ["up_dot"], ["name", "c"]]]]],
+        [`a..b?..c`, ["exprs", ["binary_op", ["name", "a"], ["up_dot"], ["binary_op", ["name", "b"], ["up_dot_null"], ["name", "c"]]]]],
     ],
 
     pipes: [

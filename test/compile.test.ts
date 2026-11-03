@@ -3,7 +3,7 @@ import { last } from "lib0/array";
 import { isString } from "lib0/function";
 import { assignPath, backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `a..add(1)..add(2)`;
+const SAMPLE_SCRIPT = //`a..add(1)..add(2)`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -98,6 +98,7 @@ configure mode: "fast", level: 3;
 
 ## indexing: indexing, indexing_op, dot, up_dot
 a.b.c;
+a?.b.c;
 a..b()..c();
 a.(b);
 a.b.c = d.e.f;
