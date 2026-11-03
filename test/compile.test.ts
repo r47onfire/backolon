@@ -1,11 +1,11 @@
 import { gensym, Identifier } from "@r47onfire/jeb";
 import { last } from "lib0/array";
 import { isString } from "lib0/function";
-import { assignPath, backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
+import { backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = //`a..add(1)..add(2)`;
+const SAMPLE_SCRIPT = `(foo()..add(1)..add(2))`;
 
-`
+    `
 ## comments: comment, line_comment, block_comment, blank
 ## a trailing line comment
 ##[[ a block comment ##]]
@@ -265,6 +265,63 @@ const callBody = [(nodes: [CSTNode, CSTNode]) => {
     }
 }] as Parameters<typeof syncCompile>[1][number];
 
+// Root a cascade section at the receiver: descend the section's left
+// spine (a call's callee, an indexing lhs, an assignment's target, any
+// other binary lhs) to the root primary and replace it with an
+// indexing node over the receiver.
+const rootSection = (section: CSTNode, receiver: CSTNode, nullHead: boolean): CSTNode | null => {
+    const descend = (node: CSTNode): CSTNode | null => {
+        switch (node.type) {
+            case "explicit_call":
+            case "implicit_call":
+            case "binary_op":
+            case "comparison": {
+                const head = descend(node.children![0]!);
+                return head === null ? null : { ...node, children: [head, ...node.children!.slice(1)] };
+            }
+            case "name":
+            case "par_exp":
+                return {
+                    type: "binary_op", start: node.start, end: node.end,
+                    children: [receiver, { type: nullHead ? "null_dot" : "dot", start: node.start, end: node.end, children: [] }, node],
+                };
+            default:
+                return null;
+        }
+    };
+    return descend(section);
+};
+
+// One cascade link - root this link's section at the receiver and
+// discard its value, then compile the rest of the chain, then yield
+// the receiver itself.
+const cascadePRE = (nullHead: boolean): Parameters<typeof syncCompile>[1][number][0] => (nodes: [CSTNode, CSTNode]) => {
+    const [left, right] = nodes;
+    var section = right, rest: [CSTNode, CSTNode] | undefined;
+    if (right.type === "binary_op" && (right.children![1]!.type === "up_dot" || right.children![1]!.type === "up_dot_null")) {
+        section = right.children![0]!;
+        rest = [right.children![1]!, right.children![2]!];
+    }
+    const temp = left.type === "name" ? undefined : gensym("cascade");
+    const receiver: CSTNode = temp === undefined ? left
+        : { type: "name", start: left.start, end: left.end, children: [{ text: temp as any, start: left.start, end: left.end }] };
+    const rooted = rootSection(section, receiver, nullHead);
+    if (rooted === null) return { val: makeSyntaxErrorNode(section, "cascade section must start with a name") };
+    const stmts: CSTNode[] = [rooted];
+    if (rest) stmts.push({
+        type: "binary_op", start: right.start, end: right.end,
+        children: [receiver, nullHead ? { type: "up_dot_null", start: rest[0].start, end: rest[0].end, children: [] } : rest[0], rest[1]],
+    });
+    const tbc: [CSTNode, PropertyKey[]][] = stmts.map((stmt, i) => [stmt, [i + 1]] as [CSTNode, PropertyKey[]]);
+    tbc.push([receiver, [stmts.length + 1]]);
+    if (temp === undefined) return { val: ["begin"], tbc, post: "flatten_all_begin" };
+    return {
+        val: ["let", [[temp, undefined]], ["begin"]],
+        tbc: [[left, [1, 0, 1]], ...tbc.map(([node, path]) => [node, [2, ...path]] as [CSTNode, PropertyKey[]])],
+        post: "flatten_all_begin"
+    };
+};
+
 const cst = condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs", backolonGrammar, "exprs", "BAD"));
 if (process.argv.includes("--dump")) console.log(JSON.stringify(cst, null, 2));
 
@@ -422,7 +479,9 @@ else console.log(JSON.stringify(syncCompile(cst, {
         arrow: [["set"], [2], [1]],
         kw: [["kw"], [1], [2]],
         dot: ["dotPRE", [], []],
+        null_dot: ["null_dotPRE", [], []],
         up_dot: ["up_dotPRE", [], []],
+        up_dot_null: ["up_dot_nullPRE", [], []],
         normal_pipe: [["let", [["it"]]], [1, 0, 1], [2]],
         map_pipe: [["map", , ["fn", true, ["it"]]], [1], [2, 3]],
         filter_pipe: [["filter", , ["fn", true, ["it"]]], [1], [2, 3]],
@@ -442,10 +501,22 @@ else console.log(JSON.stringify(syncCompile(cst, {
             tbc: [[left, [1]], [right, [2]]]
         }
     }],
-    up_dotPRE: [(nodes: [CSTNode, CSTNode]) => {
-        console.error("UP_DOT", nodes);
-        throw "up_dot";
+    null_dotPRE: [(nodes: [CSTNode, CSTNode]) => {
+        const left = nodes[0];
+        const right = nodes[1];
+        if (right.type === "name") {
+            return {
+                val: ["index_null", , right.children![0]!.text],
+                tbc: [[left, [1]]]
+            }
+        }
+        return {
+            val: ["index_null"],
+            tbc: [[left, [1]], [right, [2]]]
+        }
     }],
+    up_dotPRE: [cascadePRE(false)],
+    up_dot_nullPRE: [cascadePRE(true)],
     aug_assignPRE: [(nodes: [CSTNode, CSTNode, CSTNode]) => {
         const left = nodes[0];
         const right = nodes[1];
