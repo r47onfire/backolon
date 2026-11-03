@@ -33,7 +33,13 @@ const parsesFully = (text: string): CSTNode => {
     return cst;
 };
 
-const TESTS: Record<string, [string, ASTNode][]> = {
+/** every error node (type "BAD", i.e. has errorExpected) under node, in document order */
+const errorNodes = (node: CSTNode): CSTNode[] => [
+    ...(node.errorExpected !== undefined ? [node] : []),
+    ...(node.children ?? []).flatMap(errorNodes),
+];
+
+const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
 
     comments: [
         "## line comment",
@@ -119,8 +125,8 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`print(1)(2)`, ["exprs", ["explicit_call", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["dec", "1"]]]], ["explicit_args", ["number", ["dec", "2"]]]]]],
         // bare name is NOT a call
         [`print`, ["exprs", ["name", "print"]]],
-        // TODO: i'm not sure what this actually is supposed to do
-        // ["print(1, 2), 3", []],
+        // i'm not sure what this actually is supposed to do
+        ["print(1, 2), 3", "BAD"],
     ],
 
     "unary operators": [
@@ -146,6 +152,12 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         // indexing binds TIGHTER than referencing!
         [`&x.y`, ["exprs", ["prefix", ["ref"], ["binary_op", ["name", "x"], ["dot"], ["name", "y"]]]]],
         [`(*x).y`, ["exprs", ["binary_op", ["par_exp", ["exprs", ["prefix", ["deref"], ["name", "x"]]]], ["dot"], ["name", "y"]]]],
+        // a string or a collection is not a member
+        [`a.'b'`, "BAD"],
+        [`a.[1]`, "BAD"],
+        // a dangling dot: an error node for ".", a silent stop for "?."
+        [`a.`, "BAD"],
+        [`a?.`, "BAD"],
     ],
 
     cascade: [
@@ -163,6 +175,11 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`a..b?..c`, ["exprs", ["binary_op", ["name", "a"], ["up_dot"], ["binary_op", ["name", "b"], ["up_dot_null"], ["name", "c"]]]]],
         // a section may be a numeric index, like a member after a dot
         [`a..5`, ["exprs", ["binary_op", ["name", "a"], ["up_dot"], ["number", ["dec", "5"]]]]],
+        // a cascade operator with no section after it: the parse
+        // stops at the receiver and drops the operator
+        [`a..`, "BAD"],
+        [`a?..`, "BAD"],
+        [`a..b..`, "BAD"],
     ],
 
     pipes: [
@@ -187,6 +204,17 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`let(loop) ##[[ inner comment ##]] x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
         [`(let x = a in\n    foo loop)`, ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]]],
         [`let x = a, y = b in x y\nfoo a`, ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "x"], ["implicit_args", ["name", "y"]]]]]], ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "a"]]]]],
+        // a binding target must be a bare name: the par_exp binding
+        // cannot even start, and the recovery consumes the header tail
+        [`let x = z, (y) = x in y end`, "BAD"],
+        // only = can bind: += leaves an error node, -> stops the parse
+        [`let x += 3 in x end`, "BAD"],
+        [`let x -> 3 in x end`, "BAD"],
+        // a doubled comma is an error, not an empty binding
+        [`let x = 1,, y = 2 in y end`, "BAD"],
+        // a trailing comma is silently dropped: the parse stops
+        // before it instead of consuming the input
+        [`let x = 1,`, "BAD"],
     ],
 
     if: [
@@ -269,15 +297,18 @@ const TESTS: Record<string, [string, ASTNode][]> = {
 
 describe.each(Object.entries(TESTS))("%s", (_, list) => {
     test.each(list.map(([s, n]) => [JSON.stringify(s), s, n]))("%s", (_, str, node) => {
+        // a "BAD" entry must not parse cleanly: it either stops
+        // before the end of the input (silent truncation) or
+        // leaves an error node behind (recovery), or both
+        if (node === "BAD") {
+            const cst = parse(str);
+            checkSource(cst, str);
+            expect(errorNodes(cst).length > 0 || cst.end < str.length).toBe(true);
+            return;
+        }
         expect(toAST(parsesFully(str))).toEqual(node);
     });
 });
-
-/** every error node (type "BAD", i.e. has errorExpected) under node, in document order */
-const errorNodes = (node: CSTNode): CSTNode[] => [
-    ...(node.errorExpected !== undefined ? [node] : []),
-    ...(node.children ?? []).flatMap(errorNodes),
-];
 
 describe("error nodes", () => {
     // "@" is the reference operator with a missing operand: one error covering just the "@"
