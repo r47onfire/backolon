@@ -3,7 +3,7 @@ import { last } from "lib0/array";
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `a.'b'`;
+const SAMPLE_SCRIPT = `[\`a: 1]`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -327,6 +327,30 @@ const cascadePRE = (nullHead: boolean): Parameters<typeof syncCompile>[1][number
     };
 };
 
+const dotPRE = (val: string, transposed = false): Parameters<typeof syncCompile>[1][number][0] => (nodes: [CSTNode, CSTNode]) => {
+    const left = nodes[0];
+    const right = nodes[1];
+    if (transposed) {
+        if (left.type === "name") {
+            return {
+                val: [val, left.children![0]!.text],
+                tbc: [[right, [2]]]
+            }
+        }
+    } else {
+        if (right.type === "name") {
+            return {
+                val: [val, , right.children![0]!.text],
+                tbc: [[left, [1]]]
+            }
+        }
+    }
+    return {
+        val: [val],
+        tbc: [[left, [1]], [right, [2]]]
+    }
+};
+
 const id: typeof JSON["stringify"] = (x: any, ...x2: any[]): string => Bun.inspect(x, { colors: true, depth: Infinity });
 
 const cst = condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs", backolonGrammar, "exprs", "BAD"));
@@ -484,7 +508,7 @@ else console.log(id(syncCompile(cst, {
         old_assign: [["set", , , true], [1], [2]],
         aug_assign: ["aug_assignPRE", [], []],
         arrow: [["set"], [2], [1]],
-        kw: [["kw"], [1], [2]],
+        kw: ["kwPRE", [], []],
         dot: ["dotPRE", [], []],
         null_dot: ["null_dotPRE", [], []],
         up_dot: ["up_dotPRE", [], []],
@@ -494,34 +518,9 @@ else console.log(id(syncCompile(cst, {
         filter_pipe: [["filter", , ["fn", true, ["it"]]], [1], [2, 3]],
         reduce_pipe: [["reduce", , , ["fn", true, ["_", "it"]]], [1], [3, 3], [2]],
     } as Record<string, [template: any, left: PropertyKey[], right: PropertyKey[], child?: PropertyKey[]]>],
-    dotPRE: [(nodes: [CSTNode, CSTNode]) => {
-        const left = nodes[0];
-        const right = nodes[1];
-        if (right.type === "name") {
-            return {
-                val: ["index", , right.children![0]!.text],
-                tbc: [[left, [1]]]
-            }
-        }
-        return {
-            val: ["index"],
-            tbc: [[left, [1]], [right, [2]]]
-        }
-    }],
-    null_dotPRE: [(nodes: [CSTNode, CSTNode]) => {
-        const left = nodes[0];
-        const right = nodes[1];
-        if (right.type === "name") {
-            return {
-                val: ["index_null", , right.children![0]!.text],
-                tbc: [[left, [1]]]
-            }
-        }
-        return {
-            val: ["index_null"],
-            tbc: [[left, [1]], [right, [2]]]
-        }
-    }],
+    kwPRE: [dotPRE("kw", true)],
+    dotPRE: [dotPRE("index")],
+    null_dotPRE: [dotPRE("index_null")],
     up_dotPRE: [cascadePRE(false)],
     up_dot_nullPRE: [cascadePRE(true)],
     aug_assignPRE: [(nodes: [CSTNode, CSTNode, CSTNode]) => {
@@ -586,9 +585,10 @@ else console.log(id(syncCompile(cst, {
         };
         return { val: build(operands[0], operands.slice(1), ops, false) };
     }],
-    prefix: [(nodes: [CSTNode, CSTNode], table?: Record<string, any>) => {
+    func_prefix: [(nodes: [CSTNode, CSTNode], table?: Record<string, any>) => {
+        const type = nodes[0].type!;
         const func = table![nodes[0].type!];
-        if (!func) throw new Error("unknown prefix operator type " + nodes[0].type);
+        if (!func) throw new Error("unknown func_prefix operator type " + type);
         return {
             val: Array.isArray(func) ? func : [func],
             tbc: [[nodes[1], [1]]],
@@ -608,6 +608,22 @@ else console.log(id(syncCompile(cst, {
         deref: "deref",
         special: "resolve",
         lazy: "lazy",
+    }],
+    member_prefix: [(nodes: [CSTNode, CSTNode], table?: Record<string, any>) => {
+        const type = nodes[0].type!;
+        const func = table![type];
+        if (!func) throw new Error("unknown member_prefix operator type " + type);
+        const right = nodes[1];
+        if (right.type === "name") {
+            const val = (Array.isArray(func) ? func : [func]);
+            val[1] = right.children![0]!.text;
+            return { val };
+        }
+        return {
+            val: Array.isArray(func) ? func : [func],
+            tbc: [[right, [1]]],
+        }
+    }, {
         sym: ["sym", , false],
         unique_sym: ["sym", , true],
         option: "option",
@@ -615,10 +631,10 @@ else console.log(id(syncCompile(cst, {
     collection: [(nodes: [CSTNode]) => {
         if (nodes.length === 1 && nodes[0]!.type === "empty_list") return { val: ["list"] };
         if (nodes.length === 1 && nodes[0]!.type === "empty_map") return { val: {} };
-        const isSplat = (n: CSTNode) => n.type === "prefix" && (n.children![0]!.type === "splat" || n.children![0]!.type === "splat_kw");
+        const isSplat = (n: CSTNode) => n.type === "func_prefix" && (n.children![0]!.type === "splat" || n.children![0]!.type === "splat_kw");
         const isKeyed = (n: CSTNode) => n.type === "collection_shorthand"
             || (n.type === "binary_op" && n.children![1]!.type === "kw")
-            || (n.type === "prefix" && n.children![0]!.type === "splat_kw");
+            || (n.type === "func_prefix" && n.children![0]!.type === "splat_kw");
         if (!nodes.some(isKeyed)) {
             return {
                 val: ["list"],
@@ -631,7 +647,7 @@ else console.log(id(syncCompile(cst, {
         // entries, a positional splat splices into the key/value stream
         const keyText = (key: CSTNode): string => {
             if (key.type === "name") return key.children![0]!.text!;
-            if (key.type === "prefix" && key.children![0]!.type === "quote")
+            if (key.type === "quote_prefix" && key.children![0]!.type === "quote")
                 return key.children![1]!.children![0]!.text!;
             // a key that is not a name becomes a deferred error in the
             // key slot: it throws only if the collection is evaluated
@@ -639,14 +655,20 @@ else console.log(id(syncCompile(cst, {
         };
         const val: any[] = ["object"];
         const tbc: [CSTNode, PropertyKey[]][] = [];
+        const val2: any = {};
+        const tbc2: [CSTNode, PropertyKey[]][] = [];
+        var allConstant = false; // should be true but this is broken
         for (var n of nodes) {
             if (isSplat(n)) {
                 val.push(null);
                 tbc.push([n, [val.length - 1]]);
+                allConstant = false;
             } else if (n.type === "collection_shorthand") {
                 const nameNode = n.children![0]!;
-                val.push(nameNode.children![0]!.text!, null);
+                const name = nameNode.children![0]!.text!;
+                val.push(name, null);
                 tbc.push([nameNode, [val.length - 1]]);
+                tbc2.push([nameNode, [name]]);
             } else if (isKeyed(n)) {
                 val.push(keyText(n.children![0]!), null);
                 tbc.push([n.children![2]!, [val.length - 1]]);
@@ -655,7 +677,7 @@ else console.log(id(syncCompile(cst, {
                 tbc.push([n, [val.length - 1]]);
             }
         }
-        return { val, tbc };
+        return allConstant ? { val: val2, tbc: tbc2 } : { val, tbc };
     }],
     quasiquote: [(nodes: [CSTNode]) => {
         return {

@@ -98,11 +98,11 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         // right assoc pow: 2 ** 3 ** 2 nests factor on the right
         [`2 ** 3 ** 2`, ["exprs", ["binary_op", ["number", ["dec", "2"]], ["pow"], ["binary_op", ["number", ["dec", "3"]], ["pow"], ["number", ["dec", "2"]]]]]],
         // -2 ** 2 is -(2 ** 2): prefix outside the factor
-        [`-2 ** 2`, ["exprs", ["prefix", ["negate"], ["binary_op", ["number", ["dec", "2"]], ["pow"], ["number", ["dec", "2"]]]]]],
+        [`-2 ** 2`, ["exprs", ["func_prefix", ["negate"], ["binary_op", ["number", ["dec", "2"]], ["pow"], ["number", ["dec", "2"]]]]]],
         // a * -b : term takes a prefix operand
-        [`a * -b`, ["exprs", ["binary_op", ["name", "a"], ["mul"], ["prefix", ["negate"], ["name", "b"]]]]],
+        [`a * -b`, ["exprs", ["binary_op", ["name", "a"], ["mul"], ["func_prefix", ["negate"], ["name", "b"]]]]],
         // -0.8-8 : (-0.8) - 8
-        [`-0.8-8`, ["exprs", ["binary_op", ["prefix", ["negate"], ["number", ["dec", "0.8"]]], ["sub"], ["number", ["dec", "8"]]]]],
+        [`-0.8-8`, ["exprs", ["binary_op", ["func_prefix", ["negate"], ["number", ["dec", "0.8"]]], ["sub"], ["number", ["dec", "8"]]]]],
         // Right associative: a = (b <- 1)
         [`a = b <- 1`, ["exprs", ["binary_op", ["name", "a"], ["normal_assign"], ["binary_op", ["name", "b"], ["old_assign"], ["number", ["dec", "1"]]]]]],
         [`x -> y -> z`, ["exprs", ["binary_op", ["binary_op", ["name", "x"], ["arrow"], ["name", "y"]], ["arrow"], ["name", "z"]]]],
@@ -130,14 +130,17 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
     ],
 
     "unary operators": [
-        [`-x`, ["exprs", ["prefix", ["negate"], ["name", "x"]]]],
-        [`!ok`, ["exprs", ["prefix", ["not"], ["name", "ok"]]]],
-        [`#x`, ["exprs", ["prefix", ["length"], ["name", "x"]]]],
-        [`#"str"`, ["exprs", ["prefix", ["length"], ["i_string", ["i_body", "str"]]]]],
+        [`-x`, ["exprs", ["func_prefix", ["negate"], ["name", "x"]]]],
+        [`!ok`, ["exprs", ["func_prefix", ["not"], ["name", "ok"]]]],
+        [`#x`, ["exprs", ["func_prefix", ["length"], ["name", "x"]]]],
+        [`#"str"`, ["exprs", ["func_prefix", ["length"], ["i_string", ["i_body", "str"]]]]],
         //  ...args (splat)
-        [`...args`, ["exprs", ["prefix", ["splat"], ["name", "args"]]]],
+        [`...args`, ["exprs", ["func_prefix", ["splat"], ["name", "args"]]]],
         //  != is a comparison, not ! followed by =
         [`a != b`, ["exprs", ["comparison", ["name", "a"], ["not_equal"], ["name", "b"]]]],
+        // the key-like prefixes take a member operand: :a.b is (sym a).b - technically makes no sense, but it parses
+        [`:a.b`, ["exprs", ["binary_op", ["member_prefix", ["sym"], ["name", "a"]], ["dot"], ["name", "b"]]]],
+        [`:'b'`, "BAD"],
     ],
 
     indexing: [
@@ -150,8 +153,8 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         [`a.5`, ["exprs", ["binary_op", ["name", "a"], ["dot"], ["number", ["dec", "5"]]]]],
         [`a.(k)`, ["exprs", ["binary_op", ["name", "a"], ["dot"], ["par_exp", ["exprs", ["name", "k"]]]]]],
         // indexing binds TIGHTER than referencing!
-        [`&x.y`, ["exprs", ["prefix", ["ref"], ["binary_op", ["name", "x"], ["dot"], ["name", "y"]]]]],
-        [`(*x).y`, ["exprs", ["binary_op", ["par_exp", ["exprs", ["prefix", ["deref"], ["name", "x"]]]], ["dot"], ["name", "y"]]]],
+        [`&x.y`, ["exprs", ["func_prefix", ["ref"], ["binary_op", ["name", "x"], ["dot"], ["name", "y"]]]]],
+        [`(*x).y`, ["exprs", ["binary_op", ["par_exp", ["exprs", ["func_prefix", ["deref"], ["name", "x"]]]], ["dot"], ["name", "y"]]]],
         // a string or a collection is not a member
         [`a.'b'`, "BAD"],
         [`a.[1]`, "BAD"],
@@ -246,7 +249,7 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         [`fn(x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["binary_op", ["name", "x"], ["add"], ["number", ["dec", "1"]]]]]]],
         [`fn (x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["binary_op", ["name", "x"], ["add"], ["number", ["dec", "1"]]]]]]],
         [`fn(x)\n    x + 1\nend`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["binary_op", ["name", "x"], ["add"], ["number", ["dec", "1"]]]]]]]],
-        [`fn(x, y, ...z) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"], ["name", "y"], ["prefix", ["splat"], ["name", "z"]]], ["body_exprs", ["name", "x"]]]]],
+        [`fn(x, y, ...z) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"], ["name", "y"], ["func_prefix", ["splat"], ["name", "z"]]], ["body_exprs", ["name", "x"]]]]],
         [`fn(x) callcc fn(c) c`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["implicit_call", ["name", "callcc"], ["implicit_args", ["fn", ["explicit_args", ["name", "c"]], ["body_exprs", ["name", "c"]]]]]]]]],
         [`fn(x) x;\nfn(x) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]], ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]]]],
         [`fn(x) x\nfn(x) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]], ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]]]],
@@ -257,16 +260,20 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         [`[]`, ["exprs", ["collection", ["empty_list"]]]],
         [`[:]`, ["exprs", ["collection", ["empty_map"]]]],
         [`[foo: 1, bar: 2]`, ["exprs", ["collection", ["binary_op", ["name", "foo"], ["kw"], ["number", ["dec", "1"]]], ["binary_op", ["name", "bar"], ["kw"], ["number", ["dec", "2"]]]]]],
+        // a kw key must be a member: a number is one, and a computed
+        // key goes through a par_exp
+        [`[5: 1]`, ["exprs", ["collection", ["binary_op", ["number", ["dec", "5"]], ["kw"], ["number", ["dec", "1"]]]]]],
+        [`[(a.b): 1]`, ["exprs", ["collection", ["binary_op", ["par_exp", ["exprs", ["binary_op", ["name", "a"], ["dot"], ["name", "b"]]]], ["kw"], ["number", ["dec", "1"]]]]]],
         [`[a ? b : c]`, ["exprs", ["collection", ["ternary", ["name", "a"], ["name", "b"], ["name", "c"]]]]],
         [`[\`foo:]`, ["exprs", ["collection", ["collection_shorthand", ["name", "foo"]]]]],
-        [`[\`foo:, \`bar: baz]`, ["exprs", ["collection", ["collection_shorthand", ["name", "foo"]], ["binary_op", ["prefix", ["quote"], ["name", "bar"]], ["kw"], ["name", "baz"]]]]],
+        [`[\`foo:, \`bar: baz]`, ["exprs", ["collection", ["collection_shorthand", ["name", "foo"]], ["binary_op", ["quote_prefix", ["quote"], ["name", "bar"]], ["kw"], ["name", "baz"]]]]],
     ],
 
     quotes: [
-        ["`(x + y)", ["exprs", ["prefix", ["quote"], ["par_exp", ["exprs", ["binary_op", ["name", "x"], ["add"], ["name", "y"]]]]]]],
-        ["`name", ["exprs", ["prefix", ["quote"], ["name", "name"]]]],
-        ["``(x)", ["exprs", ["prefix", ["quote"], ["prefix", ["quote"], ["par_exp", ["exprs", ["name", "x"]]]]]]],
-        ["{$x}", ["exprs", ["quasiquote", ["exprs", ["prefix", ["unquote"], ["name", "x"]]]]]]
+        ["`(x + y)", ["exprs", ["func_prefix", ["quote"], ["par_exp", ["exprs", ["binary_op", ["name", "x"], ["add"], ["name", "y"]]]]]]],
+        ["`name", ["exprs", ["func_prefix", ["quote"], ["name", "name"]]]],
+        ["``(x)", ["exprs", ["func_prefix", ["quote"], ["func_prefix", ["quote"], ["par_exp", ["exprs", ["name", "x"]]]]]]],
+        ["{$x}", ["exprs", ["quasiquote", ["exprs", ["func_prefix", ["unquote"], ["name", "x"]]]]]]
     ],
 
     parens: [

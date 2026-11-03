@@ -253,8 +253,9 @@ export const backolonGrammar: Grammar = {
 
     empty_arg: seq(nothing(), lookahead(true, rule("comma"))), // only between commas
 
-    // non associative
-    kw_arg: rule("binary_op", rule("assign_rev"), rule("kw_arg_op"), rule("assign_rev"), rule("assign_rev"), nothing()),
+    // non associative; the key must be a member or a quoted member
+    // (a computed key needs parens)
+    kw_arg: rule("binary_op", rule("assign_rev"), rule("kw_arg_op"), alt(rule("member"), rule("quote_prefix")), rule("assign_rev"), nothing()),
     kw_arg_op: alt(
         rule("kw"),
     ),
@@ -418,11 +419,14 @@ export const backolonGrammar: Grammar = {
     ),
     // these are all prefix unary
     unary: alt(
-        rule("prefix"),
+        rule("member_prefix"),
+        rule("func_prefix"),
     ),
 
-    prefix: ssep(rule("blank"), rule("prefix_op"), cut(), rule("factor")),
-    prefix_op: alt(
+    func_prefix: ssep(rule("blank"), rule("func_prefix_op"), cut(), rule("factor")),
+    member_prefix: ssep(rule("blank"), rule("member_prefix_op"), cut(), rule("member")),
+    quote_prefix: ssep(rule("blank"), rule("quote"), cut(), rule("member")),
+    func_prefix_op: alt(
         rule("length"),
         rule("splat"),
         rule("splat_kw"),
@@ -437,9 +441,6 @@ export const backolonGrammar: Grammar = {
         rule("lazy"),
         rule("ref"),
         rule("deref"),
-        rule("sym"),
-        rule("unique_sym"),
-        rule("option"),
     ),
 
     length: op("operator", "#"),
@@ -456,6 +457,12 @@ export const backolonGrammar: Grammar = {
     lazy: op("operator", "^"),
     ref: op("operator", "&"),
     deref: op("operator", "*"),
+
+    member_prefix_op: alt(
+        rule("sym"),
+        rule("unique_sym"),
+        rule("option"),
+    ),
     sym: op("operator", ":"),
     unique_sym: op("operator", "::"),
     option: seq(op("operator", "."), lookahead(false, rule("number"))), // check to fix ".5" from parsing as an option
