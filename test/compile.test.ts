@@ -3,7 +3,7 @@ import { last } from "lib0/array";
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `[\`a: 1]`;
+const SAMPLE_SCRIPT = `a + b 1 + c`;
 
 `
 ## comments: comment, line_comment, block_comment, blank

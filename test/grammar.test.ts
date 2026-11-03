@@ -108,6 +108,8 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         [`x -> y -> z`, ["exprs", ["binary_op", ["binary_op", ["name", "x"], ["arrow"], ["name", "y"]], ["arrow"], ["name", "z"]]]],
         // Augmented assignment
         [`a += b /= c`, ["exprs", ["binary_op", ["name", "a"], ["aug_assign", ["add"]], ["binary_op", ["name", "b"], ["aug_assign", ["div"]], ["name", "c"]]]]],
+        // Implicit calling
+        [`a + b 1 + c`, ["exprs", ["binary_op", ["name", "a"], ["add"], ["implicit_call", ["name", "b"], ["implicit_args", ["binary_op", ["number", ["decimal", "1"]], ["add"], ["name", "c"]]]]]]],
     ],
 
     calls: [
