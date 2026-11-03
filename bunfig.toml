@@ -3,4 +3,4 @@ bun = true
 [fmt]
 tabWidth = 4
 jsdoc = true
-ignorePatterns = ["jeb/**"]
+ignorePatterns = ["jeb/**", "skills/**"]

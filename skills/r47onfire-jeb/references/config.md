@@ -8,7 +8,8 @@ Extra options accepted when constructing a JEBError.
 
 #### children
 
-Sub-errors bundled into this error, e.g. several failures reported together.
+Sub-errors bundled into this error, e.g. several failures reported
+together.
 
 **Type:** `JEBError[]`
 
@@ -21,7 +22,7 @@ JEBError.paramLocation).
 
 #### paramName
 
-Name of the parameter this error blames, used to name the frame the
-VM adds for it (see JEBError.paramName).
+Name of the parameter this error blames, used to name the frame the VM
+adds for it (see JEBError.paramName).
 
 **Type:** `Identifier`

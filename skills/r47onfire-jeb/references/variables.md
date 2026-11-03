@@ -3,641 +3,410 @@
 ## define
 
 ### `ALL_OPCODES`
-
 Registry of all named opcodes created with makeOpcode, mapping the
 opcode's id to its implementation and documentation string. Opcodes created
 with a `null` id are internal helpers and are not registered here.
-
 ```ts
-const ALL_OPCODES: Record<
-    string,
-    [fn: OpcodeFunction<any, any>, doc: string | null]
->;
+const ALL_OPCODES: Record<string, [fn: OpcodeFunction<any, any>, doc: string | null]>
 ```
 
 ### `NOTHING`
-
-Special symbol to represent 'no value' in contexts where `undefined` is a valid value.
-
+Special symbol to represent 'no value' in contexts where `undefined` is a
+valid value.
 ```ts
-const NOTHING: typeof NOTHING;
+const NOTHING: typeof NOTHING
 ```
 
 ## doargs
 
 ### `ARGUMENT_LOCATIONS`
-
-Key under which the finished arguments object carries the source
-locations of its parameters (see argumentLocation): a record
-from parameter name to the location of the outermost call made while
-evaluating whatever filled it -- a given argument, or the parameter's
-default expression (which is the location an `at` form heading it
-attaches to it). Only parameters whose filling evaluation actually
-made a located call have an entry.
-
+Key under which the finished arguments object carries the source locations of
+its parameters (see argumentLocation): a record from parameter name to
+the location of the outermost call made while evaluating whatever filled it
+-- a given argument, or the parameter's default expression (which is the
+location an `at` form heading it attaches to it). Only parameters whose
+filling evaluation actually made a located call have an entry.
 ```ts
-const ARGUMENT_LOCATIONS: typeof ARGUMENT_LOCATIONS;
+const ARGUMENT_LOCATIONS: typeof ARGUMENT_LOCATIONS
 ```
 
 ### `OP_doargs`
-
 ```ts
-const OP_doargs: (
-    vm: any,
-    __namedParameters: [
-        readonly LonghandArgument<any, any>[],
-        Env | undefined,
-        boolean | undefined,
-        Identifier | undefined,
-    ],
-) => void;
+const OP_doargs: (vm: any, __namedParameters: [readonly LonghandArgument<any, any>[], Env | undefined, boolean | undefined, Identifier | undefined]) => void
 ```
 
 ## errno
 
 ### `ErrnoDesc`
-
 Errno database mapping E-code to string description default
-
 ```ts
-const ErrnoDesc: Record<ErrnoCode, string>;
+const ErrnoDesc: Record<ErrnoCode, string>
 ```
 
 ## errnoInheritance
 
 ### `ErrnoParent`
-
 Parent links for the errno class hierarchy: each code maps to the codes it
 directly inherits from, or `undefined` if it is a root (`EFAIL` for normal
 errors, `EPANIC` for non-recoverable ones). Codes may have several parents;
 e.g. the HTTP errors also inherit from the analogous local error classes.
-
 ```ts
-const ErrnoParent: Record<ErrnoCode, ErrnoCode[] | undefined>;
+const ErrnoParent: Record<ErrnoCode, ErrnoCode[] | undefined>
 ```
 
 ## protocol
 
 ### `typecheck`
-
 Asserts that `x` matches at least one of the given types, throwing a
 JEBError (`EINVAL`) naming `paramName` if it matches none of them.
-
 ```ts
-const typecheck: (
-    x: unknown,
-    t: T,
-    paramName?: string,
-    args?: Record<Identifier, any>,
-) => asserts x is TypeValue<T[number]>;
+const typecheck: (x: unknown, t: T, paramName?: string, args?: Record<Identifier, any>) => asserts x is TypeValue<T[number]>
 ```
 
 ## builtins
 
 ### `OP_wrap`
-
 ```ts
-const OP_wrap: (vm: any, args: [cls: any]) => void;
+const OP_wrap: (vm: any, args: [cls: any]) => void
 ```
 
 ### `OP_unwrap`
-
 ```ts
-const OP_unwrap: (
-    vm: any,
-    __namedParameters: [string[], only?: boolean],
-) => void;
+const OP_unwrap: (vm: any, __namedParameters: [string[], only?: boolean]) => void
 ```
 
 ### `B_err`
-
 ```ts
-const B_err: JSFun<
-    JebVM<any>,
-    [
-        LonghandArgument<"type", undefined>,
-        LonghandArgument<"message", undefined>,
-        LonghandArgument<"up", undefined>,
-    ]
->;
+const B_err: JSFun<JebVM<any>, [LonghandArgument<"type", undefined>, LonghandArgument<"message", undefined>, LonghandArgument<"up", undefined>]>
 ```
 
 ### `B_throw`
-
 ```ts
-const B_throw: JSFun<JebVM<any>, [LonghandArgument<"err", undefined>]>;
+const B_throw: JSFun<JebVM<any>, [LonghandArgument<"err", undefined>]>
 ```
 
 ### `B_with`
-
 ```ts
-const B_with: JSFun<
-    JebVM<any>,
-    [
-        LonghandArgument<"binding", undefined>,
-        LonghandArgument<"context", undefined>,
-        LonghandArgument<"body", 0>,
-    ]
->;
+const B_with: JSFun<JebVM<any>, [LonghandArgument<"binding", undefined>, LonghandArgument<"context", undefined>, LonghandArgument<"body", 0>]>
 ```
 
 ### `OP_throw`
-
 ```ts
-const OP_throw: (vm: JebVM, __namedParameters: [JEBError]) => void;
+const OP_throw: (vm: JebVM, __namedParameters: [JEBError]) => void
 ```
 
 ### `B_atLocation`
-
 ```ts
-const B_atLocation: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"pos", undefined>, LonghandArgument<"expr", undefined>]
->;
+const B_atLocation: JSFun<JebVM<any>, [LonghandArgument<"pos", undefined>, LonghandArgument<"expr", undefined>]>
 ```
 
 ### `B_audit`
-
 ```ts
-const B_audit: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"event", undefined>, LonghandArgument<"param", undefined>]
->;
+const B_audit: JSFun<JebVM<any>, [LonghandArgument<"event", undefined>, LonghandArgument<"param", undefined>]>
 ```
 
 ### `B_blank`
-
 ```ts
-const B_blank: JSFun<JebVM<any>, readonly []>;
+const B_blank: JSFun<JebVM<any>, readonly []>
 ```
 
 ### `B_eval`
-
 ```ts
-const B_eval: JSFun<JebVM<any>, [LonghandArgument<"arg", undefined>]>;
+const B_eval: JSFun<JebVM<any>, [LonghandArgument<"arg", undefined>]>
 ```
 
 ### `B_keyword`
-
 ```ts
-const B_keyword: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"name", undefined>, LonghandArgument<"value", undefined>]
->;
+const B_keyword: JSFun<JebVM<any>, [LonghandArgument<"name", undefined>, LonghandArgument<"value", undefined>]>
 ```
 
 ### `B_macro_wrap`
-
 ```ts
-const B_macro_wrap: JSFun<JebVM<any>, [LonghandArgument<"code", undefined>]>;
+const B_macro_wrap: JSFun<JebVM<any>, [LonghandArgument<"code", undefined>]>
 ```
 
 ### `B_splat`
-
 ```ts
-const B_splat: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"value", undefined>, LonghandArgument<"kw", undefined>]
->;
+const B_splat: JSFun<JebVM<any>, [LonghandArgument<"value", undefined>, LonghandArgument<"kw", undefined>]>
 ```
 
 ### `OP_apply`
-
 ```ts
-const OP_apply: (
-    vm: JebVM,
-    __namedParameters: [
-        any[],
-        location?: Location,
-        tail?: boolean,
-        noEval?: boolean,
-    ],
-) => void;
+const OP_apply: (vm: JebVM, __namedParameters: [any[], location?: Location, tail?: boolean, noEval?: boolean]) => void
 ```
 
 ### `OP_audit`
-
 ```ts
-const OP_audit: (vm: JebVM, args: [name: T, arg: JEBAuditEvents[T]]) => void;
+const OP_audit: (vm: JebVM, args: [name: T, arg: JEBAuditEvents[T]]) => void
 ```
 
 ### `OP_eval`
-
 ```ts
-const OP_eval: (
-    vm: JebVM,
-    __namedParameters: [Location | undefined, tail?: boolean],
-) => void;
+const OP_eval: (vm: JebVM, __namedParameters: [Location | undefined, tail?: boolean]) => void
 ```
 
 ### `OP_get`
-
 ```ts
-const OP_get: (vm: JebVM, __namedParameters: [boolean]) => void;
+const OP_get: (vm: JebVM, __namedParameters: [boolean]) => void
 ```
 
 ### `OP_if`
-
 ```ts
-const OP_if: (
-    vm: T,
-    __namedParameters:
-        | [any, any, asm?: false]
-        | [
-              (
-                  | [opcode: OpcodeFunction<any[], T>, ...immediateArgs: any[]]
-                  | null
-              ),
-              (
-                  | [opcode: OpcodeFunction<any[], T>, ...immediateArgs: any[]]
-                  | null
-              ),
-              true,
-          ],
-) => void;
+const OP_if: (vm: T, __namedParameters: [any, any, asm?: false] | [[opcode: OpcodeFunction<any[], T>, ...immediateArgs: any[]] | null, [opcode: OpcodeFunction<any[], T>, ...immediateArgs: any[]] | null, true]) => void
 ```
 
 ### `OP_index`
-
 ```ts
-const OP_index: (vm: JebVM, __namedParameters: [AccessType]) => void;
+const OP_index: (vm: JebVM, __namedParameters: [AccessType]) => void
 ```
 
 ### `OP_set`
-
 ```ts
-const OP_set: (
-    vm: JebVM,
-    __namedParameters: [create?: boolean, readonly_?: boolean],
-) => void;
+const OP_set: (vm: JebVM, __namedParameters: [create?: boolean, readonly_?: boolean]) => void
 ```
 
 ### `OP_shuffle`
-
 ```ts
-const OP_shuffle: (vm: JebVM, __namedParameters: [number, number[]]) => void;
+const OP_shuffle: (vm: JebVM, __namedParameters: [number, number[]]) => void
 ```
 
 ### `OP_tbPop`
-
 ```ts
-const OP_tbPop: (vm: any) => any;
+const OP_tbPop: (vm: any) => any
 ```
 
 ### `OP_tbPush`
-
 ```ts
-const OP_tbPush: (
-    vm: JebVM,
-    __namedParameters: [
-        f: Identifier,
-        Location | undefined,
-        kind: StackEntryKind,
-        tail?: boolean,
-    ],
-) => void;
+const OP_tbPush: (vm: JebVM, __namedParameters: [f: Identifier, Location | undefined, kind: StackEntryKind, tail?: boolean]) => void
 ```
 
 ### `B_is_nil`
-
 ```ts
-const B_is_nil: JSFun<JebVM<any>, [LonghandArgument<"value", undefined>]>;
+const B_is_nil: JSFun<JebVM<any>, [LonghandArgument<"value", undefined>]>
 ```
 
 ### `B_jsonparse`
-
 ```ts
-const B_jsonparse: JSFun<JebVM<any>, [LonghandArgument<"json", undefined>]>;
+const B_jsonparse: JSFun<JebVM<any>, [LonghandArgument<"json", undefined>]>
 ```
 
 ### `B_jsonstringify`
-
 ```ts
-const B_jsonstringify: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"value", undefined>]
->;
+const B_jsonstringify: JSFun<JebVM<any>, [LonghandArgument<"value", undefined>]>
 ```
 
 ### `B_concat`
-
 ```ts
-const B_concat: JSFun<JebVM<any>, [LonghandArgument<"lists", 0>]>;
+const B_concat: JSFun<JebVM<any>, [LonghandArgument<"lists", 0>]>
 ```
 
 ### `B_head`
-
 ```ts
-const B_head: JSFun<JebVM<any>, [LonghandArgument<"list", undefined>]>;
+const B_head: JSFun<JebVM<any>, [LonghandArgument<"list", undefined>]>
 ```
 
 ### `B_list`
-
 ```ts
-const B_list: JSFun<JebVM<any>, [LonghandArgument<"values", 0>]>;
+const B_list: JSFun<JebVM<any>, [LonghandArgument<"values", 0>]>
 ```
 
 ### `B_tail`
-
 ```ts
-const B_tail: JSFun<JebVM<any>, [LonghandArgument<"list", undefined>]>;
+const B_tail: JSFun<JebVM<any>, [LonghandArgument<"list", undefined>]>
 ```
 
 ### `B_and_shortcircuit`
-
 ```ts
-const B_and_shortcircuit: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]
->;
+const B_and_shortcircuit: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_bitAnd`
-
 ```ts
-const B_bitAnd: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]
->;
+const B_bitAnd: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_bitInv`
-
 ```ts
-const B_bitInv: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>]>;
+const B_bitInv: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>]>
 ```
 
 ### `B_bitOr`
-
 ```ts
-const B_bitOr: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]
->;
+const B_bitOr: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_bitXor`
-
 ```ts
-const B_bitXor: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]
->;
+const B_bitXor: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_div`
-
 ```ts
-const B_div: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]
->;
+const B_div: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_eq`
-
 ```ts
-const B_eq: JSFun<JebVM<any>, [LonghandArgument<"items", 0>]>;
+const B_eq: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_greater`
-
 ```ts
-const B_greater: JSFun<JebVM<any>, [LonghandArgument<"items", 0>]>;
+const B_greater: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_greater_eq`
-
 ```ts
-const B_greater_eq: JSFun<JebVM<any>, [LonghandArgument<"items", 0>]>;
+const B_greater_eq: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_less`
-
 ```ts
-const B_less: JSFun<JebVM<any>, [LonghandArgument<"items", 0>]>;
+const B_less: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_less_eq`
-
 ```ts
-const B_less_eq: JSFun<JebVM<any>, [LonghandArgument<"items", 0>]>;
+const B_less_eq: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_minus`
-
 ```ts
-const B_minus: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]
->;
+const B_minus: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_mod`
-
 ```ts
-const B_mod: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]
->;
+const B_mod: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_mul`
-
 ```ts
-const B_mul: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]
->;
+const B_mul: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_not`
-
 ```ts
-const B_not: JSFun<JebVM<any>, [LonghandArgument<"value", undefined>]>;
+const B_not: JSFun<JebVM<any>, [LonghandArgument<"value", undefined>]>
 ```
 
 ### `B_not_eq`
-
 ```ts
-const B_not_eq: JSFun<JebVM<any>, [LonghandArgument<"items", 0>]>;
+const B_not_eq: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_or_shortcircuit`
-
 ```ts
-const B_or_shortcircuit: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]
->;
+const B_or_shortcircuit: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_plus`
-
 ```ts
-const B_plus: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]
->;
+const B_plus: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_pow`
-
 ```ts
-const B_pow: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]
->;
+const B_pow: JSFun<JebVM<any>, [LonghandArgument<"a", undefined>, LonghandArgument<"b", undefined>]>
 ```
 
 ### `B_quasiquote`
-
 ```ts
-const B_quasiquote: JSFun<JebVM<any>, [LonghandArgument<"value", undefined>]>;
+const B_quasiquote: JSFun<JebVM<any>, [LonghandArgument<"value", undefined>]>
 ```
 
 ### `B_quote`
-
 ```ts
-const B_quote: JSFun<JebVM<any>, [LonghandArgument<"expr", undefined>]>;
+const B_quote: JSFun<JebVM<any>, [LonghandArgument<"expr", undefined>]>
 ```
 
 ### `B_unquote`
-
 ```ts
-const B_unquote: JSFun<JebVM<any>, [LonghandArgument<"value", undefined>]>;
+const B_unquote: JSFun<JebVM<any>, [LonghandArgument<"value", undefined>]>
 ```
 
 ### `B_unquoteSplicing`
-
 ```ts
-const B_unquoteSplicing: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"value", undefined>]
->;
+const B_unquoteSplicing: JSFun<JebVM<any>, [LonghandArgument<"value", undefined>]>
 ```
 
 ### `B_begin`
-
 ```ts
-const B_begin: JSFun<JebVM<any>, [LonghandArgument<"body", 0>]>;
+const B_begin: JSFun<JebVM<any>, [LonghandArgument<"body", 0>]>
 ```
 
 ### `B_define`
-
 ```ts
-const B_define: JSFun<JebVM<any>, [LonghandArgument<"definition", 0>]>;
+const B_define: JSFun<JebVM<any>, [LonghandArgument<"definition", 0>]>
 ```
 
 ### `B_if`
-
 ```ts
-const B_if: JSFun<
-    JebVM<any>,
-    [
-        LonghandArgument<"condition", undefined>,
-        LonghandArgument<"then", undefined>,
-        LonghandArgument<"else", undefined>,
-    ]
->;
+const B_if: JSFun<JebVM<any>, [LonghandArgument<"condition", undefined>, LonghandArgument<"then", undefined>, LonghandArgument<"else", undefined>]>
 ```
 
 ### `B_let`
-
 ```ts
-const B_let: JSFun<JebVM<any>, [LonghandArgument<"args", 0>]>;
+const B_let: JSFun<JebVM<any>, [LonghandArgument<"args", 0>]>
 ```
 
 ### `B_let_in`
-
 ```ts
-const B_let_in: JSFun<JebVM<any>, [LonghandArgument<"pairs", 0>]>;
+const B_let_in: JSFun<JebVM<any>, [LonghandArgument<"pairs", 0>]>
 ```
 
 ### `B_sym`
-
 ```ts
-const B_sym: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"name", undefined>, LonghandArgument<"unique", undefined>]
->;
+const B_sym: JSFun<JebVM<any>, [LonghandArgument<"name", undefined>, LonghandArgument<"unique", undefined>]>
 ```
 
 ### `B_always`
-
 ```ts
-const B_always: JSFun<
-    JebVM<any>,
-    [
-        LonghandArgument<"derived", undefined>,
-        LonghandArgument<"onchange", undefined>,
-        LonghandArgument<"refs", 0>,
-    ]
->;
+const B_always: JSFun<JebVM<any>, [LonghandArgument<"derived", undefined>, LonghandArgument<"onchange", undefined>, LonghandArgument<"refs", 0>]>
 ```
 
 ### `B_deref`
-
 ```ts
-const B_deref: JSFun<JebVM<any>, [LonghandArgument<"ref", undefined>]>;
+const B_deref: JSFun<JebVM<any>, [LonghandArgument<"ref", undefined>]>
 ```
 
 ### `B_index`
-
 ```ts
-const B_index: JSFun<
-    JebVM<any>,
-    [LonghandArgument<"obj", undefined>, LonghandArgument<"name", undefined>]
->;
+const B_index: JSFun<JebVM<any>, [LonghandArgument<"obj", undefined>, LonghandArgument<"name", undefined>]>
 ```
 
 ### `B_local`
-
 ```ts
-const B_local: JSFun<JebVM<any>, [LonghandArgument<"name", undefined>]>;
+const B_local: JSFun<JebVM<any>, [LonghandArgument<"name", undefined>]>
 ```
 
 ### `B_ref`
-
 ```ts
-const B_ref: JSFun<JebVM<any>, [LonghandArgument<"ref", undefined>]>;
+const B_ref: JSFun<JebVM<any>, [LonghandArgument<"ref", undefined>]>
 ```
 
 ### `B_set`
-
 ```ts
-const B_set: JSFun<
-    JebVM<any>,
-    [
-        LonghandArgument<"ref", undefined>,
-        LonghandArgument<"value", undefined>,
-        LonghandArgument<"old", undefined>,
-    ]
->;
+const B_set: JSFun<JebVM<any>, [LonghandArgument<"ref", undefined>, LonghandArgument<"value", undefined>, LonghandArgument<"old", undefined>]>
 ```
 
 ### `OP_set_env`
-
 ```ts
-const OP_set_env: (vm: JebVM, __namedParameters: [Env]) => Env;
+const OP_set_env: (vm: JebVM, __namedParameters: [Env]) => Env
 ```
 
 ## math
 
 ### `float`
-
-Aliases for the numeric conversions used throughout the VM: `int` converts
-a value to a `bigint`, `float` converts it to a `number`.
-
+Aliases for the numeric conversions used throughout the VM: `int` converts a
+value to a `bigint`, `float` converts it to a `number`.
 ```ts
-const float: NumberConstructor;
+const float: NumberConstructor
 ```
 
 ### `int`
-
-Aliases for the numeric conversions used throughout the VM: `int` converts
-a value to a `bigint`, `float` converts it to a `number`.
-
+Aliases for the numeric conversions used throughout the VM: `int` converts a
+value to a `bigint`, `float` converts it to a `number`.
 ```ts
-const int: BigIntConstructor;
+const int: BigIntConstructor
 ```
