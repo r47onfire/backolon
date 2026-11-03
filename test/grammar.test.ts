@@ -118,6 +118,9 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         [`print 1, 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "2"]]]]]],
         // juxtaposition is right-nested: 'print print 1, 2' parses as 'print(print(1, 2))'
         [`print print 1, 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "2"]]]]]]]],
+        // a cascade in an implicit argument binds to the argument (as in
+        // f(a..b)), not to the whole call; a pipe stays outside it
+        [`f a..b`, ["exprs", ["implicit_call", ["name", "f"], ["implicit_args", ["binary_op", ["name", "a"], ["up_dot"], ["name", "b"]]]]]],
         // zero args
         [`print()`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args"]]]],
         // (1,,2) has an empty middle arg (null)
@@ -180,6 +183,12 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         [`a..b?..c`, ["exprs", ["binary_op", ["name", "a"], ["up_dot"], ["binary_op", ["name", "b"], ["up_dot_null"], ["name", "c"]]]]],
         // a section may be a numeric index, like a member after a dot
         [`a..5`, ["exprs", ["binary_op", ["name", "a"], ["up_dot"], ["number", ["dec", "5"]]]]],
+        // an assignment section's value may not itself be a cascade:
+        // the ..d is a second section, not part of the assigned value
+        [`a..b = c..d`, ["exprs", ["binary_op", ["name", "a"], ["up_dot"], ["binary_op", ["binary_op", ["name", "b"], ["normal_assign"], ["name", "c"]], ["up_dot"], ["name", "d"]]]]],
+        // a multi-line cascade on an implicit call result, with an
+        // assignment section per line
+        [`return makeFoo()\n  ..bar = 1\n  ..baz = 2`, ["exprs", ["implicit_call", ["name", "return"], ["implicit_args", ["binary_op", ["explicit_call", ["name", "makeFoo"], ["explicit_args"]], ["up_dot"], ["binary_op", ["binary_op", ["name", "bar"], ["normal_assign"], ["number", ["dec", "1"]]], ["up_dot"], ["binary_op", ["name", "baz"], ["normal_assign"], ["number", ["dec", "2"]]]]]]]]],
         // a cascade operator with no section after it: the parse
         // stops at the receiver and drops the operator
         [`a..`, "BAD"],

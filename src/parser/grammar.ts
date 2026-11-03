@@ -206,7 +206,7 @@ export const backolonGrammar: Grammar = {
         ignored(if_(param("consume"), opt(seq(rule("blank"), param("end"))), nothing())),
     ))],
 
-    simple_expr: rule("cascade"),
+    simple_expr: rule("cascade", rule("pipe")),
 
     binary_op: [["nomatch", "op", "lhs", "rhs", "guard"], alt(
         ssep(rule("blank"), param("lhs"), param("op"), ignored(param("guard")), cut(), param("rhs")),
@@ -214,7 +214,10 @@ export const backolonGrammar: Grammar = {
     )],
 
     // right associative
-    cascade: rule("binary_op", rule("pipe"), rule("cascade_op"), rule("pipe"), rule("cascade"), lookahead(true, rule("member"))),
+    // within the sections (the right side, recursively), an assignment's right side may not itself be a cascade (Dart's expressionWithoutCascade)
+    // so a later .. link stays a section of this cascade instead of being swallowed into the assigned value.
+    // the receiver on the left is outside the bind, so x = a..b still assigns the whole cascade
+    cascade: [["operand"], rule("binary_op", param("operand"), rule("cascade_op"), param("operand"), bind("assign_rhs", false, altFirst(rule("block_expr"), rule("pipe")), rule("cascade", param("operand"))), lookahead(true, rule("member")))],
     cascade_op: alt(
         rule("up_dot_null"),
         rule("up_dot"),
@@ -242,12 +245,12 @@ export const backolonGrammar: Grammar = {
         // can't use joined() here since the first and second are different + there are lookahead assertions!
         ignored(ambient("guard", nothing())),
         lookahead(false, rule("strong_block")),
-        param("first", altFirst(rule("block_expr"), rule("implicit_call"))),
+        param("first", altFirst(rule("block_expr"), rule("cascade", rule("implicit_call")))),
         rep(false, seq(
             ignored(seq(opt(rule("blank_sameline")), rule("comma"), opt(rule("blank_sameline")))),
             lookahead(false, rule("strong_block")),
             ignored(ambient("guard", nothing())),
-            param("rest", altFirst(rule("block_expr"), rule("implicit_call"), rule("empty_arg")))
+            param("rest", altFirst(rule("block_expr"), rule("cascade", rule("implicit_call")), rule("empty_arg")))
         )),
     )],
 
@@ -269,7 +272,7 @@ export const backolonGrammar: Grammar = {
     arrow: op("operator", "->"),
 
     // strongly right associative
-    assignment: rule("binary_op", rule("ternary"), rule("assign_op"), rule("ternary"), rule("expr"), nothing()),
+    assignment: rule("binary_op", rule("ternary"), rule("assign_op"), rule("ternary"), ambient("assign_rhs", rule("expr")), nothing()),
     assign_op: alt(
         rule("old_assign"),
         rule("aug_assign"),
