@@ -3,7 +3,7 @@ import { last } from "lib0/array";
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `(foo()..add(1)..add(2)..add(3)..add(4))`;
+const SAMPLE_SCRIPT = `a.`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -773,8 +773,5 @@ else console.log(id(syncCompile(cst, {
         throw "ALWAYS";
     }],
     do: beginBody,
-    BAD: [(node) => ({ val: console.error(node) })]
-}, (x, node) => {
-    if (node.errorExpected) return makeSyntaxErrorNode(node, "expected " + describeCombinator(node.errorExpected));
-    return x;
-}, x => { throw x instanceof Error ? x : Error(x); }), (_, x) => typeof x === "bigint" ? ["BIGINT", x + ""] : typeof x === "symbol" ? ["SYMBOL", String(x)] : x === undefined ? ["UNDEFINED"] : x, 2));
+    BAD: [(_, __, node) => ({ val: makeSyntaxErrorNode(node, "expected " + describeCombinator(node.errorExpected!)) })]
+}, x => x, x => { throw x instanceof Error ? x : Error(x); }), (_, x) => typeof x === "bigint" ? ["BIGINT", x + ""] : typeof x === "symbol" ? ["SYMBOL", String(x)] : x === undefined ? ["UNDEFINED"] : x, 2));

@@ -47,12 +47,12 @@ export interface CompileBuilder {
     post?: string | null;
 }
 
-export const syncCompile = (node: CSTNode, tab: CompilerTable<(items: any, table?: Record<string, any>) => CompileBuilder>, wrap: (compiled: any, node: CSTNode) => any, handleError: (message: any) => any): any => {
+export const syncCompile = (node: CSTNode, tab: CompilerTable<(items: any, table: Record<string, any> | undefined, node: CSTNode) => CompileBuilder>, wrap: (compiled: any, node: CSTNode) => any, handleError: (message: any) => any): any => {
     const entry = tab[node.type!];
     var tbc, val, post;
     if (!entry) val = handleError(`don't know how to compile ${JSON.stringify(node.type)} node`);
     else try {
-        ({ tbc, val, post } = entry[0](node.children!, entry[1]));
+        ({ tbc, val, post } = entry[0](node.children!, entry[1], node));
         if (tbc) for (var [node2, path] of tbc) {
             val = assignPath(val, syncCompile(node2, tab, wrap, handleError), path);
         }
