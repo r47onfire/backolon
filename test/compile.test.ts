@@ -1,9 +1,9 @@
 import { gensym, Identifier } from "@r47onfire/jeb";
 import { last } from "lib0/array";
 import { isString } from "lib0/function";
-import { backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
+import { assignPath, backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `print let x = 1, y + 2 in foo bar end`;
+const SAMPLE_SCRIPT = `a..add(1)..add(2)`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -98,7 +98,7 @@ configure mode: "fast", level: 3;
 
 ## indexing: indexing, indexing_op, dot, up_dot
 a.b.c;
-a.b()..c();
+a..b()..c();
 a.(b);
 a.b.c = d.e.f;
 
@@ -442,7 +442,6 @@ else console.log(JSON.stringify(syncCompile(cst, {
         }
     }],
     up_dotPRE: [(nodes: [CSTNode, CSTNode]) => {
-        // TODO: a.qw.foo()..bar().baz()..bing()..bam() => (let x = (let x = a.qw in (x.foo(); x.bar))() in x.baz(); x.bing(); x.bam)()
         console.error("UP_DOT", nodes);
         throw "up_dot";
     }],

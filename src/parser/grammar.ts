@@ -7,6 +7,7 @@ import { walkCombinator } from "./walk";
  * The expression rules form a precedence chain from loosest to tightest:
  *
  * * expr
+ * * cascade
  * * pipe
  * * implicit_call
  * * kw_arg
@@ -205,12 +206,19 @@ export const backolonGrammar: Grammar = {
         ignored(if_(param("consume"), opt(seq(rule("blank"), param("end"))), nothing())),
     ))],
 
-    simple_expr: rule("pipe"),
+    simple_expr: rule("cascade"),
 
     binary_op: [["nomatch", "op", "lhs", "rhs", "guard"], alt(
         ssep(rule("blank"), param("lhs"), param("op"), ignored(param("guard")), cut(), param("rhs")),
         param("nomatch"),
     )],
+
+    // left associative
+    cascade: rule("binary_op", rule("pipe"), rule("cascade_op"), rule("cascade"), rule("postfix"), nothing()),
+    cascade_op: alt(
+        rule("up_dot"),
+    ),
+    up_dot: op("operator", ".."),
 
     // left associative
     pipe: rule("binary_op", rule("implicit_call"), rule("pipe_op"), rule("pipe"), rule("implicit_call"), nothing()),
@@ -390,10 +398,8 @@ export const backolonGrammar: Grammar = {
     indexing: rule("binary_op", rule("primary"), rule("indexing_op"), rule("postfix"), rule("primary"), nothing()),
     indexing_op: alt(
         rule("dot"),
-        rule("up_dot"),
     ),
     dot: op("operator", "."),
-    up_dot: op("operator", ".."),
 
     // primary: unary operators or atom
     primary: alt(

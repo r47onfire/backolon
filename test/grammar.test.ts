@@ -144,6 +144,18 @@ const TESTS: Record<string, [string, ASTNode][]> = {
         [`(*x).y`, ["exprs", ["binary_op", ["par_exp", ["exprs", ["prefix", ["deref"], ["name", "x"]]]], ["dot"], ["name", "y"]]]],
     ],
 
+    cascade: [
+        // left-nested like any other binary_op chain: (a..b)..c
+        [`a..b..c`, ["exprs", ["binary_op", ["binary_op", ["name", "a"], ["up_dot"], ["name", "b"]], ["up_dot"], ["name", "c"]]]],
+        // the receiver is everything before the first .., calls included;
+        // a section is a postfix fragment, so its calls stay inside it
+        [`a.b()..c()`, ["exprs", ["binary_op", ["explicit_call", ["binary_op", ["name", "a"], ["dot"], ["name", "b"]], ["explicit_args"]], ["up_dot"], ["explicit_call", ["name", "c"], ["explicit_args"]]]]],
+        // a section head may be computed: dynamic dispatch on a ternary-chosen name
+        [`x..(foo ? 'a' : 'b')(45)`, ["exprs", ["binary_op", ["name", "x"], ["up_dot"], ["explicit_call", ["par_exp", ["exprs", ["ternary", ["name", "foo"], ["r_string", ["r_body", "a"]], ["r_string", ["r_body", "b"]]]]], ["explicit_args", ["number", ["dec", "45"]]]]]]],
+        // cascades are values: assignment rhs, not assignment targets
+        [`x = a..b`, ["exprs", ["binary_op", ["name", "x"], ["normal_assign"], ["binary_op", ["name", "a"], ["up_dot"], ["name", "b"]]]]],
+    ],
+
     pipes: [
         // pipes are left-associative
         [`a |> b it |> c it`, ["exprs", ["binary_op", ["binary_op", ["name", "a"], ["normal_pipe"], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "it"]]]], ["normal_pipe"], ["implicit_call", ["name", "c"], ["implicit_args", ["name", "it"]]]]]],
