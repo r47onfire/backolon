@@ -16,6 +16,7 @@ import { walkCombinator } from "./walk";
  * * ternary
  * * logical
  * * comparison
+ * * predicate
  * * containment
  * * bitwise
  * * bitshift
@@ -310,11 +311,11 @@ export const backolonGrammar: Grammar = {
                 rule("comparison_op"),
                 ignored(opt(rule("blank"))),
             ),
-            rule("containment"),
+            rule("predicate"),
             true,
             false,
         ),
-        rule("containment"),
+        rule("predicate"),
     ),
     comparison_op: alt(
         rule("equal"),
@@ -330,6 +331,17 @@ export const backolonGrammar: Grammar = {
     gte: op("operator", ">="),
     less: op("operator", "<"),
     greater: op("operator", ">"),
+
+    // left associative: x is P is a flipped call, P(x) -- the right
+    // side is just a postfix, so the predicate is a callable chain and
+    // nothing else can be swallowed into it
+    predicate: rule("binary_op", rule("containment"), rule("predicate_op"), rule("predicate"), rule("postfix"), lookahead(false, rule("assign_op"))),
+    predicate_op: alt(
+        rule("normal_predicate"),
+        rule("inverted_predicate"),
+    ),
+    normal_predicate: kw("operator", "is"),
+    inverted_predicate: ignored(ssep(rule("blank"), kw("operator", "is"), kw("operator", "not"))),
 
     // non associative
     containment: rule("binary_op", rule("bitwise"), rule("containment_op"), rule("bitwise"), rule("bitwise"), nothing()),

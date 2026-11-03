@@ -3,7 +3,7 @@ import { last } from "lib0/array";
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = //`return [:]\n..x = 1\n..y = 2`;
+const SAMPLE_SCRIPT = `x is not callable`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -504,6 +504,8 @@ else console.log(id(syncCompile(cst, {
         logical_or: [["or"], [1], [2]],
         needle_in_haystack: [["in"], [1], [2]],
         haystack_has_needle: [["in"], [2], [1]],
+        normal_predicate: [[], [1], [0]],
+        inverted_predicate: [["not", []], [1, 1], [1, 0]],
         normal_assign: [["set"], [1], [2]],
         old_assign: [["set", , , true], [1], [2]],
         aug_assign: ["aug_assignPRE", [], []],

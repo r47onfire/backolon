@@ -189,11 +189,28 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         // a multi-line cascade on an implicit call result, with an
         // assignment section per line
         [`return makeFoo()\n  ..bar = 1\n  ..baz = 2`, ["exprs", ["implicit_call", ["name", "return"], ["implicit_args", ["binary_op", ["explicit_call", ["name", "makeFoo"], ["explicit_args"]], ["up_dot"], ["binary_op", ["binary_op", ["name", "bar"], ["normal_assign"], ["number", ["dec", "1"]]], ["up_dot"], ["binary_op", ["name", "baz"], ["normal_assign"], ["number", ["dec", "2"]]]]]]]]],
+        // parenthesis always reset ambients
+        [`return foo()..(x()..y = 2) = 1`, ["exprs", ["implicit_call", ["name", "return"], ["implicit_args", ["binary_op", ["explicit_call", ["name", "foo"], ["explicit_args"]], ["up_dot"], ["binary_op", ["par_exp", ["exprs", ["binary_op", ["explicit_call", ["name", "x"], ["explicit_args"]], ["up_dot"], ["binary_op", ["name", "y"], ["normal_assign"], ["number", ["dec", "2"]]]]]], ["normal_assign"], ["number", ["dec", "1"]]]]]]]],
         // a cascade operator with no section after it: the parse
         // stops at the receiver and drops the operator
         [`a..`, "BAD"],
         [`a?..`, "BAD"],
         [`a..b..`, "BAD"],
+    ],
+
+    is: [
+        // x is P is a flipped call, P(x): the predicate is just a
+        // postfix, so nothing else can be swallowed into it
+        [`x is callable`, ["exprs", ["binary_op", ["name", "x"], ["normal_predicate"], ["name", "callable"]]]],
+        [`x is a.b`, ["exprs", ["binary_op", ["name", "x"], ["normal_predicate"], ["binary_op", ["name", "a"], ["dot"], ["name", "b"]]]]],
+        // the left side absorbs everything down to a sum
+        [`n + 1 is even`, ["exprs", ["binary_op", ["binary_op", ["name", "n"], ["add"], ["number", ["dec", "1"]]], ["normal_predicate"], ["name", "even"]]]],
+        // but a comparison stays outside it
+        [`x is callable == true`, ["exprs", ["comparison", ["binary_op", ["name", "x"], ["normal_predicate"], ["name", "callable"]], ["equal"], ["boolean", ["boolean_true"]]]]],
+        // left associative: x is f is g is g(f(x))
+        [`x is f is g`, ["exprs", ["binary_op", ["binary_op", ["name", "x"], ["normal_predicate"], ["name", "f"]], ["normal_predicate"], ["name", "g"]]]],
+        // return is just a name, so this is return(x)
+        [`x is return`, ["exprs", ["binary_op", ["name", "x"], ["normal_predicate"], ["name", "return"]]]],
     ],
 
     pipes: [
@@ -307,6 +324,7 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
     "contextual soft keywords": [
         ["(else)", ["exprs", ["par_exp", ["exprs", ["name", "else"]]]]],
         ["(in)", ["exprs", ["par_exp", ["exprs", ["name", "in"]]]]],
+        ["(is)", ["exprs", ["par_exp", ["exprs", ["name", "is"]]]]],
         ["(end)", ["exprs", ["par_exp", ["exprs", ["name", "end"]]]]],
         ["(let else = a in else end)", ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "else"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["name", "else"]]]]]]]],
         ["let x = (in) in x end", ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["par_exp", ["exprs", ["name", "in"]]]]], ["body_exprs", ["name", "x"]]]]]],
