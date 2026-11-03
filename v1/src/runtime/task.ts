@@ -1,67 +1,130 @@
 import { stringify } from "lib0/json";
 import { forEach } from "lib0/object";
-import { BackolonError, LocationTrace, RuntimeError, UNKNOWN_LOCATION } from "../errors";
+import {
+    BackolonError,
+    LocationTrace,
+    RuntimeError,
+    UNKNOWN_LOCATION,
+} from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
-import { boxApply, boxList, boxNameSymbol, boxNil, isAtom, isBlock, isSymbol, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
+import {
+    boxApply,
+    boxList,
+    boxNameSymbol,
+    boxNil,
+    isAtom,
+    isBlock,
+    isSymbol,
+    Thing,
+    ThingType,
+    typecheck,
+    typeNameOf,
+} from "../objects/thing";
 import { matchPattern } from "../patterns/match";
 import { flatToVarMap, newEnv, walkEnvTree } from "./env";
-import { getNthDescriptor, getParamDescriptors, isLazy, parametersToVars, wrapImplicitBlock } from "./functor";
+import {
+    getNthDescriptor,
+    getParamDescriptors,
+    isLazy,
+    parametersToVars,
+    wrapImplicitBlock,
+} from "./functor";
 import { type Scheduler } from "./scheduler";
 
 /**
- * @file
  * @module Builtins
+ * @file
  */
 
-/**
- * Flags used to record internal task evaluation state.
- */
+/** Flags used to record internal task evaluation state. */
 export enum StackFlag {
     /**
      * Normally, a native function is treated as a value and returned; however,
-     * when one is called it needs to be the {@link StackEntry#value|value} of the
-     * {@link StackEntry} it's in so that its arguments can be processed. That stack has this
-     * flag set to mark that it's actually being called and not just returned.
+     * when one is called it needs to be the {@link StackEntry#value|value} of
+     * the {@link StackEntry} it's in so that its arguments can be processed.
+     * That stack has this flag set to mark that it's actually being called and
+     * not just returned.
      */
     native_func_being_evaluated = 1,
 }
 
-/**
- * A single stack frame in the Backolon evaluator.
- */
+/** A single stack frame in the Backolon evaluator. */
 export class StackEntry {
     constructor(
-        /** current value being evaluated */
+        /** Current value being evaluated */
         public readonly value: Thing,
-        /** location trace */
+        /** Location trace */
         public readonly loc: LocationTrace,
-        /** arguments in-progress being evaluated */
+        /** Arguments in-progress being evaluated */
         public readonly argv: readonly Thing[],
-        /** current environment */
+        /** Current environment */
         public readonly env: Thing<ThingType.env> | Thing<ThingType.nil>,
-        /** resolved name of the stack entry if it is determined to be significant */
+        /**
+         * Resolved name of the stack entry if it is determined to be
+         * significant
+         */
         public readonly name: string | null,
-        /** current index in evaluating args */
+        /** Current index in evaluating args */
         public readonly index = 0,
-        /** internal state for evaluation */
+        /** Internal state for evaluation */
         public readonly cookie: number = 0,
-        /** arbitrary data */
+        /** Arbitrary data */
         public readonly data: any = null,
-        /** state flags */
+        /** State flags */
         public readonly flags = 0,
-        /** name of stack entry */
-    ) { }
+        /** Name of stack entry */
+    ) {}
     sd(index: number, state: number, data: any) {
-        return new StackEntry(this.value, this.loc, this.argv, this.env, this.name, index, state, data, this.flags);
+        return new StackEntry(
+            this.value,
+            this.loc,
+            this.argv,
+            this.env,
+            this.name,
+            index,
+            state,
+            data,
+            this.flags,
+        );
     }
     g(args: Thing[]) {
-        return new StackEntry(this.value, this.loc, args, this.env, this.name, this.index, this.cookie, this.data, this.flags);
+        return new StackEntry(
+            this.value,
+            this.loc,
+            args,
+            this.env,
+            this.name,
+            this.index,
+            this.cookie,
+            this.data,
+            this.flags,
+        );
     }
     f(toSet: number, toClear: number) {
-        return new StackEntry(this.value, this.loc, this.argv, this.env, this.name, this.index, this.cookie, this.data, (this.flags & (~toClear)) | toSet);
+        return new StackEntry(
+            this.value,
+            this.loc,
+            this.argv,
+            this.env,
+            this.name,
+            this.index,
+            this.cookie,
+            this.data,
+            (this.flags & ~toClear) | toSet,
+        );
     }
     e(newEnv: Thing<ThingType.env>) {
-        return new StackEntry(this.value, this.loc, this.argv, newEnv, this.name, this.index, this.cookie, this.data, this.flags);
+        return new StackEntry(
+            this.value,
+            this.loc,
+            this.argv,
+            newEnv,
+            this.name,
+            this.index,
+            this.cookie,
+            this.data,
+            this.flags,
+        );
     }
 }
 
@@ -79,28 +142,35 @@ enum ApplyEvalState {
     waiting_for_arg_result,
 }
 
-/**
- * Represents a running Backolon evaluation task.
- */
+/** Represents a running Backolon evaluation task. */
 export class Task {
     /**
-     * Whether this task is currently suspended (e.g. waiting for a promise to resolve).
-     * If true, the scheduler will not run this task until it is resumed by setting suspended to false.
+     * Whether this task is currently suspended (e.g. waiting for a promise to
+     * resolve). If true, the scheduler will not run this task until it is
+     * resumed by setting suspended to false.
      */
     suspended = false;
     stack: readonly StackEntry[] = [];
     /**
-     * Represents the result of the last evaluated expression, used for returning values to whatever started this task.
+     * Represents the result of the last evaluated expression, used for
+     * returning values to whatever started this task.
      */
     result: Thing | null = null;
-    constructor(public priority: number, public scheduler: Scheduler,
-        code: Thing, env: Thing<ThingType.env> | Thing<ThingType.nil>) {
+    constructor(
+        public priority: number,
+        public scheduler: Scheduler,
+        code: Thing,
+        env: Thing<ThingType.env> | Thing<ThingType.nil>,
+    ) {
         this.enter(code, code.loc, env);
     }
 
     /**
-     * Try to take a single evaluation step in this task. Returns true if the task made progress (e.g. evaluated something or updated its state), or false if the task is currently suspended or has finished execution.
-     * If the task throws an error during evaluation, the task may end up in an undefined state.
+     * Try to take a single evaluation step in this task. Returns true if the
+     * task made progress (e.g. evaluated something or updated its state), or
+     * false if the task is currently suspended or has finished execution. If
+     * the task throws an error during evaluation, the task may end up in an
+     * undefined state.
      */
     step(): boolean {
         try {
@@ -122,17 +192,25 @@ export class Task {
             }
 
             const hasMacro = () => {
-                if (this.result && typecheck(ThingType.macroized)(this.result)) {
+                if (
+                    this.result &&
+                    typecheck(ThingType.macroized)(this.result)
+                ) {
                     return true;
                 }
                 return false;
             };
             const goMacro = () => {
                 const val = this.result!.c[0]!;
-                this.enter(val, val.loc, top!.env, undefined, "<macro expansion>");
+                this.enter(
+                    val,
+                    val.loc,
+                    top!.env,
+                    undefined,
+                    "<macro expansion>",
+                );
             };
             corrupted: {
-
                 /*
                 block:
                     index=0 => try to match all patterns in scope
@@ -148,68 +226,132 @@ export class Task {
                         // console.log("initial match", this.stack.at(-1)!.argv.map(t => [ThingType[t.t], DEFAULT_UNPARSER.unparse(t)]));
                         // @ts-expect-error
                         case BlockEvalState.matching_patterns:
-                            if (walkEnvTree(top.env, (_, patterns) => {
-                                // TODO: patterns should be sorted globally by precedence
-                                // so user code and native modules can affect it predictably
-                                for (var i = 0; i < patterns.length; i++) {
-                                    const entry = patterns[i]!,
-                                        rightAssociative = entry.v,
-                                        pat = entry.c[0]!,
-                                        impl = entry.c[1]!,
-                                        when = entry.c[2]?.c;
-                                    if (when.length > 0 && !typecheck(...when.map(v => v.v))(val)) continue;
-                                    const results = matchPattern(top!.argv, pat, rightAssociative);
-                                    var result = results[0];
-                                    if (rightAssociative && results.length > 0) {
-                                        for (var i = 1; i < results.length; i++) {
-                                            const nextResult = results[i]!;
-                                            if (nextResult.span[0] < result!.span[1]) {
-                                                result = nextResult;
-                                            } else {
-                                                break;
+                            if (
+                                walkEnvTree(top.env, (_, patterns) => {
+                                    // TODO: patterns should be sorted globally by precedence
+                                    // so user code and native modules can affect it predictably
+                                    for (var i = 0; i < patterns.length; i++) {
+                                        const entry = patterns[i]!,
+                                            rightAssociative = entry.v,
+                                            pat = entry.c[0]!,
+                                            impl = entry.c[1]!,
+                                            when = entry.c[2]?.c;
+                                        if (
+                                            when.length > 0 &&
+                                            !typecheck(...when.map((v) => v.v))(
+                                                val,
+                                            )
+                                        )
+                                            continue;
+                                        const results = matchPattern(
+                                            top!.argv,
+                                            pat,
+                                            rightAssociative,
+                                        );
+                                        var result = results[0];
+                                        if (
+                                            rightAssociative &&
+                                            results.length > 0
+                                        ) {
+                                            for (
+                                                var i = 1;
+                                                i < results.length;
+                                                i++
+                                            ) {
+                                                const nextResult = results[i]!;
+                                                if (
+                                                    nextResult.span[0] <
+                                                    result!.span[1]
+                                                ) {
+                                                    result = nextResult;
+                                                } else {
+                                                    break;
+                                                }
                                             }
                                         }
+                                        if (result) {
+                                            this.updateCookie(
+                                                0,
+                                                BlockEvalState.waiting_for_pattern_result,
+                                                result.span,
+                                            );
+                                            this.enter(
+                                                boxApply(
+                                                    impl,
+                                                    [
+                                                        this.#injectVarsToCall(
+                                                            loc,
+                                                            flatToVarMap(
+                                                                result,
+                                                                loc,
+                                                            ),
+                                                            {
+                                                                // TODO: inject block type variable
+                                                            },
+                                                        ),
+                                                    ],
+                                                    top!.argv[result.span[0]!]!
+                                                        .loc,
+                                                ),
+                                                loc,
+                                                top!.env,
+                                                undefined,
+                                                "<pattern expansion>",
+                                            );
+                                            return true;
+                                        } else {
+                                            // console.log("no match for", [DEFAULT_UNPARSER.unparse(pat)]);
+                                        }
                                     }
-                                    if (result) {
-                                        this.updateCookie(0, BlockEvalState.waiting_for_pattern_result, result.span);
-                                        this.enter(boxApply(impl, [this.#injectVarsToCall(loc, flatToVarMap(result, loc), {
-                                            // TODO: inject block type variable
-                                        })], top!.argv[result.span[0]!]!.loc), loc, top!.env, undefined, "<pattern expansion>");
-                                        return true;
-                                    } else {
-                                        // console.log("no match for", [DEFAULT_UNPARSER.unparse(pat)]);
-                                    }
-                                }
-                                return false;
-                            })) {
+                                    return false;
+                                })
+                            ) {
                                 return true;
                             }
                             // console.log("no match for anything - done.");
                             this.result = boxNil(val.loc);
                         case BlockEvalState.evaluating_body_after_no_matches_found:
                             if (hasMacro()) {
-                                this.updateCookie(top.index, BlockEvalState.evaluating_body_after_no_matches_found);
+                                this.updateCookie(
+                                    top.index,
+                                    BlockEvalState.evaluating_body_after_no_matches_found,
+                                );
                                 goMacro();
                                 return true;
                             }
                             if (top.index >= top.argv.length) {
                                 this.out();
                             } else {
-                                this.updateCookie(top.index + 1, BlockEvalState.evaluating_body_after_no_matches_found);
+                                this.updateCookie(
+                                    top.index + 1,
+                                    BlockEvalState.evaluating_body_after_no_matches_found,
+                                );
                                 this.enter(top.argv[top.index]!, loc, top.env);
                             }
                             return true;
                         case BlockEvalState.waiting_for_pattern_result:
-                            if (hasMacro()) { goMacro(); return true; }
+                            if (hasMacro()) {
+                                goMacro();
+                                return true;
+                            }
                             const res = this.result!;
                             this.result = null;
-                            if (res === null) throw new Error("Expected a result");
+                            if (res === null)
+                                throw new Error("Expected a result");
                             const start = top.data[0] as number;
-                            const length = top.data[1] as number - start;
-                            const values = typecheck(ThingType.splat)(res) ? res.c : [res];
-                            this.updateArgs(top.argv.toSpliced(start, length, ...values));
+                            const length = (top.data[1] as number) - start;
+                            const values = typecheck(ThingType.splat)(res)
+                                ? res.c
+                                : [res];
+                            this.updateArgs(
+                                top.argv.toSpliced(start, length, ...values),
+                            );
                             // console.log("parse splice", this.stack.at(-1)!.argv.map(t => [ThingType[t.t], DEFAULT_UNPARSER.unparse(t)]));
-                            this.updateCookie(0, BlockEvalState.matching_patterns, null);
+                            this.updateCookie(
+                                0,
+                                BlockEvalState.matching_patterns,
+                                null,
+                            );
                             return true;
                         default:
                             break corrupted;
@@ -220,18 +362,27 @@ export class Task {
                     look it up, error if not found
                 */
                 if (typecheck(ThingType.name)(val)) {
-                    if (walkEnvTree(top.env, vars => {
-                        const result = mapGetKey(vars, val, loc);
-                        if (result !== undefined) {
-                            this.out(result);
-                            return true;
-                        }
-                        return false;
-                    })) return true;
-                    throw new RuntimeError(`undefined: ${stringify(val.v)}`, loc);
+                    if (
+                        walkEnvTree(top.env, (vars) => {
+                            const result = mapGetKey(vars, val, loc);
+                            if (result !== undefined) {
+                                this.out(result);
+                                return true;
+                            }
+                            return false;
+                        })
+                    )
+                        return true;
+                    throw new RuntimeError(
+                        `undefined: ${stringify(val.v)}`,
+                        loc,
+                    );
                 }
                 if (isSymbol(val)) {
-                    throw new RuntimeError(`invalid name: ${stringify(val.v)}`, loc);
+                    throw new RuntimeError(
+                        `invalid name: ${stringify(val.v)}`,
+                        loc,
+                    );
                 }
                 /*
                 apply:
@@ -245,23 +396,47 @@ export class Task {
                     switch (state as ApplyEvalState) {
                         case ApplyEvalState.initial:
                             this.updateArgs([]);
-                            this.updateCookie(1, ApplyEvalState.waiting_for_functor_result, null);
+                            this.updateCookie(
+                                1,
+                                ApplyEvalState.waiting_for_functor_result,
+                                null,
+                            );
                             this.enter(children[0]!, loc, top.env);
                             return true;
                         // @ts-expect-error
                         case ApplyEvalState.waiting_for_functor_result:
-                            children = (val = (top = this.updateArgs(top.argv.toSpliced(Infinity, 0, this.result!))).value).c;
+                            children = (val = (top = this.updateArgs(
+                                top.argv.toSpliced(Infinity, 0, this.result!),
+                            )).value).c;
                             this.result = null;
                         // @ts-expect-error
                         case ApplyEvalState.evaluate_arguments:
                             if (top.index >= children.length) {
                                 this.out(); // Result will be the result of the application
-                                this.#doApply(val, top.argv[0]!, top.argv.slice(1), top.env, undefined, (val as Thing<ThingType.apply>).v);
+                                this.#doApply(
+                                    val,
+                                    top.argv[0]!,
+                                    top.argv.slice(1),
+                                    top.env,
+                                    undefined,
+                                    (val as Thing<ThingType.apply>).v,
+                                );
                                 return true;
                             }
-                            const desc = getNthDescriptor(getParamDescriptors(top.argv[0]!, this.scheduler, val), top.argv.length - 1);  // -1 to account for offset of functor
+                            const desc = getNthDescriptor(
+                                getParamDescriptors(
+                                    top.argv[0]!,
+                                    this.scheduler,
+                                    val,
+                                ),
+                                top.argv.length - 1,
+                            ); // -1 to account for offset of functor
                             const arg = children[top.index]!;
-                            this.updateCookie(top.index, ApplyEvalState.waiting_for_arg_result, null);
+                            this.updateCookie(
+                                top.index,
+                                ApplyEvalState.waiting_for_arg_result,
+                                null,
+                            );
                             if (isLazy(desc)) {
                                 // TODO: have some way to force-override lazy parameters?
                                 this.result = wrapImplicitBlock(arg, top.env);
@@ -272,14 +447,30 @@ export class Task {
                         case ApplyEvalState.waiting_for_arg_result:
                             res = this.result!;
                             this.result = null;
-                            if (res === null) throw new Error("Expected a result");
+                            if (res === null)
+                                throw new Error("Expected a result");
                             if (hasMacro()) {
-                                this.updateCookie(top.index, ApplyEvalState.waiting_for_arg_result);
+                                this.updateCookie(
+                                    top.index,
+                                    ApplyEvalState.waiting_for_arg_result,
+                                );
                                 goMacro();
                                 return true;
                             }
-                            this.updateArgs(top.argv.toSpliced(Infinity, 0, ...(typecheck(ThingType.splat)(res) ? res.c : [res])));
-                            this.updateCookie(top.index + 1, ApplyEvalState.evaluate_arguments, null);
+                            this.updateArgs(
+                                top.argv.toSpliced(
+                                    Infinity,
+                                    0,
+                                    ...(typecheck(ThingType.splat)(res)
+                                        ? res.c
+                                        : [res]),
+                                ),
+                            );
+                            this.updateCookie(
+                                top.index + 1,
+                                ApplyEvalState.evaluate_arguments,
+                                null,
+                            );
                             return true;
                         default:
                             break corrupted;
@@ -290,7 +481,10 @@ export class Task {
                 native function in-progress:
                     call into, update state
                 */
-                if (typecheck(ThingType.nativefunc)(val) && (top.flags & StackFlag.native_func_being_evaluated)) {
+                if (
+                    typecheck(ThingType.nativefunc)(val) &&
+                    top.flags & StackFlag.native_func_being_evaluated
+                ) {
                     this.scheduler.callFunction(this, val.v, top);
                     return true;
                 }
@@ -313,12 +507,20 @@ export class Task {
                 }
                 throw new RuntimeError(`cannot evaluate ${typestr}`, val.loc);
             }
-            throw new Error(`corrupted eval state (type=${typestr}, state=${top.cookie})`);
+            throw new Error(
+                `corrupted eval state (type=${typestr}, state=${top.cookie})`,
+            );
         } catch (e: any) {
             if (!(e instanceof BackolonError)) {
-                const e2 = new BackolonError(`Javascript error: ${e?.stack ?? String(e)}`, UNKNOWN_LOCATION);
+                const e2 = new BackolonError(
+                    `Javascript error: ${e?.stack ?? String(e)}`,
+                    UNKNOWN_LOCATION,
+                );
                 e2.cause = e;
-                e2.addNote(`Javascript traceback: ${e.stack}`, UNKNOWN_LOCATION);
+                e2.addNote(
+                    `Javascript traceback: ${e.stack}`,
+                    UNKNOWN_LOCATION,
+                );
                 e = e2;
             }
             for (var item of this.stack.toReversed()) {
@@ -330,10 +532,12 @@ export class Task {
         }
     }
     /**
-     * Return a new thing representing the current continuation at this point in evaluation,
-     * which when called will return to this point with the given value as the result of the current expression.
+     * Return a new thing representing the current continuation at this point in
+     * evaluation, which when called will return to this point with the given
+     * value as the result of the current expression.
      *
-     * The continuation will capture the entire stack, so it has infinite extent.
+     * The continuation will capture the entire stack, so it has infinite
+     * extent.
      */
     continuation(loc = UNKNOWN_LOCATION) {
         return new Thing(
@@ -344,84 +548,173 @@ export class Task {
             "",
             "",
             loc,
-            false);
+            false,
+        );
     }
-    /** inject variables */
-    #injectVarsToCall(opTrace: LocationTrace, vars: Thing<ThingType.map>, extraVars: Record<string, Thing> = {}, injectReturn = true) {
-        forEach(extraVars, (value, key) => mapUpdateKeyMutating(vars, boxNameSymbol(key, opTrace), value, opTrace));
+    /** Inject variables */
+    #injectVarsToCall(
+        opTrace: LocationTrace,
+        vars: Thing<ThingType.map>,
+        extraVars: Record<string, Thing> = {},
+        injectReturn = true,
+    ) {
+        forEach(extraVars, (value, key) =>
+            mapUpdateKeyMutating(
+                vars,
+                boxNameSymbol(key, opTrace),
+                value,
+                opTrace,
+            ),
+        );
         if (injectReturn) {
             /**
-             * Return from a lambda. Only valid inside one (it's not defined outside of one).
-             * @backolon
+             * Return from a lambda. Only valid inside one (it's not defined
+             * outside of one).
+             *
              * @category Control Flow
+             * @example
+             *     ```backolon
+             *     [x] => (
+             *     if (x == 0) (return "zero")
+             *     # other code here that will be skipped if x == 0
+             *     )
+             *     ```;
+             *
              * @function return
              * @param {any} valueToReturn
              * @returns {never}
-             * @example
-             * ```backolon
-             * [x] => (
-             *     if (x == 0) (return "zero")
-             *     # other code here that will be skipped if x == 0
-             * )
-             * ```
+             * @backolon
              */
-            mapUpdateKeyMutating(vars, boxNameSymbol("return"), this.continuation(opTrace));
+            mapUpdateKeyMutating(
+                vars,
+                boxNameSymbol("return"),
+                this.continuation(opTrace),
+            );
         }
         return vars;
     }
-    /** apply - for functions the parameters will need to have been evaluated / typechecked*/
-    #doApply(callsite: Thing, functor: Thing, argv: Thing[], env: Thing<ThingType.env> | Thing<ThingType.nil>, name?: string, significant = false) {
-        const goDefaults = (pendingDefaults: Thing[], vars: Thing<ThingType.map>) => {
+    /**
+     * Apply - for functions the parameters will need to have been evaluated /
+     * typechecked
+     */
+    #doApply(
+        callsite: Thing,
+        functor: Thing,
+        argv: Thing[],
+        env: Thing<ThingType.env> | Thing<ThingType.nil>,
+        name?: string,
+        significant = false,
+    ) {
+        const goDefaults = (
+            pendingDefaults: Thing[],
+            vars: Thing<ThingType.map>,
+        ) => {
             // Make the new parent env for evaluating the arguments include the caller's scope, to allow dynamic bindings of defaults.
-            this.enter(boxApply(functor, pendingDefaults, callsite.loc), callsite.loc, newEnv(vars, boxList([]), callsite.loc, [env]), [functor, ...argv], significant ? name : undefined);
+            this.enter(
+                boxApply(functor, pendingDefaults, callsite.loc),
+                callsite.loc,
+                newEnv(vars, boxList([]), callsite.loc, [env]),
+                [functor, ...argv],
+                significant ? name : undefined,
+            );
             this.updateCookie(1, ApplyEvalState.evaluate_arguments, null);
-        }
+        };
         if (typecheck(ThingType.func)(functor)) {
             // do type checks
             // if optional params have defaults, go back to evaluate them in the new scope
-            const { e: vars, p: pendingDefaults } = parametersToVars(name ?? functor.v ?? "<lambda>", functor.c[0]!.c as any, argv, callsite);
+            const { e: vars, p: pendingDefaults } = parametersToVars(
+                name ?? functor.v ?? "<lambda>",
+                functor.c[0]!.c as any,
+                argv,
+                callsite,
+            );
             if (pendingDefaults.length > 0) {
                 // We haven't evaluated the defaults yet...
                 return goDefaults(pendingDefaults, vars);
             }
-            this.#doApply(callsite, functor.c[1], [this.#injectVarsToCall(callsite.loc, vars)], env, name ?? functor.v ?? "<lambda>", true);
-        }
-        else if (typecheck(ThingType.nativefunc)(functor)) {
-            const { e: vars, p: pendingDefaults } = parametersToVars(functor.v, this.scheduler.getParamDescriptors(functor.v), argv, callsite);
+            this.#doApply(
+                callsite,
+                functor.c[1],
+                [this.#injectVarsToCall(callsite.loc, vars)],
+                env,
+                name ?? functor.v ?? "<lambda>",
+                true,
+            );
+        } else if (typecheck(ThingType.nativefunc)(functor)) {
+            const { e: vars, p: pendingDefaults } = parametersToVars(
+                functor.v,
+                this.scheduler.getParamDescriptors(functor.v),
+                argv,
+                callsite,
+            );
             if (pendingDefaults.length > 0) {
                 return goDefaults(pendingDefaults, vars);
             }
-            this.enter(functor, callsite.loc, env, argv, significant ? functor.v : undefined);
+            this.enter(
+                functor,
+                callsite.loc,
+                env,
+                argv,
+                significant ? functor.v : undefined,
+            );
             this.updateFlags(StackFlag.native_func_being_evaluated, 0);
-        }
-        else if (typecheck(ThingType.continuation)(functor)) {
-            if (argv.length > 1) throw new RuntimeError("too many arguments to continuation", callsite.loc);
+        } else if (typecheck(ThingType.continuation)(functor)) {
+            if (argv.length > 1)
+                throw new RuntimeError(
+                    "too many arguments to continuation",
+                    callsite.loc,
+                );
             this.stack = functor.v;
             this.result = argv[0] ?? boxNil(callsite.loc);
-        }
-        else if (typecheck(ThingType.implicitfunc)(functor)) {
+        } else if (typecheck(ThingType.implicitfunc)(functor)) {
             if (argv.length > 1) {
-                throw new RuntimeError("too many arguments to implicit block", callsite.loc);
+                throw new RuntimeError(
+                    "too many arguments to implicit block",
+                    callsite.loc,
+                );
             }
             const map = argv[0] ?? newEmptyMap(functor.loc);
             if (!typecheck(ThingType.map)(map)) {
-                throw new RuntimeError(`expected a map to inject (got ${typeNameOf(map.t)})`, callsite.loc);
+                throw new RuntimeError(
+                    `expected a map to inject (got ${typeNameOf(map.t)})`,
+                    callsite.loc,
+                );
             }
-            const e = map.c.length === 0 ? functor.v : newEnv(map, boxList([]), callsite.loc, [functor.v]);
-            this.enter(functor.c[0], callsite.loc, e, [], significant ? name : undefined);
-        }
-        else {
+            const e =
+                map.c.length === 0
+                    ? functor.v
+                    : newEnv(map, boxList([]), callsite.loc, [functor.v]);
+            this.enter(
+                functor.c[0],
+                callsite.loc,
+                e,
+                [],
+                significant ? name : undefined,
+            );
+        } else {
             // Try to find a custom applicator for this type
             const applicator = this.scheduler.getApply(functor.t);
             if (applicator) {
-                applicator.call(this, functor, argv, callsite, env, name, significant);
+                applicator.call(
+                    this,
+                    functor,
+                    argv,
+                    callsite,
+                    env,
+                    name,
+                    significant,
+                );
                 return;
             }
-            throw new RuntimeError(`can't call ${typeNameOf(functor.t)}`, callsite.loc);
+            throw new RuntimeError(
+                `can't call ${typeNameOf(functor.t)}`,
+                callsite.loc,
+            );
         }
     }
     /**
-     * Update the current stack entry with new arguments, returning the new stack entry.
+     * Update the current stack entry with new arguments, returning the new
+     * stack entry.
      */
     updateArgs(args: Thing[]) {
         const val = this.stack.at(-1)!.g(args);
@@ -429,13 +722,17 @@ export class Task {
         return val;
     }
     /**
-     * Update the current stack entry with a new cookie value(s), returning the new stack entry.
-     * The cookie is used to track internal evaluation state for constructs that call back into Backolon code,
-     * so the Javascript implementation knows where it was and can resume evaluation from the correct point when the Backolon code returns.
+     * Update the current stack entry with a new cookie value(s), returning the
+     * new stack entry. The cookie is used to track internal evaluation state
+     * for constructs that call back into Backolon code, so the Javascript
+     * implementation knows where it was and can resume evaluation from the
+     * correct point when the Backolon code returns.
      *
-     * The exact meaning of the cookie value(s) depends on the construct being evaluated.
-     * 
-     * @param data An optional additional data to store in the stack entry. If not provided, the data value from the current stack entry is used.
+     * The exact meaning of the cookie value(s) depends on the construct being
+     * evaluated.
+     *
+     * @param data An optional additional data to store in the stack entry. If
+     *   not provided, the data value from the current stack entry is used.
      */
     updateCookie(index: number, state: number, data?: any) {
         const top = this.stack.at(-1)!;
@@ -444,10 +741,12 @@ export class Task {
         return updated;
     }
     /**
-     * Updates the current stack entry with new flags, returning the new stack entry.
-     * @see {@link StackFlag}
+     * Updates the current stack entry with new flags, returning the new stack
+     * entry.
+     *
      * @param toClear Bitmask of flags to clear
      * @param toSet Bitmask of flags to set (takes precedence over `toClear`)
+     * @see {@link StackFlag}
      */
     updateFlags(toSet: number, toClear: number) {
         const top = this.stack.at(-1)!;
@@ -456,7 +755,9 @@ export class Task {
         return updated;
     }
     /**
-     * Updates the current stack entry with a new environment, returning the new stack entry. This is used when entering a new scope (e.g. injecting context-sensitive information).
+     * Updates the current stack entry with a new environment, returning the new
+     * stack entry. This is used when entering a new scope (e.g. injecting
+     * context-sensitive information).
      */
     updateEnv(newEnv: Thing<ThingType.env>) {
         const top = this.stack.at(-1)!;
@@ -465,26 +766,44 @@ export class Task {
         return updated;
     }
     /**
-     * Enters a new stack frame with the given code, location, environment, and arguments.
+     * Enters a new stack frame with the given code, location, environment, and
+     * arguments.
+     *
      * @param loc The location trace to use in error messages.
-     * @param name The name of the stack frame, if it is significant and should appear in a stack trace.
+     * @param name The name of the stack frame, if it is significant and should
+     *   appear in a stack trace.
      */
-    enter(code: Thing, loc: LocationTrace, env: Thing<ThingType.env> | Thing<ThingType.nil>, args: readonly Thing[] = [], name?: string | null) {
-        this.stack = this.stack.toSpliced(Infinity, 0, new StackEntry(code, loc, args, env, name ?? null));
+    enter(
+        code: Thing,
+        loc: LocationTrace,
+        env: Thing<ThingType.env> | Thing<ThingType.nil>,
+        args: readonly Thing[] = [],
+        name?: string | null,
+    ) {
+        this.stack = this.stack.toSpliced(
+            Infinity,
+            0,
+            new StackEntry(code, loc, args, env, name ?? null),
+        );
     }
     /**
-     * Exit the current stack frame, optionally with a result to return to the caller.
-     * The result will be passed back to whatever got us here (e.g. the parent stack frame or the creator of the task).
+     * Exit the current stack frame, optionally with a result to return to the
+     * caller. The result will be passed back to whatever got us here (e.g. the
+     * parent stack frame or the creator of the task).
      */
     out(result?: Thing): StackEntry {
         this.result = result ?? this.result;
         return (this.stack = this.stack.toSpliced(-1, 1)).at(-1)!;
     }
     /**
-     * Temporarily pop the given number of stack frames, call the callback with the new top of the stack, and then restore the popped stack frames.
-     * This is used for things like variable declaration and assignment where we need to access the correct environment to put the variable in.
+     * Temporarily pop the given number of stack frames, call the callback with
+     * the new top of the stack, and then restore the popped stack frames. This
+     * is used for things like variable declaration and assignment where we need
+     * to access the correct environment to put the variable in.
      *
-     * If depth is greater than or equal to the current stack size, the callback will be called with the bottom of the stack (which is usually the global scope).
+     * If depth is greater than or equal to the current stack size, the callback
+     * will be called with the bottom of the stack (which is usually the global
+     * scope).
      */
     dip(depth: number, cb: (state: StackEntry) => void) {
         if (this.stack.length > depth) {

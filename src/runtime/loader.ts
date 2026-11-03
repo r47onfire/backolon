@@ -4,32 +4,37 @@ import { Module } from "./module";
 import { BackolonVM } from "./vm";
 
 /**
- * Object whose job it is to download or open the file
- * and then load its contents into a module object.
+ * Object whose job it is to download or open the file and then load its
+ * contents into a module object.
  */
 export abstract class Loader {
     /**
-     * Returns undefined if this loader can't load the URL.
-     * Returns itself or another loader that will load the module
-     * via its {@link load} implementation.
+     * Returns undefined if this loader can't load the URL. Returns itself or
+     * another loader that will load the module via its {@link load}
+     * implementation.
      */
     abstract match(url: URL): Loader | undefined;
     /**
-     * Called when this loader has been selected to load the given URL
-     * into the given {@link Module}. Should push opcodes to do so.
+     * Called when this loader has been selected to load the given URL into the
+     * given {@link Module}. Should push opcodes to do so.
      */
-    abstract load(vm: BackolonVM, url: URL, module: Module, importer: Importer): Promise<void>;
+    abstract load(
+        vm: BackolonVM,
+        url: URL,
+        module: Module,
+        importer: Importer,
+    ): Promise<void>;
 }
 
-/**
- * Loader that handles loading the Javascript modules via `import()`.
- */
+/** Loader that handles loading the Javascript modules via `import()`. */
 export class JavascriptModuleLoader extends Loader {
     match(url: URL): Loader | undefined {
         if (url.pathname.endsWith(".js")) return this;
     }
     async load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
-        await (await importer.getImport(url)).setup(module, url.searchParams, vm);
+        await (
+            await importer.getImport(url)
+        ).setup(module, url.searchParams, vm);
     }
 }
 
@@ -60,9 +65,7 @@ export class JavascriptModuleLoader extends Loader {
 //     }
 // }
 
-/**
- * Loader that handles loading Backolon source code
- */
+/** Loader that handles loading Backolon source code */
 export class BackolonSourceModuleLoader extends Loader {
     match(url: URL): Loader | undefined {
         if (url.pathname.endsWith(".bk")) return this;

@@ -2,54 +2,60 @@ import { stringify } from "lib0/json";
 import { NamespaceResolver, Resurrect } from "resurrect-esm";
 import { LocationTrace, RuntimeError } from "../errors";
 import { newEmptyMap } from "../objects/map";
-import { boxList, Thing, ThingType, typecheck, typeNameOf } from "../objects/thing";
+import {
+    boxList,
+    Thing,
+    ThingType,
+    typecheck,
+    typeNameOf,
+} from "../objects/thing";
 import { parse } from "../parser/parse";
 import { NativeModule } from "../stdlib/module";
 import { newEnv } from "./env";
 import { StackEntry, Task } from "./task";
 import { compress, decompress } from "lz-string";
 
-/**
- * Shape of native function metadata registered with the Backolon scheduler.
- */
+/** Shape of native function metadata registered with the Backolon scheduler. */
 export interface NativeFunctionDetails {
-    params: (Thing<ThingType.paramdescriptor> | Thing<ThingType.name>)[],
+    params: (Thing<ThingType.paramdescriptor> | Thing<ThingType.name>)[];
     impl(task: Task, state: StackEntry): void;
 }
 
-/**
- * Backolon task scheduler responsible for running code and native functions.
- */
+/** Backolon task scheduler responsible for running code and native functions. */
 export class Scheduler {
     /**
-     * List of currently active tasks, sorted by priority (lowest first). Tasks that have finished executing but haven't been removed from the list yet will have an empty stack.
+     * List of currently active tasks, sorted by priority (lowest first). Tasks
+     * that have finished executing but haven't been removed from the list yet
+     * will have an empty stack.
      */
     tasks: Task[] = [];
     #serializer: Resurrect;
     /**
      * Maximum allowed stack length before a task throws a recursion error.
-     * Backolon uses its own stack and not the JavaScript call stack, so this serves
-     * to prevent out-of-memory errors.
+     * Backolon uses its own stack and not the JavaScript call stack, so this
+     * serves to prevent out-of-memory errors.
      */
     recursionLimit = 1000;
 
     constructor(
         /**
          * List of builtin modules available to tasks run by this scheduler.
-         * Each module's environment (native functions, patterns, variables) will be included
-         * in the search path for new tasks.
+         * Each module's environment (native functions, patterns, variables)
+         * will be included in the search path for new tasks.
          */
         public builtins: [NativeModule, ...NativeModule[]],
         /**
-         * Called with a string whenever a task calls the Backolon `print` function.
-         * Can be used to capture printed output in a custom environment (e.g. a web REPL).
+         * Called with a string whenever a task calls the Backolon `print`
+         * function. Can be used to capture printed output in a custom
+         * environment (e.g. a web REPL).
          */
         public printHook?: (x: string) => void,
         /**
-         * Names of special classes to preserve when serializing the scheduler's state with `serializeTasks` and `loadFromSerialized`.
-         * See the Resurrect.js library documentation for details.
+         * Names of special classes to preserve when serializing the scheduler's
+         * state with `serializeTasks` and `loadFromSerialized`. See the
+         * Resurrect.js library documentation for details.
          */
-        customNames: ConstructorParameters<typeof NamespaceResolver>[0] = {}
+        customNames: ConstructorParameters<typeof NamespaceResolver>[0] = {},
     ) {
         this.#serializer = new Resurrect({
             cleanup: true,
@@ -63,22 +69,52 @@ export class Scheduler {
         });
     }
     /**
-     * Start a new task with the given code and environment.
-     * The code can be provided as a string (in which case it will be parsed)
-     * or as a pre-parsed Thing. The environment is a list of env Things, which will be searched in order when looking up variables;
-     * if null or omitted, the environments of all builtin modules will be used.
+     * Start a new task with the given code and environment. The code can be
+     * provided as a string (in which case it will be parsed) or as a pre-parsed
+     * Thing. The environment is a list of env Things, which will be searched in
+     * order when looking up variables; if null or omitted, the environments of
+     * all builtin modules will be used.
      *
-     * The new Task will have its top-level block in a *new* environment that has the provided envs
-     * as parents, so changes to the top-level block's environment won't affect the provided envs or other tasks that share those envs.
+     * The new Task will have its top-level block in a _new_ environment that
+     * has the provided envs as parents, so changes to the top-level block's
+     * environment won't affect the provided envs or other tasks that share
+     * those envs.
      */
-    startTask(priority: number, code: string, envs: (Thing<ThingType.env> | Thing<ThingType.nil>)[] | null, filename: URL): Task;
-    startTask(priority: number, code: Thing, envs?: (Thing<ThingType.env> | Thing<ThingType.nil>)[]): Task;
-    startTask(priority: number, code: string | Thing, envs?: (Thing<ThingType.env> | Thing<ThingType.nil>)[] | null, filename?: URL): Task {
+    startTask(
+        priority: number,
+        code: string,
+        envs: (Thing<ThingType.env> | Thing<ThingType.nil>)[] | null,
+        filename: URL,
+    ): Task;
+    startTask(
+        priority: number,
+        code: Thing,
+        envs?: (Thing<ThingType.env> | Thing<ThingType.nil>)[],
+    ): Task;
+    startTask(
+        priority: number,
+        code: string | Thing,
+        envs?: (Thing<ThingType.env> | Thing<ThingType.nil>)[] | null,
+        filename?: URL,
+    ): Task {
         if (typeof code === "string") code = parse(code, filename);
         const loc = code.loc;
-        return this.startTaskRaw(priority, code, newEnv(newEmptyMap(loc), boxList([], loc), loc, envs || this.builtins.map(mod => mod.env)));
+        return this.startTaskRaw(
+            priority,
+            code,
+            newEnv(
+                newEmptyMap(loc),
+                boxList([], loc),
+                loc,
+                envs || this.builtins.map((mod) => mod.env),
+            ),
+        );
     }
-    startTaskRaw(priority: number, code: Thing, env: Thing<ThingType.env> | Thing<ThingType.nil>): Task {
+    startTaskRaw(
+        priority: number,
+        code: Thing,
+        env: Thing<ThingType.env> | Thing<ThingType.nil>,
+    ): Task {
         const task = new Task(priority, this, code, env);
         this.tasks.push(task);
         this.#sortTasks();
@@ -88,22 +124,35 @@ export class Scheduler {
         this.tasks.sort((t1, t2) => t1.priority - t2.priority);
     }
     /**
-     * Dumps the state of all tasks into a string, which can later be loaded with `loadFromSerialized` to restore the tasks and their states.
+     * Dumps the state of all tasks into a string, which can later be loaded
+     * with `loadFromSerialized` to restore the tasks and their states.
      */
     serializeTasks(): string {
-        return compress(this.#serializer.stringify(this.tasks, (k, v) => k === "scheduler" && (v === this) ? undefined : v));
+        return compress(
+            this.#serializer.stringify(this.tasks, (k, v) =>
+                k === "scheduler" && v === this ? undefined : v,
+            ),
+        );
     }
     /**
-     * Deserializes a string produced by `serializeTasks` and adds the resulting tasks to the scheduler.
-     * Note that the deserialized tasks will share the same Scheduler instance (this) as each other and any tasks that were already in the scheduler,
-     * but will not share any state with tasks that were already in the scheduler before (e.g. they won't share environments or variables).
+     * Deserializes a string produced by `serializeTasks` and adds the resulting
+     * tasks to the scheduler. Note that the deserialized tasks will share the
+     * same Scheduler instance (this) as each other and any tasks that were
+     * already in the scheduler, but will not share any state with tasks that
+     * were already in the scheduler before (e.g. they won't share environments
+     * or variables).
      */
     loadFromSerialized(str: string): void {
-        this.tasks.push(...this.#serializer.resurrect(decompress(str)).map((t: Task) => (t.scheduler = this, t)));
+        this.tasks.push(
+            ...this.#serializer
+                .resurrect(decompress(str))
+                .map((t: Task) => ((t.scheduler = this), t)),
+        );
     }
     /**
-     * Run tasks until all tasks are suspended or complete or the optional maxSteps limit is reached (-1 or undefined means no limit).
-     * Returns true if any progress was made (i.e. any task executed at least one step).
+     * Run tasks until all tasks are suspended or complete or the optional
+     * maxSteps limit is reached (-1 or undefined means no limit). Returns true
+     * if any progress was made (i.e. any task executed at least one step).
      */
     stepUntilSuspended(maxSteps: number = -1) {
         var madeAnyProgress = false;
@@ -117,19 +166,27 @@ export class Scheduler {
         return madeAnyProgress;
     }
     #findFunc(name: string): NativeFunctionDetails {
-        const func = this.builtins.find(mod => name in mod.funcs)?.funcs[name];
+        const func = this.builtins.find((mod) => name in mod.funcs)?.funcs[
+            name
+        ];
         if (!func) {
-            throw new Error(`api function ${name} requested but not implemented!`);
+            throw new Error(
+                `api function ${name} requested but not implemented!`,
+            );
         }
         return func;
     }
-    getParamDescriptors(name: string): (Thing<ThingType.paramdescriptor> | Thing<ThingType.name>)[] {
+    getParamDescriptors(
+        name: string,
+    ): (Thing<ThingType.paramdescriptor> | Thing<ThingType.name>)[] {
         return this.#findFunc(name).params ?? [];
     }
     callFunction(task: Task, name: string, entry: StackEntry) {
         const result = this.#findFunc(name).impl(task, entry);
         if (result !== undefined) {
-            console.warn(`Native function implementation ${name} should call task.out(result), not return result`);
+            console.warn(
+                `Native function implementation ${name} should call task.out(result), not return result`,
+            );
             task.out(result);
         }
     }
@@ -139,14 +196,20 @@ export class Scheduler {
         const loc = argv[0]!.loc;
         for (var module of this.builtins) {
             const overloads = module.ops[name]?.[argc];
-            if (overloads) for (var overload of overloads) {
-                const typeMatches = overload.types.every((t, i) => t === null ? true : typecheck(t)(argv[i]!));
-                if (typeMatches) {
-                    return overload.cb(loc, argv);
+            if (overloads)
+                for (var overload of overloads) {
+                    const typeMatches = overload.types.every((t, i) =>
+                        t === null ? true : typecheck(t)(argv[i]!),
+                    );
+                    if (typeMatches) {
+                        return overload.cb(loc, argv);
+                    }
                 }
-            }
         }
-        throw new RuntimeError(`No overload exists for operator ${stringify(name)} with argument types ${argv.map(t => stringify(typeNameOf(t.t))).join(", ")}`, loc);
+        throw new RuntimeError(
+            `No overload exists for operator ${stringify(name)} with argument types ${argv.map((t) => stringify(typeNameOf(t.t))).join(", ")}`,
+            loc,
+        );
     }
     getApply(functorType: ThingType | string) {
         for (var module of this.builtins) {

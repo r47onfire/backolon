@@ -1,22 +1,21 @@
 /**
  * Strategy for turning an import specifier into candidate file URLs.
- * Implementations yield candidates in preference order; the importer
- * uses the first one the finder can actually read.
+ * Implementations yield candidates in preference order; the importer uses the
+ * first one the finder can actually read.
  */
 export abstract class Resolver {
     /**
-     * Resolves the module specifier to a concrete file or files
-     * (e.g. if the given import had no extension, one must be chosen
-     * based on what files exist).
+     * Resolves the module specifier to a concrete file or files (e.g. if the
+     * given import had no extension, one must be chosen based on what files
+     * exist).
      */
     abstract resolve(path: URL): Generator<URL, void, void>;
 }
 
 /**
- * The default resolver: yields the path as-is, then with each known
- * module-file extension appended, then as a directory containing an
- * `index` file with each extension. The importer uses the first
- * candidate that actually exists.
+ * The default resolver: yields the path as-is, then with each known module-file
+ * extension appended, then as a directory containing an `index` file with each
+ * extension. The importer uses the first candidate that actually exists.
  */
 export class IndexResolver extends Resolver {
     *resolve(path: URL) {
@@ -36,4 +35,4 @@ const pathAppend = (url: URL, extension: string) => {
     const copy = new URL(url);
     copy.pathname += extension;
     return copy;
-}
+};

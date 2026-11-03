@@ -6,4 +6,3 @@ export * from "./grammar";
 export * from "./parseToCST";
 export * from "./span";
 export * from "./walk";
-

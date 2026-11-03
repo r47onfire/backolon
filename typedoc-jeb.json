@@ -1,11 +1,7 @@
 {
     "$schema": "https://typedoc.org/schema.json",
-    "extends": [
-        "./typedoc-common.json"
-    ],
-    "entryPoints": [
-        "./jeb/src/index.ts"
-    ],
+    "extends": ["./typedoc-common.json"],
+    "entryPoints": ["./jeb/src/index.ts"],
     "out": "./docs/api/jeb",
     "llmsTxtOutDir": "./docs/jeb/",
     "skillsOutDir": "../skills",

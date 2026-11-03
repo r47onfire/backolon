@@ -1,22 +1,28 @@
 import { floor } from "lib0/math";
 import { javaHash, rotate32, x23 } from "./utils";
 
-/**
- * Source location information for Backolon parsing and runtime errors.
- */
+/** Source location information for Backolon parsing and runtime errors. */
 export class LocationTrace {
     constructor(
         public line: number,
         public col: number,
         public file: URL,
-        public source: [parentMessage: string, parentLocation: LocationTrace] | null = null) { }
-
+        public source:
+            | [parentMessage: string, parentLocation: LocationTrace]
+            | null = null,
+    ) {}
 }
-/**
- * A sentinel location representing an unknown source.
- */
-export const UNKNOWN_LOCATION = new LocationTrace(0, 0, new URL("about:unknown"));
-function formatTrace(trace: LocationTrace, message: string, sources: Record<string, string>): string {
+/** A sentinel location representing an unknown source. */
+export const UNKNOWN_LOCATION = new LocationTrace(
+    0,
+    0,
+    new URL("about:unknown"),
+);
+function formatTrace(
+    trace: LocationTrace,
+    message: string,
+    sources: Record<string, string>,
+): string {
     const src = sources[trace.file.href];
     var lineInfo = "";
     if (src) {
@@ -33,13 +39,18 @@ interface Hashed {
     format(onSources: Record<string, string>): string;
 }
 
-/**
- * A single note or stack frame attached to a Backolon error.
- */
+/** A single note or stack frame attached to a Backolon error. */
 export class ErrorNote implements Hashed {
     public readonly hash: number;
-    constructor(public readonly message: string, public readonly loc: LocationTrace) {
-        this.hash = javaHash(message) ^ rotate32(javaHash(loc.file.href), 17) ^ rotate32(loc.line ^ 0x1a2b3c4d, 22) ^ rotate32(loc.col ^ 0xf0e1c2d3, 3);
+    constructor(
+        public readonly message: string,
+        public readonly loc: LocationTrace,
+    ) {
+        this.hash =
+            javaHash(message) ^
+            rotate32(javaHash(loc.file.href), 17) ^
+            rotate32(loc.line ^ 0x1a2b3c4d, 22) ^
+            rotate32(loc.col ^ 0xf0e1c2d3, 3);
     }
     format(onSources: Record<string, string>) {
         return formatTrace(this.loc, this.message, onSources);
@@ -48,59 +59,88 @@ export class ErrorNote implements Hashed {
 
 export class RepeatedErrorNote implements Hashed {
     public readonly hash: number;
-    constructor(public readonly subNotes: readonly Hashed[], public readonly count: number) {
-        this.hash = 0x12131415 + rotate32(count ^ 0x12345678, 5) ^ subNotes.reduce((a, b) => x23(a, b.hash), 0xFF11EEAA);
+    constructor(
+        public readonly subNotes: readonly Hashed[],
+        public readonly count: number,
+    ) {
+        this.hash =
+            (0x12131415 + rotate32(count ^ 0x12345678, 5)) ^
+            subNotes.reduce((a, b) => x23(a, b.hash), 0xff11eeaa);
     }
     format(onSources: Record<string, string>) {
-        return this.subNotes.map(b => indentFrame(b.format(onSources), ": ")).join("\n") + "\n:--> " + formatRepeatSummary(this.subNotes.length, this.count);
+        return (
+            this.subNotes
+                .map((b) => indentFrame(b.format(onSources), ": "))
+                .join("\n") +
+            "\n:--> " +
+            formatRepeatSummary(this.subNotes.length, this.count)
+        );
     }
 }
 
-/**
- * Base class for Backolon parse and runtime errors.
- */
+/** Base class for Backolon parse and runtime errors. */
 export class BackolonError extends Error {
-    constructor(message: string, public trace: LocationTrace = UNKNOWN_LOCATION, public notes: ErrorNote[] = []) {
+    constructor(
+        message: string,
+        public trace: LocationTrace = UNKNOWN_LOCATION,
+        public notes: ErrorNote[] = [],
+    ) {
         super(message);
         this.name = this.constructor.name;
     }
     displayOn(sources: Record<string, string>): string {
-        return formatTrace(this.trace, "error: " + this.message, sources) + "\n" + compressedNoteTracebacks(this.notes, sources) + "\n";
+        return (
+            formatTrace(this.trace, "error: " + this.message, sources) +
+            "\n" +
+            compressedNoteTracebacks(this.notes, sources) +
+            "\n"
+        );
     }
     addNote(message: string, loc: LocationTrace) {
         this.notes.push(new ErrorNote(message, loc));
     }
 }
 
+/** Thrown when an early-stage parse error occurs. */
+export class ParseError extends BackolonError {}
 /**
- * Thrown when an early-stage parse error occurs.
+ * Thrown for all other error kinds - type errors, pattern match errors,
+ * recursion errors, length errors, etc.
  */
-export class ParseError extends BackolonError { }
-/**
- * Thrown for all other error kinds - type errors, pattern match errors, recursion errors, length errors, etc.
- */
-export class RuntimeError extends BackolonError { }
+export class RuntimeError extends BackolonError {}
 
-function compressedNoteTracebacks(lines: ErrorNote[], sources: Record<string, string>, minRep = 8): string {
+function compressedNoteTracebacks(
+    lines: ErrorNote[],
+    sources: Record<string, string>,
+    minRep = 8,
+): string {
     const x = shortenRepeats(lines, minRep);
-    return x.map(b => b.format(sources)).join("\n");
+    return x.map((b) => b.format(sources)).join("\n");
 }
 function shortenRepeats(x: Hashed[], minRep: number): Hashed[] {
-    for (; ;) {
+    for (;;) {
         const best = findBestRepeat(x, minRep);
         if (!best) break;
 
-        const start = best[0], size = best[1], count = best[2];
+        const start = best[0],
+            size = best[1],
+            count = best[2];
         x = [
             ...x.slice(0, start),
-            new RepeatedErrorNote(shortenRepeats(x.slice(start, start + size), minRep), count),
+            new RepeatedErrorNote(
+                shortenRepeats(x.slice(start, start + size), minRep),
+                count,
+            ),
             ...x.slice(start + size * count),
         ];
     }
     return x;
 }
 
-function findBestRepeat(lines: Hashed[], minRep: number): [start: number, size: number, count: number] | null {
+function findBestRepeat(
+    lines: Hashed[],
+    minRep: number,
+): [start: number, size: number, count: number] | null {
     const n = lines.length;
     var best: [start: number, size: number, count: number] | null = null;
     var bestSavings = 0;
@@ -110,13 +150,20 @@ function findBestRepeat(lines: Hashed[], minRep: number): [start: number, size: 
         for (var size = 1; start + size * 2 <= n; size++) {
             const maxRepeats = floor((n - start) / size);
             var count = 1;
-            while (count + 1 <= maxRepeats && memcmp(lines, start, start + count * size, size)) count++;
+            while (
+                count + 1 <= maxRepeats &&
+                memcmp(lines, start, start + count * size, size)
+            )
+                count++;
             if (count < 2) continue;
             const totalStrings = count * size;
             if (totalStrings < minRep) continue;
 
             const savings = totalStrings - size;
-            if (savings > bestSavings || (savings === bestSavings && totalStrings > bestAll)) {
+            if (
+                savings > bestSavings ||
+                (savings === bestSavings && totalStrings > bestAll)
+            ) {
                 bestSavings = savings;
                 bestAll = totalStrings;
                 best = [start, size, count];
@@ -135,7 +182,10 @@ function memcmp(lines: Hashed[], a: number, b: number, size: number): boolean {
 }
 
 function indentFrame(frame: string, indent: string): string {
-    return frame.split("\n").map(line => indent + line).join("\n");
+    return frame
+        .split("\n")
+        .map((line) => indent + line)
+        .join("\n");
 }
 
 function formatRepeatSummary(size: number, count: number): string {
@@ -143,4 +193,3 @@ function formatRepeatSummary(size: number, count: number): string {
     const timesPlural = count > 1 ? "s" : "";
     return `previous ${countPlural} repeated ${count} time${timesPlural}`;
 }
-

@@ -27,9 +27,21 @@ const MAIN = vfsURL("main.bk");
 
 const main = (vm: BackolonVM, file: string) => vfs(vm, { [MAIN.href]: file });
 
-const testTest = makeTestRun(class extends BackolonVM { constructor() { super(new Importer(new IndexResolver(), [new TestFinder()])) } });
+const testTest = makeTestRun(
+    class extends BackolonVM {
+        constructor() {
+            super(new Importer(new IndexResolver(), [new TestFinder()]));
+        }
+    },
+);
 
-const expectEval = async (vm: BackolonVM, stdout: string[], src: string, result: any, expectedOut: string[]) => {
+const expectEval = async (
+    vm: BackolonVM,
+    stdout: string[],
+    src: string,
+    result: any,
+    expectedOut: string[],
+) => {
     main(vm, src);
     expect(await runAsync(vm, MAIN)).toBeTrue();
     const mod = popData(vm) as Module;
@@ -42,18 +54,33 @@ const expectEval = async (vm: BackolonVM, stdout: string[], src: string, result:
 const expectEvalError = (vm: BackolonVM, src: string, error: string) => {
     main(vm, src);
     expect(runAsync(vm, MAIN)).rejects.toThrow(error);
-}
+};
 
 testTest(test, "call", async (vm, out) => {
-    await expectEval(vm, out, "print print 1 + 2 * 3, 4", undefined, ["7 4", "undefined"]);
+    await expectEval(vm, out, "print print 1 + 2 * 3, 4", undefined, [
+        "7 4",
+        "undefined",
+    ]);
 });
 
 testTest(test, "multiple call arguments", async (vm, out) => {
-    await expectEval(vm, out, "print(1, 2)\nprint (1, 2)\nprint 1, 2\nprint()\nprint", vm.builtinsEnv.get("print").throw(), ["1 2", "1 2", "1 2", ""]);
+    await expectEval(
+        vm,
+        out,
+        "print(1, 2)\nprint (1, 2)\nprint 1, 2\nprint()\nprint",
+        vm.builtinsEnv.get("print").throw(),
+        ["1 2", "1 2", "1 2", ""],
+    );
 });
 
 testTest(test, "associativity", async (vm, out) => {
-    await expectEval(vm, out, "print(1 + 2 + 3)\nprint(2 ** 3 ** 2)", undefined, ["6", "512"]);
+    await expectEval(
+        vm,
+        out,
+        "print(1 + 2 + 3)\nprint(2 ** 3 ** 2)",
+        undefined,
+        ["6", "512"],
+    );
 });
 testTest(test, "empty result", async (vm, out) => {
     await expectEval(vm, out, "", undefined, []);
@@ -65,23 +92,47 @@ testTest(test, "semicolon terminates implicit calls", async (vm, out) => {
     await expectEval(vm, out, "print 1; print 2", undefined, ["1", "2"]);
 });
 testTest(test, "separators insert missing call arguments", async (vm, out) => {
-    await expectEval(vm, out, "print(,); print(1,,2);", undefined, ["undefined", "1 undefined 2"]);
+    await expectEval(vm, out, "print(,); print(1,,2);", undefined, [
+        "undefined",
+        "1 undefined 2",
+    ]);
 });
 testTest(test, "consecutive semicolons are allowed", async (vm, out) => {
     await expectEval(vm, out, "print 1;;;;;;;;;print 2", undefined, ["1", "2"]);
 });
 describe("calling functions", () => {
     testTest(test, "'print' prints and returns undefined", async (vm, out) => {
-        await expectEval(vm, out, "print 1; print (print 2)", undefined, ["1", "2", "undefined"]);
+        await expectEval(vm, out, "print 1; print (print 2)", undefined, [
+            "1",
+            "2",
+            "undefined",
+        ]);
     });
-    testTest(test, "sequencing works with newline also instead of semicolons", async (vm, out) => {
-        await expectEval(vm, out, "print 1\nprint 2\n", undefined, ["1", "2"]);
-    });
-    testTest(test, "call 'print' with 0 arguments prints newline", async (vm, out) => {
-        await expectEval(vm, out, "print()", undefined, [""]);
-    });
+    testTest(
+        test,
+        "sequencing works with newline also instead of semicolons",
+        async (vm, out) => {
+            await expectEval(vm, out, "print 1\nprint 2\n", undefined, [
+                "1",
+                "2",
+            ]);
+        },
+    );
+    testTest(
+        test,
+        "call 'print' with 0 arguments prints newline",
+        async (vm, out) => {
+            await expectEval(vm, out, "print()", undefined, [""]);
+        },
+    );
     testTest(test, "'print' with varargs", async (vm, out) => {
-        await expectEval(vm, out, "print 1; print 2, 3; print 4, 5, 6", undefined, ["1", "2 3", "4 5 6"]);
+        await expectEval(
+            vm,
+            out,
+            "print 1; print 2, 3; print 4, 5, 6",
+            undefined,
+            ["1", "2 3", "4 5 6"],
+        );
     });
 });
 describe("variables", () => {
@@ -89,15 +140,31 @@ describe("variables", () => {
         await expectEval(vm, out, "let a = 1", 1, []);
     });
     testTest(test, "redeclaration does not throw", async (vm, out) => {
-        await expectEval(vm, out, "let a = 1; print a; let a = 2; print a;", undefined, ["1", "2"]);
+        await expectEval(
+            vm,
+            out,
+            "let a = 1; print a; let a = 2; print a;",
+            undefined,
+            ["1", "2"],
+        );
     });
-    testTest(test, "new scopes are not created by inner blocks", async (vm, out) => {
-        await expectEval(vm, out, "(let a = 1; print a); (a = 2; print a);", undefined, ["1", "2"]);
-    });
-    testTest(test, "can only declare a name", vm => {
+    testTest(
+        test,
+        "new scopes are not created by inner blocks",
+        async (vm, out) => {
+            await expectEval(
+                vm,
+                out,
+                "(let a = 1; print a); (a = 2; print a);",
+                undefined,
+                ["1", "2"],
+            );
+        },
+    );
+    testTest(test, "can only declare a name", (vm) => {
         expectEvalError(vm, "let 1 = 2", "invalid let binding");
     });
-    testTest(test, "declarations override globals", vm => {
+    testTest(test, "declarations override globals", (vm) => {
         expectEvalError(vm, "let print = 1; print 1", "can't call number");
     });
     // testTest(test, "reassignment", async (vm, out) => {

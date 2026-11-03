@@ -2,13 +2,15 @@ const {
     compilePattern,
     parsePattern,
     parse,
-    BackolonError
+    BackolonError,
 } = require("../../dist/index.cjs");
 module.exports.fuzz = function fuzz(src) {
     // if (!/^[\x32-\x7F]*$/.test(src.toString())) return;
     try {
-        compilePattern(parsePattern(parse(src.toString(), new URL("about:fuzzer")).c));
+        compilePattern(
+            parsePattern(parse(src.toString(), new URL("about:fuzzer")).c),
+        );
     } catch (e) {
         if (!(e instanceof BackolonError)) throw e;
     }
-}
+};

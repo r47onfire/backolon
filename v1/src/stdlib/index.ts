@@ -19,13 +19,9 @@ function createFFIModule(): NativeModule {
     return mod;
 }
 
-/**
- * Built-in core language module.
- */
+/** Built-in core language module. */
 export const BUILTINS_MODULE = createBuiltins();
-/**
- * JavaScript foreign-function interface module.
- */
+/** JavaScript foreign-function interface module. */
 export const FFI_MODULE = createFFIModule();
 
 // @ts-expect-error
@@ -33,18 +29,24 @@ import ast from "./core.bk";
 
 var CORE = ast;
 
-declare global { const TEST: boolean }
+declare global {
+    const TEST: boolean;
+}
 if (typeof TEST === "undefined" ? typeof ast !== "object" : TEST) {
     // we're in a test
-    CORE = parse(await Bun.file(await Bun.resolve("./core.bk", import.meta.dir)).text(), new URL("builtins://"));
+    CORE = parse(
+        await Bun.file(await Bun.resolve("./core.bk", import.meta.dir)).text(),
+        new URL("builtins://"),
+    );
 }
 
 /**
  * The rest of the core functions that are implemented in pure Backolon code.
  *
- * This is always loaded and run when Backolon is imported and saved in {@link BUILTINS_MODULE},
- * so you don't need to run it manually. However, if you want to show the source code in tracebacks,
- * run this through {@link DEFAULT_UNPARSER} to obtain it.
+ * This is always loaded and run when Backolon is imported and saved in
+ * {@link BUILTINS_MODULE}, so you don't need to run it manually. However, if
+ * you want to show the source code in tracebacks, run this through
+ * {@link DEFAULT_UNPARSER} to obtain it.
  */
 export const CORE_SOURCE: Thing<ThingType.topblock> = CORE;
 

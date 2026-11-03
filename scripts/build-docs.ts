@@ -13,23 +13,40 @@ function syntaxHighlight(string: string, lang: string): string {
 }
 
 function renderExamples(examples: Example[]) {
-    return examples.map(ex => `<pre class="api-example">${syntaxHighlight(ex.code, ex.lang)}</pre>`).join("");
+    return examples
+        .map(
+            (ex) =>
+                `<pre class="api-example">${syntaxHighlight(ex.code, ex.lang)}</pre>`,
+        )
+        .join("");
 }
 
 function s(text: string) {
-    return text.replaceAll(/[^a-z0-9 -]/ig, "").replaceAll(/\s+/g, "-").replaceAll(/-+/g, "-").toLowerCase();
+    return text
+        .replaceAll(/[^a-z0-9 -]/gi, "")
+        .replaceAll(/\s+/g, "-")
+        .replaceAll(/-+/g, "-")
+        .toLowerCase();
 }
 
-function renderNameThing<T extends keyof HTMLElementTagNameMap>(elType: T, name: string, type: string | undefined, lazy: boolean, rest: boolean, description: string | undefined, colon: boolean) {
+function renderNameThing<T extends keyof HTMLElementTagNameMap>(
+    elType: T,
+    name: string,
+    type: string | undefined,
+    lazy: boolean,
+    rest: boolean,
+    description: string | undefined,
+    colon: boolean,
+) {
     var str = `<${elType}>${e(name)}`;
     if (type || lazy || rest) str += " (";
     if (lazy) {
         str += "lazy";
-        if (rest) str += ","
+        if (rest) str += ",";
         if (type || rest) str += " ";
     }
     if (rest) {
-        str += "rest"
+        str += "rest";
         if (lazy) str += ",";
         if (type) str += " ";
     }
@@ -51,9 +68,31 @@ function renderFunction(modName: string, func: FunctionDoc) {
             `<strong class="api-signature" id="${s(modName)}-function-${s(func.name)}"><code>${e(func.name)}</code></strong>`,
             // info
             '<div class="api-info">Parameters:<ul>',
-            func.params.map(({ name, type, lazy, rest, description }) => renderNameThing("li", name, type, lazy, rest, description, true)).join(""),
+            func.params
+                .map(({ name, type, lazy, rest, description }) =>
+                    renderNameThing(
+                        "li",
+                        name,
+                        type,
+                        lazy,
+                        rest,
+                        description,
+                        true,
+                    ),
+                )
+                .join(""),
             "</ul>",
-            func.returns || func.returnType ? renderNameThing("span", "Returns: ", func.returnType, false, false, func.returns, false) : "",
+            func.returns || func.returnType
+                ? renderNameThing(
+                      "span",
+                      "Returns: ",
+                      func.returnType,
+                      false,
+                      false,
+                      func.returns,
+                      false,
+                  )
+                : "",
             `<p>${func.description}</p></div>`,
             // examples
             renderExamples(func.examples),
@@ -89,7 +128,10 @@ function renderSyntax(modName: string, syn: SyntaxDoc) {
             `<strong class="api-signature" id="${s(modName)}-syntax-${s(syn.name)}">${e(syn.name)}</strong>`,
             // patterns
             '<div class="api-info">Syntax:<ul>',
-            ...syn.shapes.map(sh => `<li><pre class="language-backolon">${syntaxHighlight(sh, "backolon")}</pre></li>`),
+            ...syn.shapes.map(
+                (sh) =>
+                    `<li><pre class="language-backolon">${syntaxHighlight(sh, "backolon")}</pre></li>`,
+            ),
             "</ul></div>",
             // description
             `<p>${syn.description}</p>`,
@@ -102,7 +144,8 @@ function renderSyntax(modName: string, syn: SyntaxDoc) {
 }
 
 export function docsToHTML(docs: Documentation) {
-    var html = "", sidebar = "";
+    var html = "",
+        sidebar = "";
     // TODO:
     // for (var [modName, modDoc] of Object.entries(docs)) {
     //     sidebar += `<details open><summary><a href="#module-${s(modName)}">${e(modName)}</a></summary>`;

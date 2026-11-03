@@ -11,9 +11,7 @@
     "sourceLinkTemplate": "about:invalid",
     "favicon": "./website/images/icon.png",
     "useTsLinkResolution": true,
-    "ignoredHighlightLanguages": [
-        "backolon"
-    ],
+    "ignoredHighlightLanguages": ["backolon"],
     "intentionallyNotExported": [],
     "externalSymbolLinkMappings": {
         "bun": {
@@ -22,21 +20,16 @@
         "ts-res": {
             "Result": "https://www.npmjs.com/package/ts-res",
             "Err": "https://www.npmjs.com/package/ts-res",
-            "Ok": "https://www.npmjs.com/package/ts-res",
+            "Ok": "https://www.npmjs.com/package/ts-res"
         },
         "@r47onfire/jeb": {
             "Continuation": "/api/jeb/classes/Continuation.html",
             "JebVM": "/api/jeb/classes/JebVM.html",
             "Env": "/api/jeb/classes/Env.html",
             "EnvVarLValue": "/api/jeb/classes/EnvVarLValue.html"
-        },
+        }
     },
-    "sort": [
-        "kind",
-        "enum-member-source-order"
-    ],
-    "plugin": [
-        "@skillit/typedoc"
-    ],
+    "sort": ["kind", "enum-member-source-order"],
+    "plugin": ["@skillit/typedoc"],
     "llmsTxt": true
 }

@@ -1,12 +1,7 @@
 {
     "$schema": "https://typedoc.org/schema.json",
-    "extends": [
-        "./typedoc-common.json"
-    ],
-    "entryPoints": [
-        "./src/index.ts",
-        "./src/plugin/index.ts"
-    ],
+    "extends": ["./typedoc-common.json"],
+    "entryPoints": ["./src/index.ts", "./src/plugin/index.ts"],
     "out": "./docs/api/backolon",
     "llmsTxtOutDir": "docs",
     "sourceLinkTemplate": "https://github.com/r47onfire/backolon/blob/main/src/{path}#L{line}",

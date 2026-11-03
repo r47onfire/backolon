@@ -1,4 +1,8 @@
-const { Scheduler, BUILTINS_MODULE, BackolonError } = require("../../dist/index.cjs");
+const {
+    Scheduler,
+    BUILTINS_MODULE,
+    BackolonError,
+} = require("../../dist/index.cjs");
 module.exports.fuzz = function fuzz(src) {
     // if (!/^[\x32-\x7F]*$/.test(src.toString())) return;
     const s = new Scheduler([BUILTINS_MODULE]);
@@ -8,4 +12,4 @@ module.exports.fuzz = function fuzz(src) {
     } catch (e) {
         if (!(e instanceof BackolonError)) throw e;
     }
-}
+};

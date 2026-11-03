@@ -14,17 +14,22 @@ await build({
             // fix for oven-sh/bun#29243
             name: "await-fix",
             setup(build) {
-                build.onLoad({ filter: /src\/stdlib\/index\.ts$/ }, async args => {
-                    const text = await Bun.file(args.path).text();
-                    var lines = text.split("\n");
-                    lines = lines.map(line => /CORE = parse/.test(line) ? "//" + line : line);
-                    return {
-                        contents: lines.join("\n"),
-                        loader: "ts"
-                    }
-                });
+                build.onLoad(
+                    { filter: /src\/stdlib\/index\.ts$/ },
+                    async (args) => {
+                        const text = await Bun.file(args.path).text();
+                        var lines = text.split("\n");
+                        lines = lines.map((line) =>
+                            /CORE = parse/.test(line) ? "//" + line : line,
+                        );
+                        return {
+                            contents: lines.join("\n"),
+                            loader: "ts",
+                        };
+                    },
+                );
             },
-        }
+        },
     ],
 });
 console.log("Build for fuzzer OK");

@@ -1,21 +1,41 @@
 import { stringify } from "lib0/json.js";
 import { BackolonError, RuntimeError } from "../errors";
-import { boxApply, boxBlock, boxList, boxNativeFunc, boxOperatorSymbol, boxRoundBlock, boxString, CheckedType, isAtom, isBlock, Thing, ThingType, typecheck } from "../objects/thing";
+import {
+    boxApply,
+    boxBlock,
+    boxList,
+    boxNativeFunc,
+    boxOperatorSymbol,
+    boxRoundBlock,
+    boxString,
+    CheckedType,
+    isAtom,
+    isBlock,
+    Thing,
+    ThingType,
+    typecheck,
+} from "../objects/thing";
 import { newEnv } from "../runtime/env";
 import { BUILTINS_LOC } from "./locations";
-import { NativeModule, rewriteAsApply, sortPatternsList, symbol_x } from "./module";
+import {
+    NativeModule,
+    rewriteAsApply,
+    sortPatternsList,
+    symbol_x,
+} from "./module";
 
 /**
- * @file
  * @module Builtins
+ * @file
  */
 
 export function metaprogramming(mod: NativeModule) {
     const x = [symbol_x];
     /**
      * Quote a value without evaluating it
-     * @backolon
+     *
      * @category Metaprogramming
+     * @backolon
      * @syntax Quote
      * @pattern \`expression
      * @example
@@ -23,86 +43,161 @@ export function metaprogramming(mod: NativeModule) {
      * `(thisvariabledoesnotexist + 1) # won't error
      * ```
      */
-    mod.defsyntax("` x", 0, true, null, "__rewrite_quote", rewriteAsApply(x, "__quote"));
+    mod.defsyntax(
+        "` x",
+        0,
+        true,
+        null,
+        "__rewrite_quote",
+        rewriteAsApply(x, "__quote"),
+    );
     mod.defun("__quote", "@value", (task, state) => {
         const item = state.argv[0] as Thing<ThingType.implicitfunc>;
         task.out(item.c[0]);
     });
-    mod.defun("__eval", "value env:[map nil]=nil patterns:[list nil]=nil inherit=true", (task, state) => {
-        const valueToEval = state.argv[0]!;
-        const envArg = state.argv[1]! as Thing<ThingType.map> | Thing<ThingType.nil>;
-        const patternsArg = state.argv[2]! as Thing<ThingType.list> | Thing<ThingType.nil>;
-        const inherit = !!state.argv[3]!.v;
-        const envIsNil = typecheck(ThingType.nil)(envArg);
-        const patternsIsNil = typecheck(ThingType.nil)(patternsArg);
-        const patternsList: Thing<ThingType.pattern_entry>[] = patternsArg.c.slice() as any[];
-        if (!patternsIsNil) for (var item of patternsList) {
-            if (!typecheck(ThingType.pattern_entry)(item)) {
-                throw new RuntimeError("Invalid pattern", (item as any).loc);
-            }
-            sortPatternsList(patternsList);
-        }
-        const env = patternsIsNil && envIsNil ? state.env : newEnv(envIsNil ? state.env.c[1]! : envArg, patternsIsNil ? state.env.c[2]! : boxList(patternsList, patternsArg.loc), envArg.loc, inherit ? state.env.c[0]!.c as any[] : []);
-        task.out();
-        task.enter(valueToEval, valueToEval.loc, env);
-    });
+    mod.defun(
+        "__eval",
+        "value env:[map nil]=nil patterns:[list nil]=nil inherit=true",
+        (task, state) => {
+            const valueToEval = state.argv[0]!;
+            const envArg = state.argv[1]! as
+                Thing<ThingType.map> | Thing<ThingType.nil>;
+            const patternsArg = state.argv[2]! as
+                Thing<ThingType.list> | Thing<ThingType.nil>;
+            const inherit = !!state.argv[3]!.v;
+            const envIsNil = typecheck(ThingType.nil)(envArg);
+            const patternsIsNil = typecheck(ThingType.nil)(patternsArg);
+            const patternsList: Thing<ThingType.pattern_entry>[] =
+                patternsArg.c.slice() as any[];
+            if (!patternsIsNil)
+                for (var item of patternsList) {
+                    if (!typecheck(ThingType.pattern_entry)(item)) {
+                        throw new RuntimeError(
+                            "Invalid pattern",
+                            (item as any).loc,
+                        );
+                    }
+                    sortPatternsList(patternsList);
+                }
+            const env =
+                patternsIsNil && envIsNil
+                    ? state.env
+                    : newEnv(
+                          envIsNil ? state.env.c[1]! : envArg,
+                          patternsIsNil
+                              ? state.env.c[2]!
+                              : boxList(patternsList, patternsArg.loc),
+                          envArg.loc,
+                          inherit ? (state.env.c[0]!.c as any[]) : [],
+                      );
+            task.out();
+            task.enter(valueToEval, valueToEval.loc, env);
+        },
+    );
     /**
-     * Quasiquoting of values. Works exactly like Scheme's quasiquote and unquote.
-     * Currently there is no unquote-splicing.
+     * Quasiquoting of values. Works exactly like Scheme's quasiquote and
+     * unquote. Currently there is no unquote-splicing.
+     *
      * @backolon
      * @syntax Quasiquote Templating
      * @pattern "{value value $interpolated {innerValue $$alsoInterpolated $notInterpolated}}"
      */
-    mod.defsyntax("[x:curlyblock]", -Infinity, false, null, "__rewrite_curlyblock", rewriteAsApply(x, "__quasiquoted"));
+    mod.defsyntax(
+        "[x:curlyblock]",
+        -Infinity,
+        false,
+        null,
+        "__rewrite_curlyblock",
+        rewriteAsApply(x, "__quasiquoted"),
+    );
     mod.defun("__quasiquoted", "@template:curlyblock", (task, state) => {
         task.out();
-        task.enter(build_quasiquoted(state.argv[0] as any), state.loc, state.env);
+        task.enter(
+            build_quasiquoted(state.argv[0] as any),
+            state.loc,
+            state.env,
+        );
     });
-    mod.defoverload("add", [ThingType.roundblock, ThingType.roundblock], (loc, argv) => {
-        return boxRoundBlock([...argv[0].c, ...argv[1].c], loc);
-    });
+    mod.defoverload(
+        "add",
+        [ThingType.roundblock, ThingType.roundblock],
+        (loc, argv) => {
+            return boxRoundBlock([...argv[0].c, ...argv[1].c], loc);
+        },
+    );
     mod.defun("__block_wrap", "item", (task, state) => {
         task.out(boxRoundBlock([state.argv[0]!], state.value.loc));
     });
-    mod.defun("__change_block_type", "type:string block:roundblock", (task, state) => {
-        const typeStr = state.argv[0]!.v;
-        const type = ThingType[typeStr as any] as unknown as CheckedType<typeof isBlock>;
-        const { c, loc } = state.argv[1]!;
-        const result = {
-            [ThingType.roundblock]: { s0: "(", s1: ")" },
-            [ThingType.curlyblock]: { s0: "{", s1: "}" },
-            [ThingType.squareblock]: { s0: "[", s1: "]" },
-            [ThingType.topblock]: { s0: "", s1: "" },
-            [ThingType.stringblock]: { s0: "\"", s1: "\"" },
-        }[type];
-        if (!result) {
-            throw new RuntimeError(`invalid type name: ${stringify(typeStr)}`, state.argv[0]!.loc);
-        }
-        const { s0, s1 } = result;
-        task.out(boxBlock(c, type, loc, s0, s1));
-    });
+    mod.defun(
+        "__change_block_type",
+        "type:string block:roundblock",
+        (task, state) => {
+            const typeStr = state.argv[0]!.v;
+            const type = ThingType[typeStr as any] as unknown as CheckedType<
+                typeof isBlock
+            >;
+            const { c, loc } = state.argv[1]!;
+            const result = {
+                [ThingType.roundblock]: { s0: "(", s1: ")" },
+                [ThingType.curlyblock]: { s0: "{", s1: "}" },
+                [ThingType.squareblock]: { s0: "[", s1: "]" },
+                [ThingType.topblock]: { s0: "", s1: "" },
+                [ThingType.stringblock]: { s0: '"', s1: '"' },
+            }[type];
+            if (!result) {
+                throw new RuntimeError(
+                    `invalid type name: ${stringify(typeStr)}`,
+                    state.argv[0]!.loc,
+                );
+            }
+            const { s0, s1 } = result;
+            task.out(boxBlock(c, type, loc, s0, s1));
+        },
+    );
     /**
      * Force the value to be spliced into its callsite.
-     * @backolon
+     *
      * @function splat
      * @param {list | roundblock} value
      * @returns {splat}
+     * @backolon
      */
     mod.defun("splat", "value:[list roundblock]", (task, state) => {
         const arg = state.argv[0]!;
-        task.out(new Thing(ThingType.splat, arg.c, null, arg.s0, arg.s1, arg.sj, arg.loc));
+        task.out(
+            new Thing(
+                ThingType.splat,
+                arg.c,
+                null,
+                arg.s0,
+                arg.s1,
+                arg.sj,
+                arg.loc,
+            ),
+        );
     });
     /**
      * Expand the item by wrapping it in a call to `splat`.
+     *
      * @backolon
      * @syntax Splat
      * @pattern ...list
      * @pattern ...roundblock
      */
-    mod.defsyntax("[=.].. x", -3, true, null, "__rewrite_splat", rewriteAsApply([symbol_x], "splat"));
+    mod.defsyntax(
+        "[=.].. x",
+        -3,
+        true,
+        null,
+        "__rewrite_splat",
+        rewriteAsApply([symbol_x], "splat"),
+    );
 }
 
-const BUILTIN_CHANGE_BLOCK_TYPE = boxNativeFunc("__change_block_type", BUILTINS_LOC);
+const BUILTIN_CHANGE_BLOCK_TYPE = boxNativeFunc(
+    "__change_block_type",
+    BUILTINS_LOC,
+);
 export const BUILTIN_QUOTE = boxNativeFunc("__quote", BUILTINS_LOC);
 const BUILTIN_BLOCK_WRAP = boxNativeFunc("__block_wrap", BUILTINS_LOC);
 function build_quasiquoted(value: Thing, level = 1): Thing {
@@ -115,30 +210,40 @@ function build_quasiquoted(value: Thing, level = 1): Thing {
     var firstUnquotePosition = -1;
     try {
         for (var item of items) {
-            var isQuote = false, shouldQuote = true;
+            var isQuote = false,
+                shouldQuote = true;
             if (typecheck(ThingType.operator)(item) && item.v === "$") {
                 if (unquoteCount === 0) firstUnquotePosition = output.length;
                 unquoteCount++;
                 isQuote = true;
-            }
-            else if (typecheck(ThingType.space, ThingType.newline)(item)) {
+            } else if (typecheck(ThingType.space, ThingType.newline)(item)) {
                 isQuote = true;
-            }
-            else if (isBlock(item)) {
-                const topwrap = build_quasiquoted(item, level + +(item.t === ThingType.curlyblock));
+            } else if (isBlock(item)) {
+                const topwrap = build_quasiquoted(
+                    item,
+                    level + +(item.t === ThingType.curlyblock),
+                );
                 shouldQuote = false;
                 const typeStr = ThingType[item.t];
-                item = boxApply(BUILTIN_CHANGE_BLOCK_TYPE, [boxString(typeStr, item.loc, stringify(typeStr), ""), topwrap], item.loc);
+                item = boxApply(
+                    BUILTIN_CHANGE_BLOCK_TYPE,
+                    [
+                        boxString(typeStr, item.loc, stringify(typeStr), ""),
+                        topwrap,
+                    ],
+                    item.loc,
+                );
             }
             // Handle unquoted
             if (!isQuote) {
                 if (unquoteCount > level) {
-                    throw new RuntimeError(`too many unquotes (there are ${unquoteCount} unquotes, but we're only at level ${level})`, output[firstUnquotePosition]!.loc);
-                }
-                else if (unquoteCount === level) {
+                    throw new RuntimeError(
+                        `too many unquotes (there are ${unquoteCount} unquotes, but we're only at level ${level})`,
+                        output[firstUnquotePosition]!.loc,
+                    );
+                } else if (unquoteCount === level) {
                     output.splice(firstUnquotePosition, Infinity);
-                }
-                else if (shouldQuote) {
+                } else if (shouldQuote) {
                     item = quote(item);
                 }
                 unquoteCount = 0;
@@ -152,7 +257,10 @@ function build_quasiquoted(value: Thing, level = 1): Thing {
             output.push(item);
         }
         if (unquoteCount > 0) {
-            throw new RuntimeError("stray quotes at end", output[firstUnquotePosition]!.loc);
+            throw new RuntimeError(
+                "stray quotes at end",
+                output[firstUnquotePosition]!.loc,
+            );
         }
         const result = boxRoundBlock(output, value.loc);
         // console.log("} OUT", JSON.stringify(output.map(e => DEFAULT_UNPARSER.unparse(e)), null, 4));

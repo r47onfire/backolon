@@ -7,13 +7,18 @@ export type Command =
     | [PatternType.anchor, start: boolean]
     | [PatternType.match_type, value: ThingType]
     | [PatternType.match_value, value: Thing]
-    | [PatternType.capture_group, name: Thing<ThingType.name>, end: boolean, single: boolean]
-    ;
+    | [
+          PatternType.capture_group,
+          name: Thing<ThingType.name>,
+          end: boolean,
+          single: boolean,
+      ];
 
 export type PatternProgram = Command[];
 
 /**
- * Compile a pattern Thing into an executable pattern program and memoize it on the pattern object.
+ * Compile a pattern Thing into an executable pattern program and memoize it on
+ * the pattern object.
  */
 export function compile(thing: Thing<ThingType.pattern>): PatternProgram {
     const data = thing.v;
@@ -23,7 +28,7 @@ export function compile(thing: Thing<ThingType.pattern>): PatternProgram {
         for (var child of thing.c.slice(i)) {
             prog.push(...compile(child as any));
         }
-    }
+    };
     switch (data.t) {
         case PatternType.sequence:
             stuff();
@@ -48,12 +53,27 @@ export function compile(thing: Thing<ThingType.pattern>): PatternProgram {
             break;
         case PatternType.repeat:
             stuff();
-            prog.push(data.gsv ? [PatternType.alternatives, -prog.length, 1] : [PatternType.alternatives, 1, -prog.length]);
+            prog.push(
+                data.gsv
+                    ? [PatternType.alternatives, -prog.length, 1]
+                    : [PatternType.alternatives, 1, -prog.length],
+            );
             break;
         case PatternType.capture_group:
-            prog.push([PatternType.capture_group, thing.c[0] as any, false, thing.c.length === 2 && (thing.c[1]!.v as Pattern).t >= PatternType.dot]);
+            prog.push([
+                PatternType.capture_group,
+                thing.c[0] as any,
+                false,
+                thing.c.length === 2 &&
+                    (thing.c[1]!.v as Pattern).t >= PatternType.dot,
+            ]);
             stuff(1);
-            prog.push([PatternType.capture_group, thing.c[0] as any, true, false]);
+            prog.push([
+                PatternType.capture_group,
+                thing.c[0] as any,
+                true,
+                false,
+            ]);
             break;
         case PatternType.dot:
             prog.push([PatternType.dot]);
@@ -88,7 +108,10 @@ function optimize(prog: (Command | null)[]): PatternProgram {
                     if (instAtTarget?.[0] === PatternType.alternatives) {
                         changing = true;
                         for (var offset2 of instAtTarget.slice(1)) {
-                            if (!newOffsets.includes(offset + offset2) && (offset + offset2) !== 0) {
+                            if (
+                                !newOffsets.includes(offset + offset2) &&
+                                offset + offset2 !== 0
+                            ) {
                                 newOffsets.push(offset + offset2);
                             }
                         }
@@ -123,7 +146,7 @@ function optimize(prog: (Command | null)[]): PatternProgram {
             for (var j = i; j < prog.length; j++) {
                 if (prog[j]?.[0] === PatternType.alternatives) {
                     (prog[j] as number[])!.forEach((d, index, a) => {
-                        if (index > 0 && (j + d) < i) a[index]!++;
+                        if (index > 0 && j + d < i) a[index]!++;
                     });
                 }
             }
@@ -131,7 +154,7 @@ function optimize(prog: (Command | null)[]): PatternProgram {
             for (var j = 0; j < i; j++) {
                 if (prog[j]?.[0] === PatternType.alternatives) {
                     (prog[j] as number[])!.forEach((d, index, a) => {
-                        if (index > 0 && (j + d) > i) a[index]!--;
+                        if (index > 0 && j + d > i) a[index]!--;
                     });
                 }
             }

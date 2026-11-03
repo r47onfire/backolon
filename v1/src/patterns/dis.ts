@@ -18,8 +18,10 @@ export function disassemblePattern(program: PatternProgram): string {
     const spanLanes: Span[][] = [];
     const start = (x: Span) => min(x[0], x[1]);
     const end = (x: Span) => max(x[0], x[1]);
-    const overlaps = (a: Span, b: Span) => start(a) <= end(b) && end(a) >= start(b);
-    const spanFitsInLane = (span: Span) => (lane: Span[]) => !lane.some(otherSpan => overlaps(otherSpan, span));
+    const overlaps = (a: Span, b: Span) =>
+        start(a) <= end(b) && end(a) >= start(b);
+    const spanFitsInLane = (span: Span) => (lane: Span[]) =>
+        !lane.some((otherSpan) => overlaps(otherSpan, span));
     for (var a = 0; a < allSpans.length; a++) {
         const span = allSpans[a]!;
         const freeLane = spanLanes.findIndex(spanFitsInLane(span));
@@ -32,31 +34,46 @@ export function disassemblePattern(program: PatternProgram): string {
         const cmd = program[i]!;
         const disassembly = prettifyCommand(cmd);
         const lineNumberStr = ("" + i).padStart(lineNumberAreaWidth);
-        const isSource = allSpans.some(span => span[0] === i);
-        const isTarget = allSpans.some(span => span[1] === i);
-        const intersectingSpansLanes = spanLanes
-            .map(laneSpans => laneSpans
-                .filter(span => start(span) <= i && i <= end(span)));
-        const lanesColumns = intersectingSpansLanes
-            .map(intersectingSpans =>
-                intersectingSpans.some(s => start(s) === i)
-                    ? "."
-                    : intersectingSpans.some(s => end(s) === i)
-                        ? "'"
-                        : intersectingSpans.length > 0
-                            ? "|" : " ");
-        const bitsToLines = (a: string[]) => a.reduce((acc: string, cur) =>
-            acc +
-            (cur === " " && /-/.test(acc) ? "-" : cur) +
-            (/['.]/.test(acc + cur) ? "---" : "   "), "");
-        const lanesColumnsStr = bitsToLines(lanesColumns) +
-            (isTarget && isSource ? "-<>" : isSource ? "--<" : isTarget ? "-->" : "---");
+        const isSource = allSpans.some((span) => span[0] === i);
+        const isTarget = allSpans.some((span) => span[1] === i);
+        const intersectingSpansLanes = spanLanes.map((laneSpans) =>
+            laneSpans.filter((span) => start(span) <= i && i <= end(span)),
+        );
+        const lanesColumns = intersectingSpansLanes.map((intersectingSpans) =>
+            intersectingSpans.some((s) => start(s) === i)
+                ? "."
+                : intersectingSpans.some((s) => end(s) === i)
+                  ? "'"
+                  : intersectingSpans.length > 0
+                    ? "|"
+                    : " ",
+        );
+        const bitsToLines = (a: string[]) =>
+            a.reduce(
+                (acc: string, cur) =>
+                    acc +
+                    (cur === " " && /-/.test(acc) ? "-" : cur) +
+                    (/['.]/.test(acc + cur) ? "---" : "   "),
+                "",
+            );
+        const lanesColumnsStr =
+            bitsToLines(lanesColumns) +
+            (isTarget && isSource
+                ? "-<>"
+                : isSource
+                  ? "--<"
+                  : isTarget
+                    ? "-->"
+                    : "---");
         const updownColumnsStr = bitsToLines(
-            intersectingSpansLanes
-                .map((intersectingSpans, i) =>
-                    intersectingSpans.length > 0 && lanesColumns[i] !== "'"
-                        ? (intersectingSpans.some(s => s[0] > s[1]) ? "^" : "v")
-                        : " "));
+            intersectingSpansLanes.map((intersectingSpans, i) =>
+                intersectingSpans.length > 0 && lanesColumns[i] !== "'"
+                    ? intersectingSpans.some((s) => s[0] > s[1])
+                        ? "^"
+                        : "v"
+                    : " ",
+            ),
+        );
         lines.push(lineNumberStr + "  " + lanesColumnsStr + "  " + disassembly);
         lines.push(" ".repeat(lineNumberStr.length) + "  " + updownColumnsStr);
     }
@@ -67,7 +84,10 @@ function prettifyCommand(cmd: Command) {
     if (cmd === null) return "noop";
     switch (cmd[0]) {
         case PatternType.alternatives:
-            return `jump ${cmd.slice(1).map(e => e > 0 ? `+${e}` : e).join(", ")}`;
+            return `jump ${cmd
+                .slice(1)
+                .map((e) => (e > 0 ? `+${e}` : e))
+                .join(", ")}`;
         case PatternType.capture_group:
             return `capture ${cmd[1].v} ${cmd[2] ? "end" : "start"}${cmd[3] ? " as single" : ""}`;
         case PatternType.dot:

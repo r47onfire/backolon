@@ -3,12 +3,14 @@
 ## auditHookTypes
 
 ### `JEBAuditEvents`
+
 Map of the audit events a JebVM can emit through its event
 dispatcher, from event name to payload type. These events mark operations
 that are potentially unsafe or reach outside the sandbox (host-language
 interop), so an embedding application can hook, log, or veto them.
 Additional events may be registered by index signature.
 **Properties:**
+
 - `jeb:add_audit_hook: void`
 - `jeb:ffi/call_function: [f: Function, args: any[]]`
 - `jeb:ffi/object/get: [key: PropertyKey, o: any]`
@@ -18,43 +20,64 @@ Additional events may be registered by index signature.
 ## continuation
 
 ### `Windable`
+
 Data holding a dynamic wind enter/exit handler pair
 **Properties:**
+
 - `enter: any`
 - `exit: any`
 
 ## errors
 
 ### `JEBErrorContext`
+
 Arbitrary extra data attached to a JEBError. The `return` key is
 special: it holds the restart continuation that error handlers (see `with`)
 can invoke to resume execution at the expression that caused the error.
 **Properties:**
+
 - `return: Continuation<any>` (optional)
 
 ### `Location`
+
 A source location, as an `[id, file]` pair; either entry may be
 `undefined` if it is not known.
+
 ```ts
 [id: number | undefined, file: number | undefined]
 ```
 
 ### `StackTreeNode`
+
 Tree node representing a compressed stack trace
+
 ```ts
-Readonly<{ leaf: false; count: number; children: StackTreeNode[]; hash: number } | { leaf: true; name: Identifier | undefined; location: Location | undefined; kind: StackEntryKind; hash: number }>
+Readonly<
+    | { leaf: false; count: number; children: StackTreeNode[]; hash: number }
+    | {
+          leaf: true;
+          name: Identifier | undefined;
+          location: Location | undefined;
+          kind: StackEntryKind;
+          hash: number;
+      }
+>;
 ```
 
 ## math
 
 ### `BinaryFun`
+
 A function taking two arguments
+
 ```ts
-(a: any, b: any) => any
+(a: any, b: any) => any;
 ```
 
 ### `Relation`
+
 The value is a bit field: equal is 4, less is 2, greater is 1
+
 - `FALSE` = `0`
 - `GREATER` = `1`
 - `LESS` = `2`
@@ -67,102 +90,131 @@ The value is a bit field: equal is 4, less is 2, greater is 1
 ## protocol
 
 ### `Type`
+
 Thing that can be used to match a type of an object. `true` = any
+
 ```ts
 ((args: any[]) => any) | keyof TypeMap | true
 ```
 
 ### `TypeMap`
+
 Maps the string type specifiers of Type to the Typescript types they match.
 
 ### `TypeValue`
+
 The Typescript type of the values matched by the Type specifier `T`.
+
 ```ts
 T extends true ? any : T extends keyof TypeMap ? TypeMap[T] : T extends (args: any[]) => infer U ? U : never
 ```
 
 ### `TypeArrayValue`
+
 Maps a list of per-argument Type unions to the tuple type of the
 argument values. `D` may override the value type of individual positions
 (keyed by argument index) for arguments whose value differs from the type
 they were checked against.
+
 ```ts
 number extends T["length"] ? TypeValue<T[number][number]> : T extends [...(infer Head extends Type[][]), infer Tail extends Type[]] ? [...TypeArrayValue<Head, D>, Head["length"] extends keyof D ? D[Head["length"]] : TypeValue<Tail[number]>] : []
 ```
 
 ### `BaseProtocolObj`
+
 A single implementation of a protocol: the argument type specialization it
 handles, the code to run for it, and its documentation string.
 **Properties:**
+
 - `type: T` — The type specialization that this protocol works with.
 - `doc: string` — Documentation string for this protocol implementation.
 
 ### `DescribedProtocolObj`
+
 A BaseProtocolObj that can also describe its first argument,
 yielding metadata (`I`) about it, such as a callable's signature.
 **Properties:**
+
 - `type: T` — The type specialization that this protocol works with.
 - `doc: string` — Documentation string for this protocol implementation.
 
 ### `ProtocolObj`
+
 A protocol implementation object: a DescribedProtocolObj if the
 protocol has a metadata type `I`, otherwise a plain BaseProtocolObj.
+
 ```ts
 I extends void ? BaseProtocolObj<V, R, T, D, F> : DescribedProtocolObj<V, R, T, D, I, F>
 ```
 
 ### `ProtocolsList`
+
 All registered implementations of one protocol. When the protocol is
 invoked, the best-matching implementation is chosen (see
 getProtocolHandler).
+
 ```ts
-ProtocolObj<V, R, T, D, I, F>[]
+(ProtocolObj < V, R, T, D, I, F > []);
 ```
 
 ### `BinaryProtocolToResult`
+
 A protocol taking two arguments and returning a `Result` (the binary math protocols).
+
 ```ts
-ProtocolsList<V, Result<any, string>, [Type[], Type[]], {}, void, void>
+ProtocolsList<V, Result<any, string>, [Type[], Type[]], {}, void, void>;
 ```
 
 ### `UnaryProtocolToResult`
+
 A protocol taking one argument and returning a `Result` (the unary math protocols).
+
 ```ts
-ProtocolsList<V, Result<any, string>, [Type[]], {}, void, void>
+ProtocolsList<V, Result<any, string>, [Type[]], {}, void, void>;
 ```
 
 ### `ApplyMetadata`
+
 Metadata describing a callable, returned by the `apply` protocol's `describe`.
 **Properties:**
+
 - `name: Identifier | undefined` — The name of the function to appear in tracebacks, if undefined it means it's a hidden callframe and won't show.
 - `signature: readonly LonghandArgument<any, any>[]` — The callable's parameter signature, used to process its arguments.
 - `closureEnv: Env` (optional) — The environment(s) that this function closes over on order to allow default value expressions to be evaluated in that environment.
 
 ### `ApplyFlags`
+
 Flags passed to an `apply` protocol implementation for a single call.
 **Properties:**
+
 - `tail: boolean` — Whether the call is in tail position.
 - `location: Location | undefined` — Source location of the call site, for tracebacks.
 
 ### `EvalFlags`
+
 Flags passed to an `eval` protocol implementation for a single evaluation.
 **Properties:**
+
 - `tail: boolean` — Whether the evaluation is in tail position.
 - `location: Location | undefined` — Source location of the expression being evaluated, for tracebacks.
 
 ### `AccessFlags`
+
 Flags passed to an `access` protocol implementation: which field of the
 object to access, and in what capacity.
 **Properties:**
+
 - `field: PropertyKey` — The field (variable name, property key, ...) being accessed.
 - `type: AccessType` — The capacity in which the field is accessed.
 
 ### `JEBProtocols`
+
 The protocol registry of a VM: maps each protocol name to the list of its
 registered implementations. The runtime protocols (`apply`, `eval`,
 `access`, `unwrap`, `name`) drive evaluation; the rest implement the
 overloadable math operations.
 **Properties:**
+
 - `apply: ProtocolsList<V, void, [Type[]], {}, ApplyMetadata, ApplyFlags>`
 - `eval: ProtocolsList<V, void, [Type[]], {}, void, EvalFlags>`
 - `access: ProtocolsList<V, typeof NOTHING | Reference, [Type[]], {}, void, AccessFlags>`
@@ -187,37 +239,49 @@ overloadable math operations.
 - `bitNot: ProtocolsList<V, Result<any, string>>`
 
 ### `ArgcForName`
+
 The number of arguments the protocol `N` takes.
+
 ```ts
 JEBProtocols<V>[N] extends ProtocolsList<V, any, infer N, any, any> ? N["length"] : number
 ```
 
 ### `ResultForName`
+
 The result type of the protocol `N`.
+
 ```ts
 JEBProtocols<V>[N] extends ProtocolsList<V, infer N, any, any, any> ? N : unknown
 ```
 
 ### `FlagsForName`
+
 The flags type passed to implementations of the protocol `N`.
+
 ```ts
 JEBProtocols<V>[N] extends ProtocolsList<V, any, any, any, any, infer N> ? N : []
 ```
 
 ### `InfoForName`
+
 The metadata type (`describe` result) of the protocol `N`.
+
 ```ts
 JEBProtocols<V>[N] extends ProtocolsList<V, any, any, any, any, infer N> ? N : never
 ```
 
 ### `FnTypeForName`
+
 The `run` function type of implementations of the protocol `N`.
+
 ```ts
-JEBProtocols<V>[N][number]["run"]
+JEBProtocols < V > [N][number]["run"];
 ```
 
 ### `AccessType`
+
 The capacity in which a Reference is accessed.
+
 - `VARIABLE` = `0`
 - `FUNCTION` = `1`
 - `PROPERTY` = `2`
@@ -225,6 +289,7 @@ The capacity in which a Reference is accessed.
 ## signature
 
 ### `ShorthandArgument`
+
 Compact form of one parameter in a callable signature. Each union member is
 a different parameter flavour (the members are documented individually);
 createSignature converts an array of these into the
@@ -233,49 +298,61 @@ option slots may appear in any order before the name; the slot's type
 says what it is (array: flags, boolean: laziness, number: rest kind,
 plain object: named options), and at most one slot -- the default --
 may follow the name.
+
 ```ts
 N | [...UnionPermutations<R | boolean | string[] | Record<string, any>, 1 | 2 | 3 | 4>, N, default_?: any]
 ```
 
 ### `LonghandArgument`
+
 One parameter of a callable signature, in the expanded form produced by
 createSignature and consumed by the argument-processing machinery.
 **Properties:**
+
 - `name: N` — The parameter's name.
 - `required: R extends 0 | 1 ? false : boolean` — Whether the caller must supply the argument. Ignored if rest is not Rest.NONE.
 - `defaultExpr: R extends 0 ? any[] : R extends 1 ? Record<string, any> : any` — Expression evaluated to produce the value when the argument is not supplied; only meaningful if the parameter is not `required`.
 - `lazy: Laziness` — Whether (and how) the argument expression is deferred; see Laziness.
-- `flags: string[]` — Names of wrappers that are *not* unwrapped from this parameter's value, so the body can operate on the wrapper itself.
+- `flags: string[]` — Names of wrappers that are _not_ unwrapped from this parameter's value, so the body can operate on the wrapper itself.
 - `rest: R extends undefined ? NONE : R extends 0 ? POSITIONAL : R extends 1 ? KEYWORD : Rest` — Whether the parameter is a rest parameter.
 - `options: Record<string, any>` — Named enum options.
 
 ### `ShorthandToLonghand`
+
 Type-level expansion of a shorthand signature's parameters into
 LonghandArguments.
+
 ```ts
 S extends readonly [infer P, ...(infer T extends readonly any[])] ? [ShorthandParamToLonghand<P>, ...ShorthandToLonghand<T>] : readonly []
 ```
 
 ### `CallableSignature`
+
 ```ts
-P
+P;
 ```
 
 ### `CallableSignatureFromShorthand`
+
 The CallableSignature that createSignature produces for the
 shorthand signature `S`, computed at the type level.
+
 ```ts
-CallableSignature<ShorthandToLonghand<S>>
+CallableSignature<ShorthandToLonghand<S>>;
 ```
 
 ### `Laziness`
+
 How a parameter's argument expression is treated when the callable is invoked.
+
 - `NONE` = `0` — The argument is evaluated (and unwrapped) before the body runs.
 - `LAZY` = `1` — The argument is wrapped in a block without being evaluated.
 - `QUOTED` = `2` — The argument is passed as the raw, unevaluated expression.
 
 ### `Rest`
+
 How the parameter accepts arguments.
+
 - `NONE` = `0` — A normal parameter, can be positional or keyword.
 - `POSITIONAL` = `1` — A positional rest argument that receives all the remaining positional arguments.
 - `KEYWORD` = `2` — A keyword rest argument that receives all the unmatched keyword arguments.
@@ -283,96 +360,121 @@ How the parameter accepts arguments.
 ## utils
 
 ### `Tuple`
+
 A tuple of exactly `N` elements of type `T` (or a plain `T[]` when `N` is
 a general `number`).
+
 ```ts
 N extends N ? number extends N ? T[] : _TupleOf<T, N, []> : never
 ```
 
 ### `_TupleOf`
+
 Recursive builder for Tuple: prepends `T` until `R` has `N` elements.
+
 ```ts
 R["length"] extends N ? R : _TupleOf<T, N, [T, ...R]>
 ```
 
 ### `Writable`
+
 `T` with all `readonly` modifiers removed.
+
 ```ts
 { -readonly [P in keyof T]: T[P] }
 ```
 
 ### `WrapUnionMembers`
+
 ```ts
 T extends unknown ? [T] : never
 ```
 
 ### `CombinationTupleMembers`
+
 ```ts
 T extends [] ? T : T extends [infer F, ...(infer R)] ? [...WrapUnionMembers<F>, ...CombinationTupleMembers<R>] : never
 ```
 
 ### `NoDuplicateElements`
+
 ```ts
 T extends [] ? [] : T extends [infer F, ...(infer R)] ? F extends R[number] ? never : [F, ...NoDuplicateElements<R>] : never
 ```
 
 ### `UnionPermutations`
+
 ```ts
-NoDuplicateElements<CombinationTupleMembers<Tuple<U, L>>>
+NoDuplicateElements<CombinationTupleMembers<Tuple<U, L>>>;
 ```
 
 ### `DropFirst`
+
 A tuple/array type with its first element removed.
+
 ```ts
 T extends [any, ...(infer Rest)] ? Rest : []
 ```
 
 ### `Identifier`
+
 A variable name: either a string, or a symbol (as produced by gensym).
 
 Note that when `Identifier`s are used as object keys, you should use
 `Reflect.ownKeys()` instead of `Object.keys()` since the latter only returns
 the string properties and skips symbols.
+
 ```ts
-string | symbol
+string | symbol;
 ```
 
 ## vm
 
 ### `Command`
+
 Data for the command
+
 ```ts
 [opcode: OpcodeFunction<A, T>, immediateArgs: A]
 ```
 
 ### `StackEntry`
+
 **Properties:**
+
 - `name: Identifier | undefined` — Name of the function called, if known
 - `location: Location | undefined` — Location of the call site, if known
 - `kind: StackEntryKind`
 
 ### `StackCount`
+
 One compressed run of call-stack frames: `count` consecutive calls of the
 same function at the same call site, collapsed into a single traceback entry.
 **Properties:**
+
 - `item: StackEntry`
 - `count: number` — Number of frames collapsed into this entry
 - `tail: boolean` — Whether these frames were entered by tail calls
 
 ### `OpcodeFunction`
+
 Function that implements an opcode for the VM by pushing instructions or pushing and popping data.
+
 ```ts
 (vm: U, args: T) => void
 ```
 
 ### `GetArgParams`
+
 Extracts the type of an opcode function's immediate arguments (everything
 after the VM parameter), for typing calls to JebVM.pushCommand.
+
 ```ts
 Parameters<T>[1] extends infer T extends any[] ? T : [void]
 ```
 
 ### `StackEntryKind`
+
 - `FUNCTION` = `0`
 - `MACRO_EXPANSION_RESULT` = `1`
 - `PARAMETER` = `2`
@@ -381,14 +483,18 @@ Parameters<T>[1] extends infer T extends any[] ? T : [void]
 ## doc
 
 ### `HasDocstring`
+
 interface for a thing that has a docstring.
 **Properties:**
+
 - `doc: string`
 
 ## errno
 
 ### `ErrnoCode`
+
 Errno database mapping E-code to value
+
 - `EFAIL` = `0` — Unspecified error
 - `ENAME` = `-1` — No such variable
 - `EFUNC` = `-2` — No such function

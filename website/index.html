@@ -1,16 +1,20 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
     <head>
         <meta charset="UTF-8" />
         <meta property="og:title" content="Backolon" />
-        <meta property="og:description"
-            content="A tiny, homoiconic language where control flow is continuation-based." />
+        <meta
+            property="og:description"
+            content="A tiny, homoiconic language where control flow is continuation-based."
+        />
         <link rel="icon" href="./images/icon.png" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Backolon</title>
         <link rel="stylesheet" href="./styles/main.css" />
-        <link rel="stylesheet" href="../node_modules/prismjs/themes/prism-tomorrow.css" />
+        <link
+            rel="stylesheet"
+            href="../node_modules/prismjs/themes/prism-tomorrow.css"
+        />
     </head>
 
     <body>
@@ -20,103 +24,86 @@
                 <a href="/repl">REPL</a>
                 <a href="/docs">Language Docs</a>
                 <a href="/api/backolon">JS API</a>
-                <a href="https://github.com/r47onfire/backolon" target="_blank">GitHub</a>
+                <a href="https://github.com/r47onfire/backolon" target="_blank"
+                    >GitHub</a
+                >
             </nav>
         </header>
         <main class="container">
             <section class="hero">
                 <div markdown="block">
-                    ![Backolon logo](./images/icon.png)
-
-                    # Backolon
-
-                    A tiny, self-modifying homoiconic scripting language.
+                    ![Backolon logo](./images/icon.png) # Backolon A tiny,
+                    self-modifying homoiconic scripting language.
                 </div>
 
                 <div class="showcase" markdown="block">
-
-                    ```backolon
-                    ## Hello World
-                    print "Hello, World!"
-
-                    ## List filtering, mapping, reducing
-                    ["hello", "world", "!"] |?> it != "!" |*> upper it |+>[""] _ + it ## -> "helloworld"
-
-                    ## Fizzbuzz
-                    let fizzbuzz = fn(n) n % 15 == 0 ? "fizzbuzz" : n % 5 == 0 ? "buzz" : n % 3 == 0 ? "fizz" : "\(n)"
-                    foreach i in range(1, 100)
-                        print fizzbuzz i
-                    end
-
-                    ## yin yang puzzle
-                    let yinHelper = fn(char) fn(c) ((fn(cc) (print char; cc)) (callcc fn(c) c))
-                    let yin = (yinHelper "*"), yang = (yinHelper "@") in yin yang end
-                    ```
-
+                    ```backolon ## Hello World print "Hello, World!" ## List
+                    filtering, mapping, reducing ["hello", "world", "!"] |?> it
+                    != "!" |*> upper it |+>[""] _ + it ## -> "helloworld" ##
+                    Fizzbuzz let fizzbuzz = fn(n) n % 15 == 0 ? "fizzbuzz" : n %
+                    5 == 0 ? "buzz" : n % 3 == 0 ? "fizz" : "\(n)" foreach i in
+                    range(1, 100) print fizzbuzz i end ## yin yang puzzle let
+                    yinHelper = fn(char) fn(c) ((fn(cc) (print char; cc))
+                    (callcc fn(c) c)) let yin = (yinHelper "*"), yang =
+                    (yinHelper "@") in yin yang end ```
                 </div>
 
                 <div class="cta-buttons">
                     <a href="/repl" class="btn primary">Try the REPL</a>
                     <a href="/docs" class="btn secondary">Language Docs</a>
-                    <a href="/api/backolon" class="btn secondary">Backolon JS API</a>
+                    <a href="/api/backolon" class="btn secondary"
+                        >Backolon JS API</a
+                    >
                     <a href="/api/jeb" class="btn secondary">JEB JS API</a>
                 </div>
-
             </section>
             <section class="feature-grid">
                 <article markdown="block">
-                    ## Homoiconic
-
-                    The `Block` mechanism allows functions to take code as arguments and manipulate its behavior in a
-                    hygienic manner, staying concise and readable.
-
-                    Expression ASTs are also just JSON, so unhygenic macros are still possible and just as easy.
+                    ## Homoiconic The `Block` mechanism allows functions to take
+                    code as arguments and manipulate its behavior in a hygienic
+                    manner, staying concise and readable. Expression ASTs are
+                    also just JSON, so unhygenic macros are still possible and
+                    just as easy.
                 </article>
                 <article markdown="block">
-                    ## Keywordless
-
-                    Operators and control flow are ordinary functions rather than reserved keywords.
+                    ## Keywordless Operators and control flow are ordinary
+                    functions rather than reserved keywords.
                 </article>
                 <article markdown="block">
-                    ## Self-Extensible
-
-                    Backolon's syntax is (mostly) defined in Backolon itself, using a modified Pratt parser system
-                    allowing seamless modification of the grammar - mid-execution!
+                    ## Self-Extensible Backolon's syntax is (mostly) defined in
+                    Backolon itself, using a modified Pratt parser system
+                    allowing seamless modification of the grammar -
+                    mid-execution!
                 </article>
                 <article markdown="block">
-                    ## First-class Continuations
-
-                    `return` is just a variable holding a continuation, making nonlocal jumps, backtracking, coroutines,
-                    and cooperative multitasking easy.
+                    ## First-class Continuations `return` is just a variable
+                    holding a continuation, making nonlocal jumps, backtracking,
+                    coroutines, and cooperative multitasking easy.
                 </article>
                 <article markdown="block">
-                    ## Powered by JEB
-
-                    Backolon is syntactic sugar over a powerful Scheme-like evaluation engine. Lower-level access to
-                    this layer is easy and enables advanced optimizations, manually or algorithmically.
+                    ## Powered by JEB Backolon is syntactic sugar over a
+                    powerful Scheme-like evaluation engine. Lower-level access
+                    to this layer is easy and enables advanced optimizations,
+                    manually or algorithmically.
                 </article>
                 <article markdown="block">
-                    ## Auditable
-
-                    JEB injects "audit events" into the code, that allow the host to prevent potentially dangerous
-                    things from happening (such as infinite loops or JavaScript injection).
+                    ## Auditable JEB injects "audit events" into the code, that
+                    allow the host to prevent potentially dangerous things from
+                    happening (such as infinite loops or JavaScript injection).
                 </article>
                 <article markdown="block">
-                    ## JS/TS Embedding
-
-                    Designed to be embedded in JavaScript applications for seamless scripting.
+                    ## JS/TS Embedding Designed to be embedded in JavaScript
+                    applications for seamless scripting.
                 </article>
             </section>
             <section class="content-block" markdown="block">
-                ## Why Backolon?
-
-                Backolon's extensible syntax makes it perfect for building domain-specific languages, such as
-                configuration files, while also allowing full Turing-complete functions where traditional syntax falls
-                short.
-
-                The macro system allows for incredibly powerful configuration systems to be expressed without modifying
-                Backolon's default syntax - but if the default isn't enough, Backolon makes adding custom parsers
-                trivial.
+                ## Why Backolon? Backolon's extensible syntax makes it perfect
+                for building domain-specific languages, such as configuration
+                files, while also allowing full Turing-complete functions where
+                traditional syntax falls short. The macro system allows for
+                incredibly powerful configuration systems to be expressed
+                without modifying Backolon's default syntax - but if the default
+                isn't enough, Backolon makes adding custom parsers trivial.
             </section>
             <!-- NOTE: don't forget to re-indent the stuff since the html formatter wants to unindent it since it doesn't know it's a code block -->
             <!-- <section class="content-block" markdown="block">
@@ -137,8 +124,8 @@
             </section> -->
         </main>
         <footer markdown="block">
-            Made with ❤️ by [Burning Resistor Games](https://github.com/r47onfire/)
+            Made with ❤️ by [Burning Resistor
+            Games](https://github.com/r47onfire/)
         </footer>
     </body>
-
 </html>

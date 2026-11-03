@@ -6,4 +6,4 @@ module.exports.fuzz = function fuzz(src) {
     } catch (e) {
         if (!(e instanceof BackolonError)) throw e;
     }
-}
+};

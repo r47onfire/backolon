@@ -4,24 +4,24 @@ import { JSModule, JSONModule, JSONSourceMap } from "./jsmod";
 const defaultDecoder = new TextDecoder();
 
 /**
- * A source of module files for a particular kind of URL (a filesystem,
- * an HTTP host, an in-memory map, ...).
+ * A source of module files for a particular kind of URL (a filesystem, an HTTP
+ * host, an in-memory map, ...).
  *
- * {@link Importer} asks each registered `Finder` to {@link match} a URL;
- * the first non-undefined result becomes responsible for fetching that
- * URL's contents through the `get*` methods.
+ * {@link Importer} asks each registered `Finder` to {@link match} a URL; the
+ * first non-undefined result becomes responsible for fetching that URL's
+ * contents through the `get*` methods.
  */
 export abstract class Finder {
     /**
-     * Returns the finder that serves `url` (usually `this`), or undefined
-     * if this finder doesn't handle URLs like it.
+     * Returns the finder that serves `url` (usually `this`), or undefined if
+     * this finder doesn't handle URLs like it.
      */
     abstract match(url: URL): Finder | undefined;
     /** Whether a file exists at `url`. */
     abstract stat(url: URL): Promise<boolean>;
     /**
-     * The raw bytes of the file at `path`. The base implementation just
-     * throws; finders override the fetch methods for the URLs they serve.
+     * The raw bytes of the file at `path`. The base implementation just throws;
+     * finders override the fetch methods for the URLs they serve.
      */
     async getBytes(path: URL): Promise<Uint8Array> {
         throw new Error("getBytes() not implemented");
@@ -39,6 +39,8 @@ export abstract class Finder {
      * fetching the source and importing it through a `data:` URL.
      */
     async getImport(path: URL): Promise<JSModule> {
-        return await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(await this.getText(path))}`);
+        return await import(
+            `data:text/javascript;charset=utf-8,${encodeURIComponent(await this.getText(path))}`
+        );
     }
 }

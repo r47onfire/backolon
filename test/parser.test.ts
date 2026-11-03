@@ -1,8 +1,28 @@
 import { expect, test, describe } from "bun:test";
-import { alt, ambient, backolonGrammar, bind, CSTNode, nothing, Grammar, kw, lit, opt, param, parseToCST, regex, rule, seq } from "../src";
+import {
+    alt,
+    ambient,
+    backolonGrammar,
+    bind,
+    CSTNode,
+    nothing,
+    Grammar,
+    kw,
+    lit,
+    opt,
+    param,
+    parseToCST,
+    regex,
+    rule,
+    seq,
+} from "../src";
 
 /** Parse with a synthetic grammar and require a full, error-free parse. */
-const parsesFully = (grammar: Grammar, start: string, text: string): CSTNode => {
+const parsesFully = (
+    grammar: Grammar,
+    start: string,
+    text: string,
+): CSTNode => {
     const cst = parseToCST(text, 0, start, grammar, "exprs");
     expect(JSON.stringify(cst)).not.toContain('"errorExpected"');
     expect(cst.end).toBe(text.length);
@@ -13,12 +33,18 @@ describe("parameterized rules", () => {
     test("param matches the given argument", () => {
         const grammar: Grammar = {
             main: rule("wrap", lit("("), lit(")")),
-            wrap: [["open", "close"], seq(param("open"), rule("word"), param("close"))],
+            wrap: [
+                ["open", "close"],
+                seq(param("open"), rule("word"), param("close")),
+            ],
             word: regex(/[a-z]+/),
         };
         parsesFully(grammar, "main", "(abc)");
         // a different instance of the same rule, with different arguments
-        const grammar2: Grammar = { ...grammar, main: rule("wrap", lit("["), lit("]")) };
+        const grammar2: Grammar = {
+            ...grammar,
+            main: rule("wrap", lit("["), lit("]")),
+        };
         parsesFully(grammar2, "main", "[abc]");
     });
 
@@ -55,10 +81,13 @@ describe("parameterized rules", () => {
     test("parameterized rule left-recursive per instance", () => {
         const grammar: Grammar = {
             main: seq(rule("e", lit("+")), lit(" "), rule("e", lit("-"))),
-            e: [["op"], alt(
-                seq(rule("e", param("op")), param("op"), rule("num")),
-                rule("num"),
-            )],
+            e: [
+                ["op"],
+                alt(
+                    seq(rule("e", param("op")), param("op"), rule("num")),
+                    rule("num"),
+                ),
+            ],
             num: regex(/[0-9]+/),
         };
         parsesFully(grammar, "main", "1+2+3 4-5-6");
@@ -69,22 +98,30 @@ describe("parameterized rules", () => {
             main: rule("w"),
             w: [["t"], param("t")],
         };
-        expect(() => parseToCST("a", 0, "main", needsOne, "exprs")).toThrow("unbound rule parameter t");
+        expect(() => parseToCST("a", 0, "main", needsOne, "exprs")).toThrow(
+            "unbound rule parameter t",
+        );
         const tooMany: Grammar = {
             main: rule("w", lit("a"), lit("b"), lit("c")),
             w: [["a", "b"], seq(param("a"), param("b"))],
         };
-        expect(() => parseToCST("abc", 0, "main", tooMany, "exprs")).toThrow("too many arguments to rule w (expected 2 but got 3)");
+        expect(() => parseToCST("abc", 0, "main", tooMany, "exprs")).toThrow(
+            "too many arguments to rule w (expected 2 but got 3)",
+        );
         const plainWithArgs: Grammar = {
             main: rule("w", lit("a")),
             w: lit("a"),
         };
-        expect(() => parseToCST("a", 0, "main", plainWithArgs, "exprs")).toThrow("takes no arguments");
+        expect(() =>
+            parseToCST("a", 0, "main", plainWithArgs, "exprs"),
+        ).toThrow("takes no arguments");
         const unbound: Grammar = {
             main: rule("w", lit("a")),
             w: [["t"], param("other")],
         };
-        expect(() => parseToCST("a", 0, "main", unbound, "exprs")).toThrow("unbound rule parameter other");
+        expect(() => parseToCST("a", 0, "main", unbound, "exprs")).toThrow(
+            "unbound rule parameter other",
+        );
     });
 });
 
@@ -109,14 +146,24 @@ describe("dynamic parameters", () => {
 
     test("can reference the parent value in their own definition", () => {
         const grammar: Grammar = {
-            main: bind("t", false, lit("a"), bind("t", false, seq(ambient("t"), lit("b")), ambient("t"))),
+            main: bind(
+                "t",
+                false,
+                lit("a"),
+                bind("t", false, seq(ambient("t"), lit("b")), ambient("t")),
+            ),
         };
         parsesFully(grammar, "main", "ab");
     });
 
     test("clear binding by setting it to eps", () => {
         const grammar: Grammar = {
-            main: bind("t", false, lit("z"), seq(bind("t", false, nothing(), ambient("t")), ambient("t"))),
+            main: bind(
+                "t",
+                false,
+                lit("z"),
+                seq(bind("t", false, nothing(), ambient("t")), ambient("t")),
+            ),
         };
         // inside the inner bind the parameter matches nothing; outside, "z" again
         parsesFully(grammar, "main", "z");
@@ -124,7 +171,10 @@ describe("dynamic parameters", () => {
 
     test("memoization keys on ambient context too", () => {
         const grammar: Grammar = {
-            main: alt(bind("t", false, lit("a"), rule("h")), bind("t", false, lit("b"), rule("h"))),
+            main: alt(
+                bind("t", false, lit("a"), rule("h")),
+                bind("t", false, lit("b"), rule("h")),
+            ),
             h: seq(ambient("t"), lit("!")),
         };
         // h fails under t="a" on this input; under t="b" it must be tried fresh
@@ -154,7 +204,9 @@ describe("dynamic parameters", () => {
 
     test("unbound dynamic parameter", () => {
         const grammar: Grammar = { main: ambient("nope") };
-        expect(() => parseToCST("a", 0, "main", grammar, "exprs")).toThrow("unbound dynamic parameter nope");
+        expect(() => parseToCST("a", 0, "main", grammar, "exprs")).toThrow(
+            "unbound dynamic parameter nope",
+        );
     });
 });
 
@@ -208,7 +260,12 @@ describe("parameter defaults", () => {
         parsesFully(bound, "main", "good");
         // the default itself can read other ambient values in effect at the reference
         const nested: Grammar = {
-            main: bind("a", false, lit("abc"), ambient("notdefined", ambient("a"))),
+            main: bind(
+                "a",
+                false,
+                lit("abc"),
+                ambient("notdefined", ambient("a")),
+            ),
         };
         parsesFully(nested, "main", "abc");
     });

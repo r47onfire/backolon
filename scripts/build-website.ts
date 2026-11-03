@@ -7,7 +7,6 @@ import { build } from "./build-common.js";
 import { docsToHTML } from "./build-docs";
 import { compileAllBackolonDocs } from "./doc-extract";
 
-
 const md = new markdown({
     html: true,
     linkify: true,
@@ -31,7 +30,9 @@ function renderMarkdown(string: string, mode: "block" | "inline") {
 function dedent(str: string) {
     str = str.replace(/^(\s*)\n/, "");
     const match = str.match(/^[^\S\r\n]+/);
-    const unIndented = match ? str.replace(new RegExp("^" + match[0], "gm"), "") : str;
+    const unIndented = match
+        ? str.replace(new RegExp("^" + match[0], "gm"), "")
+        : str;
     return unIndented;
 }
 
@@ -39,8 +40,12 @@ function markdownElement(html: HTMLElement) {
     const elsWithMarkdown = html.querySelectorAll("[markdown]");
     for (var el of elsWithMarkdown) {
         const html2 = dedent(el.innerHTML);
-        if (parse(html2).querySelector("[markdown]")) throw new Error("nested [markdown] attributes are buggy af");
-        el.innerHTML = renderMarkdown(html2, el.getAttribute("markdown") as any);
+        if (parse(html2).querySelector("[markdown]"))
+            throw new Error("nested [markdown] attributes are buggy af");
+        el.innerHTML = renderMarkdown(
+            html2,
+            el.getAttribute("markdown") as any,
+        );
         el.removeAttribute("markdown");
     }
 }
@@ -64,7 +69,7 @@ await build({
         {
             name: "HTML_PROCESS",
             setup(build) {
-                build.onLoad({ filter: /\.html$/ }, async args => {
+                build.onLoad({ filter: /\.html$/ }, async (args) => {
                     const html = await Bun.file(args.path).text();
                     const dom = parse(html);
                     // 1. parse markdown
@@ -74,10 +79,13 @@ await build({
                     const docEl = dom.querySelector("#__DOCS_CONTENT__");
                     if (docEl) {
                         docEl.removeAttribute("id");
-                        const { html, sidebar } = docsToHTML(compileAllBackolonDocs());
+                        const { html, sidebar } = docsToHTML(
+                            compileAllBackolonDocs(),
+                        );
                         docEl.innerHTML = html;
 
-                        const sidebarEl = dom.querySelector("#__DOCS_SIDEBAR__")!;
+                        const sidebarEl =
+                            dom.querySelector("#__DOCS_SIDEBAR__")!;
                         sidebarEl.removeAttribute("id");
                         sidebarEl.innerHTML = sidebar;
                     }
@@ -87,7 +95,7 @@ await build({
                     };
                 });
             },
-        }
+        },
     ],
 });
 

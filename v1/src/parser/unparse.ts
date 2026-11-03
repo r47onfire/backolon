@@ -2,47 +2,40 @@ import { isArray } from "lib0/array";
 import { Thing, ThingType, typecheck } from "../objects/thing";
 
 /**
- * Class for converting Things back into source text, or at least a readable representation.
+ * Class for converting Things back into source text, or at least a readable
+ * representation.
  */
 export class Unparser {
     counter = 0;
     seen = new Map<Thing, number>();
-    /**
-     * Returns the text to be put before the contents of the given Thing.
-     */
+    /** Returns the text to be put before the contents of the given Thing. */
     pre(thing: Thing): string {
         return thing.s0;
     }
     /**
-     * Takes the string source of the children and joins it into a single string based on the Thing.
+     * Takes the string source of the children and joins it into a single string
+     * based on the Thing.
      */
     join(thing: Thing, parts: string[]): string {
-        if (typecheck(ThingType.paramdescriptor)(thing) && isArray(thing.sj)) return parts.map((e, i) => e + (thing.sj[i] ?? "")).join("");
+        if (typecheck(ThingType.paramdescriptor)(thing) && isArray(thing.sj))
+            return parts.map((e, i) => e + (thing.sj[i] ?? "")).join("");
         if (typecheck(ThingType.map)(thing) && parts.length === 0) return ":"; // empty map = [:], vs empty list = []
         return parts.join(thing.sj);
     }
-    /**
-     * Returns the text to be put after the contents of the given Thing.
-     */
+    /** Returns the text to be put after the contents of the given Thing. */
     post(thing: Thing) {
         return thing.s1;
     }
-    /**
-     * Hook that gets called when an object is starting to be unparsed.
-     */
+    /** Hook that gets called when an object is starting to be unparsed. */
     begin() {
         this.counter = 0;
         this.seen.clear();
     }
-    /**
-     * Hook that gets called when an object has finished being unparsed.
-     */
+    /** Hook that gets called when an object has finished being unparsed. */
     end() {
         this.seen.clear();
     }
-    /**
-     * Main entry point to unparse an object to a string.
-     */
+    /** Main entry point to unparse an object to a string. */
     unparse(thing: Thing): string {
         this.begin();
         this.walk(thing);
@@ -51,8 +44,8 @@ export class Unparser {
         return str;
     }
     /**
-     * Walks the object tree recursively, and saves which objects have been seen once or multiple times
-     * in `this.seen`.
+     * Walks the object tree recursively, and saves which objects have been seen
+     * once or multiple times in `this.seen`.
      */
     walk(thing: Thing): void {
         if (this.seen.has(thing)) {
@@ -63,8 +56,8 @@ export class Unparser {
         }
     }
     /**
-     * Stringifies the object tree, while noting shared and circular structure using Scheme
-     * datums `#N=` and `#N#`.
+     * Stringifies the object tree, while noting shared and circular structure
+     * using Scheme datums `#N=` and `#N#`.
      */
     stringify(thing: Thing): string {
         var str = "";
@@ -78,13 +71,14 @@ export class Unparser {
             }
         }
         str += this.pre(thing);
-        str += this.join(thing, thing.c.map(c => this.stringify(c)));
+        str += this.join(
+            thing,
+            thing.c.map((c) => this.stringify(c)),
+        );
         str += this.post(thing);
         return str;
     }
 }
 
-/**
- * Default unparser
- */
-export const DEFAULT_UNPARSER = new Unparser;
+/** Default unparser */
+export const DEFAULT_UNPARSER = new Unparser();

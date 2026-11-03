@@ -4,20 +4,16 @@ export {
     LocationTrace,
     ParseError,
     RuntimeError,
-    UNKNOWN_LOCATION
+    UNKNOWN_LOCATION,
 } from "./errors";
-export {
-    fromJS,
-    JSObjectType,
-    toJS
-} from "./objects/js_interop";
+export { fromJS, JSObjectType, toJS } from "./objects/js_interop";
 export {
     mapDeleteKeyCopying,
     mapDeleteKeyMutating,
     mapGetKey,
     mapUpdateKeyCopying,
     mapUpdateKeyMutating,
-    newEmptyMap
+    newEmptyMap,
 } from "./objects/map";
 export {
     boxBlock,
@@ -42,63 +38,25 @@ export {
     ThingType,
     typecheck,
     typeNameOf,
-    type CheckedType
+    type CheckedType,
 } from "./objects/thing";
-export {
-    parse
-} from "./parser/parse";
-export {
-    tokenize,
-    type Token
-} from "./parser/tokenizer";
-export {
-    DEFAULT_UNPARSER,
-    Unparser
-} from "./parser/unparse";
-export {
-    type Command,
-    type PatternProgram
-} from "./patterns/compile";
-export {
-    PatternType,
-    type Pattern
-} from "./patterns/internals";
-export {
-    matchPattern,
-    MatchResult
-} from "./patterns/match";
-export {
-    parsePattern,
-    pattern
-} from "./patterns/meta";
-export {
-    newEnv
-} from "./runtime/env";
-export {
-    type ParamDescriptor
-} from "./runtime/functor";
-export {
-    Scheduler,
-    type NativeFunctionDetails
-} from "./runtime/scheduler";
-export {
-    StackFlag,
-    Task,
-    type StackEntry
-} from "./runtime/task";
-export {
-    BUILTINS_MODULE,
-    CORE_SOURCE,
-    FFI_MODULE
-} from "./stdlib";
-export {
-    BUILTINS_LOC
-} from "./stdlib/locations";
+export { parse } from "./parser/parse";
+export { tokenize, type Token } from "./parser/tokenizer";
+export { DEFAULT_UNPARSER, Unparser } from "./parser/unparse";
+export { type Command, type PatternProgram } from "./patterns/compile";
+export { PatternType, type Pattern } from "./patterns/internals";
+export { matchPattern, MatchResult } from "./patterns/match";
+export { parsePattern, pattern } from "./patterns/meta";
+export { newEnv } from "./runtime/env";
+export { type ParamDescriptor } from "./runtime/functor";
+export { Scheduler, type NativeFunctionDetails } from "./runtime/scheduler";
+export { StackFlag, Task, type StackEntry } from "./runtime/task";
+export { BUILTINS_MODULE, CORE_SOURCE, FFI_MODULE } from "./stdlib";
+export { BUILTINS_LOC } from "./stdlib/locations";
 export {
     makePrimitiveReference,
     NativeModule,
     rewriteAsApply,
     type CustomApplicator,
-    type OperatorOverload
+    type OperatorOverload,
 } from "./stdlib/module";
-

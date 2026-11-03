@@ -3,38 +3,47 @@ import { boxNumber, Thing, ThingType } from "../objects/thing";
 import { NativeModule, rewriteAsApply, symbol_x, symbol_y } from "./module";
 
 /**
- * @file
  * @module Builtins
+ * @file
  */
 
-const b = BigInt, n = Number, i = (x: number) => n.isInteger(x) && n.isSafeInteger(x);
+const b = BigInt,
+    n = Number,
+    i = (x: number) => n.isInteger(x) && n.isSafeInteger(x);
 
 type BinaryFun = (x: any, y: any) => any;
 
-const number_op = (cb: BinaryFun) => (loc: LocationTrace, argv: [Thing<ThingType.number>, Thing<ThingType.number>]) => {
-    // Why is doing math on two bigints / numbers so complicated
-    const x = argv[0].v, y = argv[1].v;
-    const bigX = typeof x === "bigint", bigY = typeof y === "bigint";
-    var result: number | bigint = 0;
-    if (bigX && bigY) {
-        // TODO: this will still perform integer division, we need to downcast *first* if it's division...
-        const nResult = n(result = cb(x, y));
-        if (b(nResult) === result) result = nResult;
-    }
-    else if (!bigX && !bigY) {
-        const naive = cb(x, y)
-        result = !n.isInteger(naive) || n.isSafeInteger(naive) ? naive : cb(b(x), b(y));
-    }
-    else if (bigX && !bigY) {
-        // x is big, y is not
-        result = i(y) ? cb(x, b(y)) : cb(n(x), y);
-    }
-    else if (!bigX && bigY) {
-        // y is big, x is not
-        result = i(x) ? cb(b(x), y) : cb(x, n(y));
-    }
-    return boxNumber(result, loc);
-}
+const number_op =
+    (cb: BinaryFun) =>
+    (
+        loc: LocationTrace,
+        argv: [Thing<ThingType.number>, Thing<ThingType.number>],
+    ) => {
+        // Why is doing math on two bigints / numbers so complicated
+        const x = argv[0].v,
+            y = argv[1].v;
+        const bigX = typeof x === "bigint",
+            bigY = typeof y === "bigint";
+        var result: number | bigint = 0;
+        if (bigX && bigY) {
+            // TODO: this will still perform integer division, we need to downcast *first* if it's division...
+            const nResult = n((result = cb(x, y)));
+            if (b(nResult) === result) result = nResult;
+        } else if (!bigX && !bigY) {
+            const naive = cb(x, y);
+            result =
+                !n.isInteger(naive) || n.isSafeInteger(naive)
+                    ? naive
+                    : cb(b(x), b(y));
+        } else if (bigX && !bigY) {
+            // x is big, y is not
+            result = i(y) ? cb(x, b(y)) : cb(n(x), y);
+        } else if (!bigX && bigY) {
+            // y is big, x is not
+            result = i(x) ? cb(b(x), y) : cb(x, n(y));
+        }
+        return boxNumber(result, loc);
+    };
 
 export function math(mod: NativeModule) {
     const xy = [symbol_x, symbol_y];
@@ -56,175 +65,208 @@ export function math(mod: NativeModule) {
     //     task.out(reassignExpr);
     // });
 
-    const operation = (name: string, operator?: string, precedence?: number, right?: boolean, implementation?: BinaryFun) => {
+    const operation = (
+        name: string,
+        operator?: string,
+        precedence?: number,
+        right?: boolean,
+        implementation?: BinaryFun,
+    ) => {
         mod.defop(`__${name}`, name);
         if (implementation) {
-            mod.defsyntax(`x ${operator} y`, precedence!, right!, null, `__rewrite_${name}`, rewriteAsApply(xy, `__${name}`));
-            mod.defoverload(name, [ThingType.number, ThingType.number], number_op(implementation));
+            mod.defsyntax(
+                `x ${operator} y`,
+                precedence!,
+                right!,
+                null,
+                `__rewrite_${name}`,
+                rewriteAsApply(xy, `__${name}`),
+            );
+            mod.defoverload(
+                name,
+                [ThingType.number, ThingType.number],
+                number_op(implementation),
+            );
             // TODO: this doesn't work cause there's no way to stop x and y from matching operators
             // mod.defsyntax(`x [z(${operator})]= y`, VARIABLE_ASSIGNMENT_PRECEDENCE, true, null, "__rewrite_augmented");
         }
     };
-    const unary = (name: string, operator: string, precedence: number, right: boolean, impl: (x: number) => number) => {
-        mod.defsyntax(`[^] ${operator} x`, precedence, right, null, `__rewrite_unary_${name}`, rewriteAsApply(x, `__${name}`));
-        mod.defoverload(name, [ThingType.number], (loc, argv) => boxNumber(impl(argv[0].v as number), loc));
+    const unary = (
+        name: string,
+        operator: string,
+        precedence: number,
+        right: boolean,
+        impl: (x: number) => number,
+    ) => {
+        mod.defsyntax(
+            `[^] ${operator} x`,
+            precedence,
+            right,
+            null,
+            `__rewrite_unary_${name}`,
+            rewriteAsApply(x, `__${name}`),
+        );
+        mod.defoverload(name, [ThingType.number], (loc, argv) =>
+            boxNumber(impl(argv[0].v as number), loc),
+        );
     };
 
     operation("not");
     /**
+     * @category Logic
      * @syntax Logical NOT
      * @backolon
-     * @category Logic
      * @pattern (!any)
      */
-    unary("not", "!", 0, true, x => x ? 0 : 1);
+    unary("not", "!", 0, true, (x) => (x ? 0 : 1));
 
     /**
+     * @category Math
      * @syntax Exponentiation
      * @backolon
-     * @category Math
      * @pattern number ** number
      */
     operation("pow", "**", 1, true, (x, y) => x ** y);
     /**
+     * @category Math
      * @syntax Multiplication
      * @backolon
-     * @category Math
      * @pattern number * number
      */
     operation("mul", "*", 3, false, (x, y) => x * y);
     /**
+     * @category Math
      * @syntax Division
      * @backolon
-     * @category Math
      * @pattern number / number
      */
     operation("div", "/", 3, false, (x, y) => x / y);
     /**
+     * @category Math
      * @syntax Modulo
      * @backolon
-     * @category Math
      * @pattern number % number
      */
     operation("mod", "%", 3, false, (x, y) => x % y);
 
     /**
+     * @category Math
      * @syntax Add
      * @backolon
-     * @category Math
      * @pattern number + number
      */
     operation("add", "+", 4, false, (x, y) => x + y);
 
     /**
+     * @category Math
      * @syntax Subtract
      * @backolon
-     * @category Math
      * @pattern number - number
      */
     operation("sub", "-", 4, false, (x, y) => x - y);
     /**
      * Only valid at start of expression!
+     *
+     * @category Math
      * @syntax Unary negation
      * @backolon
-     * @category Math
      * @pattern (-number)
      */
-    unary("sub", "-", 2, true, x => -x);
+    unary("sub", "-", 2, true, (x) => -x);
 
     // TODO: make these short-circuit
     /**
+     * @category Logic
      * @syntax Logical OR
      * @backolon
-     * @category Logic
      * @pattern any || any
      */
     operation("bool_or", "||", 5, false, (x, y) => x || y);
     /**
+     * @category Logic
      * @syntax Logical AND
      * @backolon
-     * @category Logic
      * @pattern any && any
      */
     operation("bool_and", "&&", 5, false, (x, y) => x && y);
 
     /**
+     * @category Bit Manipulation
      * @syntax Bitwise Left Shift
      * @backolon
-     * @category Bit Manipulation
      * @pattern number << number
      */
     operation("shl", "<<", 5.9, false, (x, y) => x << y);
     /**
+     * @category Bit Manipulation
      * @syntax Bitwise Right Shift
      * @backolon
-     * @category Bit Manipulation
      * @pattern number >> number
      */
     operation("shr", ">>", 5.9, false, (x, y) => x >> y);
 
     /**
+     * @category Bit Manipulation
      * @syntax Bitwise OR
      * @backolon
-     * @category Bit Manipulation
      * @pattern number | number
      */
     operation("bit_or", "|", 6, false, (x, y) => x | y);
     /**
+     * @category Bit Manipulation
      * @syntax Bitwise AND
      * @backolon
-     * @category Bit Manipulation
      * @pattern number & number
      */
     operation("bit_and", "&", 6, false, (x, y) => x & y);
     /**
+     * @category Bit Manipulation
      * @syntax Bitwise XOR
      * @backolon
-     * @category Bit Manipulation
      * @pattern number ^ number
      */
     operation("bit_xor", "^", 6, false, (x, y) => x ^ y);
 
     // TODO: generalize equality operators
     /**
+     * @category Comparison
      * @syntax Equality
      * @backolon
-     * @category Comparison
      * @pattern number == number
      */
     operation("equal", "==", 7, false, (x, y) => x == y);
     /**
+     * @category Comparison
      * @syntax Inequality
      * @backolon
-     * @category Comparison
      * @pattern number != number
      */
     operation("notequal", "!=", 7, false, (x, y) => x != y);
     /**
+     * @category Comparison
      * @syntax Greater than
      * @backolon
-     * @category Comparison
      * @pattern number > number
      */
     operation("gt", ">", 7, false, (x, y) => x > y);
     /**
+     * @category Comparison
      * @syntax Less than
      * @backolon
-     * @category Comparison
      * @pattern number < number
      */
     operation("lt", "<", 7, false, (x, y) => x < y);
     /**
+     * @category Comparison
      * @syntax Greater than or equal
      * @backolon
-     * @category Comparison
      * @pattern number >= number
      */
     operation("gte", ">=", 6.9, false, (x, y) => x >= y);
     /**
+     * @category Comparison
      * @syntax Less than or equal
      * @backolon
-     * @category Comparison
      * @pattern number <= number
      */
     operation("lte", "<=", 6.9, false, (x, y) => x <= y);

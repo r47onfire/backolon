@@ -49,10 +49,15 @@ function initREPL() {
             // Print hook for Backolon print function
             term.echo(output);
             term.scroll_to_bottom();
-        }
+        },
     );
 
-    const main_task = scheduler.startTask(0, "", null, Backolon.UNKNOWN_LOCATION.file);
+    const main_task = scheduler.startTask(
+        0,
+        "",
+        null,
+        Backolon.UNKNOWN_LOCATION.file,
+    );
 
     const main_env = main_task.stack[0]!.env;
 
@@ -77,22 +82,26 @@ function initREPL() {
         } catch (err: any) {
             console.error(err);
             if (err instanceof Backolon.BackolonError) {
-                term.error(err.displayOn({
-                    ...Object.fromEntries(HISTORY.map((h, i) => [REPL_FILE_PREFIX + i, h]))
-                }));
+                term.error(
+                    err.displayOn({
+                        ...Object.fromEntries(
+                            HISTORY.map((h, i) => [REPL_FILE_PREFIX + i, h]),
+                        ),
+                    }),
+                );
             } else {
                 term.error(`Error: ${err?.message ?? String(err)}`);
             }
             main_task.stack = [];
         }
         main_task.result = null;
-        term.resume()
+        term.resume();
         term.set_command("");
         return true;
     }
     function runLoop() {
         const start = performance.now();
-        for (; ;) {
+        for (;;) {
             const progress = run();
             const now = performance.now();
             if (now - start > 100 || !progress) break;
@@ -101,7 +110,7 @@ function initREPL() {
     }
 
     const term = $("#terminal").terminal(
-        command => {
+        (command) => {
             if (!command.trim()) return;
 
             // Handle built-in commands
@@ -119,10 +128,17 @@ function initREPL() {
             // Start executing Backolon code
             var code;
             try {
-                code = Backolon.parse(command, new URL(REPL_FILE_PREFIX + HISTORY.length));
+                code = Backolon.parse(
+                    command,
+                    new URL(REPL_FILE_PREFIX + HISTORY.length),
+                );
             } catch (e: any) {
                 if (e instanceof Backolon.BackolonError) {
-                    term.error(e.displayOn({ [REPL_FILE_PREFIX + HISTORY.length]: command }));
+                    term.error(
+                        e.displayOn({
+                            [REPL_FILE_PREFIX + HISTORY.length]: command,
+                        }),
+                    );
                 } else {
                     term.error(e);
                 }
@@ -154,9 +170,9 @@ function initREPL() {
                     term.error("Interrupted");
                     main_task.stack = [];
                     term.set_command("");
-                }
-            }
-        }
+                },
+            },
+        },
     );
 
     runLoop();

@@ -1,8 +1,8 @@
 import { BunPlugin } from "bun";
 
 /**
- * [ESBuild](https://esbuild.github.io) or [Bun](https://bun.com) plugin that loads `.bk`
- * files as their Backolon AST.
+ * [ESBuild](https://esbuild.github.io) or [Bun](https://bun.com) plugin that
+ * loads `.bk` files as their Backolon AST.
  */
 const plugin: BunPlugin = {
     name: "esbuild-plugin-backolon",

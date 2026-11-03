@@ -10,20 +10,18 @@ import {
     boxString,
     Thing,
     ThingType,
-    typeNameOf
+    typeNameOf,
 } from "./thing";
 
 /**
- * Type tag used for JavaScript object references.
- * (String instead of ThingType enum since the FFI module is separate.)
+ * Type tag used for JavaScript object references. (String instead of ThingType
+ * enum since the FFI module is separate.)
  */
 export const JSObjectType = "js_object";
 
-/**
- * Convert a Backolon Thing into a native JavaScript value.
- */
+/** Convert a Backolon Thing into a native JavaScript value. */
 export function toJS(thing: Thing) {
-    return toJSInner(thing, new WeakMap);
+    return toJSInner(thing, new WeakMap());
 }
 function toJSInner(thing: Thing, visited: WeakMap<Thing, any>): any {
     if (visited.has(thing)) {
@@ -39,7 +37,7 @@ function toJSInner(thing: Thing, visited: WeakMap<Thing, any>): any {
         case ThingType.list: {
             const arr: any[] = [];
             visited.set(thing, arr);
-            arr.push(...thing.c.map(t => toJSInner(t, visited)));
+            arr.push(...thing.c.map((t) => toJSInner(t, visited)));
             return arr;
         }
         case ThingType.map: {
@@ -58,17 +56,22 @@ function toJSInner(thing: Thing, visited: WeakMap<Thing, any>): any {
             // Symbols can be converted to strings for JS land
             return thing.v;
         default:
-            throw new RuntimeError(`no JS object equivalent for ${typeNameOf(thing.t)}`, thing.loc);
+            throw new RuntimeError(
+                `no JS object equivalent for ${typeNameOf(thing.t)}`,
+                thing.loc,
+            );
     }
 }
 
-/**
- * Convert a native JavaScript value into a Backolon Thing.
- */
+/** Convert a native JavaScript value into a Backolon Thing. */
 export function fromJS(val: any, loc = UNKNOWN_LOCATION): Thing {
-    return fromJSInner(val, loc, new WeakMap);
+    return fromJSInner(val, loc, new WeakMap());
 }
-function fromJSInner(val: any, loc = UNKNOWN_LOCATION, visited = new WeakMap()): Thing {
+function fromJSInner(
+    val: any,
+    loc = UNKNOWN_LOCATION,
+    visited = new WeakMap(),
+): Thing {
     if (undefinedToNull(val) === null) {
         return boxNil(loc);
     }
@@ -91,10 +94,12 @@ function fromJSInner(val: any, loc = UNKNOWN_LOCATION, visited = new WeakMap()):
         result.c.push(...val.map((v) => fromJSInner(v, loc, visited)));
         return result;
     }
-    if (typeof val === "object"
-        && val.constructor === Object
-        && Object.prototype.toString.call(val) === "[object Object]"
-        && val !== globalThis) {
+    if (
+        typeof val === "object" &&
+        val.constructor === Object &&
+        Object.prototype.toString.call(val) === "[object Object]" &&
+        val !== globalThis
+    ) {
         const map = newEmptyMap(loc);
         visited.set(val, map);
         for (const [k, v] of Object.entries(val)) {
@@ -105,5 +110,14 @@ function fromJSInner(val: any, loc = UNKNOWN_LOCATION, visited = new WeakMap()):
         return map;
     }
     // For other types (functions, symbols, etc), create a reference
-    return new Thing(JSObjectType, [], val, `<object ${val[Symbol.toStringTag]}>`, "", "", loc, false);
+    return new Thing(
+        JSObjectType,
+        [],
+        val,
+        `<object ${val[Symbol.toStringTag]}>`,
+        "",
+        "",
+        loc,
+        false,
+    );
 }

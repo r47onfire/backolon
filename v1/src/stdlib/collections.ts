@@ -1,17 +1,35 @@
 import { stringify } from "lib0/json";
 import { RuntimeError } from "../errors";
 import { mapGetKey, mapUpdateKeyMutating, newEmptyMap } from "../objects/map";
-import { boxApply, boxBoolean, boxList, boxNativeFunc, boxNumber, boxOperatorSymbol, boxRoundBlock, boxSquareBlock, boxString, Thing, ThingType } from "../objects/thing";
+import {
+    boxApply,
+    boxBoolean,
+    boxList,
+    boxNativeFunc,
+    boxNumber,
+    boxOperatorSymbol,
+    boxRoundBlock,
+    boxSquareBlock,
+    boxString,
+    Thing,
+    ThingType,
+} from "../objects/thing";
 import { DEFAULT_UNPARSER } from "../parser/unparse";
 import { matchPattern } from "../patterns/match";
 import { p } from "../patterns/meta";
 import { BUILTINS_LOC } from "./locations";
 import { BUILTIN_QUOTE } from "./metaprogramming";
-import { makePrimitiveReference, NativeModule, rewriteAsApply, symbol_x, symbol_y } from "./module";
+import {
+    makePrimitiveReference,
+    NativeModule,
+    rewriteAsApply,
+    symbol_x,
+    symbol_y,
+} from "./module";
 
 /**
- * @file
  * @module Builtins
+ * @file
  */
 
 const BUILTIN_LIST = boxNativeFunc("__list", BUILTINS_LOC);
@@ -20,72 +38,94 @@ const IMPLICIT_KEY = boxNativeFunc("__implicit_key", BUILTINS_LOC);
 export function collections(mod: NativeModule) {
     /**
      * List literal
-     * @backolon
+     *
      * @category Collections
+     * @backolon
      * @syntax List Literal
      * @pattern [item1, item2, ...]
      */
     /**
      * Key-value map literal (unordered)
-     * @backolon
+     *
      * @category Collections
+     * @example
+     *     ```backolon
+     *     ["name": "Alice", "age": 30]
+     *     # use the quote operator to use a symbol as the key
+     *     [`name: "Alice", `age: 30]
+     *     # Shorthand for symbol key and value being that variable:
+     *     variable := 10
+     *     [`variable:] # => [`variable: 10]
+     *     ```
+     *
+     * @backolon
      * @syntax Map Literal
      * @pattern [key: value, key2: value2, ...]
-     * @example
-     * ```backolon
-     * ["name": "Alice", "age": 30]
-     * # use the quote operator to use a symbol as the key
-     * [`name: "Alice", `age: 30]
-     * # Shorthand for symbol key and value being that variable:
-     * variable := 10
-     * [`variable:] # => [`variable: 10]
-     * ```
      */
-    mod.defsyntax("[x:squareblock]", -1e50, false, null, "__rewrite_squareblock", (task, state) => {
-        const arg = state.argv[0]! as Thing<ThingType.map>;
-        const loc = arg.loc;
-        const block = mapGetKey(arg, symbol_x)!;
-        if (matchPattern(block.c, empty_list_pattern, false).length > 0) {
-            task.out(boxApply(BUILTIN_LIST, [], loc));
-            return;
-        }
-        if (matchPattern(block.c, empty_map_pattern, false).length > 0) {
-            task.out(boxApply(BUILTIN_DICT, [], loc));
-            return;
-        }
-        const split = matchPattern(block.c, split_on_comma, false)[0];
-        if (!split) {
-            throw new RuntimeError("Unknown error parsing collection literal", loc);
-        }
-        const first = split.bindings[0]![1] as any[];
-        const rest = split.bindings[1]?.[1] as any[] | undefined;
-        const split2 = matchPattern(first, split_on_colon, false)[0];
-        var first_el;
-        if (split2) {
-            const key = split2.bindings[0]![1] as any[];
-            const keyB = boxRoundBlock(key, key[0]!.loc);
-            const value = split2.bindings[1]![1] as any[];
-            const valueB = boxRoundBlock(value, value[0]!.loc);
-            first_el = boxApply(BUILTIN_DICT, [keyB, valueB], valueB.loc);
-        } else {
-            const split3 = matchPattern(first as any[], implicit_key, false)[0];
-            if (split3) {
-                const first = split3.bindings[0]![1] as any[];
-                const firstB = boxRoundBlock(first, first[0].loc);
-                first_el = boxApply(IMPLICIT_KEY, [firstB], first[0].loc);
-            } else {
-                const firstB = boxRoundBlock(first, (first)[0].loc);
-                first_el = boxApply(BUILTIN_LIST, [firstB], firstB.loc);
+    mod.defsyntax(
+        "[x:squareblock]",
+        -1e50,
+        false,
+        null,
+        "__rewrite_squareblock",
+        (task, state) => {
+            const arg = state.argv[0]! as Thing<ThingType.map>;
+            const loc = arg.loc;
+            const block = mapGetKey(arg, symbol_x)!;
+            if (matchPattern(block.c, empty_list_pattern, false).length > 0) {
+                task.out(boxApply(BUILTIN_LIST, [], loc));
+                return;
             }
-        }
-        if (rest) {
-            const loc = rest[0].loc;
-            const restB = boxRoundBlock([boxSquareBlock(rest, loc)], loc);
-            task.out(boxRoundBlock([first_el, boxOperatorSymbol("+", first_el.loc), restB], restB.loc));
-        } else {
-            task.out(first_el);
-        }
-    });
+            if (matchPattern(block.c, empty_map_pattern, false).length > 0) {
+                task.out(boxApply(BUILTIN_DICT, [], loc));
+                return;
+            }
+            const split = matchPattern(block.c, split_on_comma, false)[0];
+            if (!split) {
+                throw new RuntimeError(
+                    "Unknown error parsing collection literal",
+                    loc,
+                );
+            }
+            const first = split.bindings[0]![1] as any[];
+            const rest = split.bindings[1]?.[1] as any[] | undefined;
+            const split2 = matchPattern(first, split_on_colon, false)[0];
+            var first_el;
+            if (split2) {
+                const key = split2.bindings[0]![1] as any[];
+                const keyB = boxRoundBlock(key, key[0]!.loc);
+                const value = split2.bindings[1]![1] as any[];
+                const valueB = boxRoundBlock(value, value[0]!.loc);
+                first_el = boxApply(BUILTIN_DICT, [keyB, valueB], valueB.loc);
+            } else {
+                const split3 = matchPattern(
+                    first as any[],
+                    implicit_key,
+                    false,
+                )[0];
+                if (split3) {
+                    const first = split3.bindings[0]![1] as any[];
+                    const firstB = boxRoundBlock(first, first[0].loc);
+                    first_el = boxApply(IMPLICIT_KEY, [firstB], first[0].loc);
+                } else {
+                    const firstB = boxRoundBlock(first, first[0].loc);
+                    first_el = boxApply(BUILTIN_LIST, [firstB], firstB.loc);
+                }
+            }
+            if (rest) {
+                const loc = rest[0].loc;
+                const restB = boxRoundBlock([boxSquareBlock(rest, loc)], loc);
+                task.out(
+                    boxRoundBlock(
+                        [first_el, boxOperatorSymbol("+", first_el.loc), restB],
+                        restB.loc,
+                    ),
+                );
+            } else {
+                task.out(first_el);
+            }
+        },
+    );
     mod.defun("__list", "items...", (task, state) => {
         task.out(boxList(state.argv.slice(), state.value.loc));
     });
@@ -94,7 +134,8 @@ export function collections(mod: NativeModule) {
         const m = newEmptyMap(loc);
         const argv = state.argv;
         const len = argv.length;
-        if ((len & 1) !== 0) throw new RuntimeError("odd number of arguments", loc);
+        if ((len & 1) !== 0)
+            throw new RuntimeError("odd number of arguments", loc);
         for (var i = 0; i < len; i += 2) {
             const key = argv[i]!;
             const value = argv[i + 1]!;
@@ -105,35 +146,48 @@ export function collections(mod: NativeModule) {
     mod.defun("__implicit_key", "kv", (task, state) => {
         const val = state.argv[0]!;
         task.out();
-        task.enter(boxApply(BUILTIN_DICT, [boxApply(BUILTIN_QUOTE, [val], val.loc), val], val.loc), val.loc, state.env);
+        task.enter(
+            boxApply(
+                BUILTIN_DICT,
+                [boxApply(BUILTIN_QUOTE, [val], val.loc), val],
+                val.loc,
+            ),
+            val.loc,
+            state.env,
+        );
     });
     /**
      * Concatenate lists
-     * @backolon
+     *
      * @category Collections
+     * @example
+     *     ```backolon
+     *     [1, 2] + [3, 4] # => [1, 2, 3, 4]
+     *     ```;
+     *
+     * @backolon
      * @syntax Concatenate Lists
      * @pattern list1 + list2
-     * @example
-     * ```backolon
-     * [1, 2] + [3, 4] # => [1, 2, 3, 4]
-     * ```
      */
     mod.defoverload("add", [ThingType.list, ThingType.list], (loc, argv) => {
         return boxList([...argv[0].c, ...argv[1].c], loc);
     });
     /**
      * Merge maps (2nd map's keys take priority)
-     * @backolon
+     *
      * @category Collections
+     * @example
+     *     ```backolon
+     *     [1: 2, 2: 4] + [1: 3, 4: 5] # => [1: 3, 2: 4, 4: 5]
+     *     ```;
+     *
+     * @backolon
      * @syntax Merge Maps
      * @pattern map1 + map2
-     * @example
-     * ```backolon
-     * [1: 2, 2: 4] + [1: 3, 4: 5] # => [1: 3, 2: 4, 4: 5]
-     * ```
      */
     mod.defoverload("add", [ThingType.map, ThingType.map], (loc, argv) => {
-        const head = argv[0], tail = argv[1];
+        const head = argv[0],
+            tail = argv[1];
         const m2 = newEmptyMap(head.loc);
         for (var i = 0; i < head.c.length; i++) {
             mapUpdateKeyMutating(m2, head.c[i]!.c[0], head.c[i]!.c[1], loc);
@@ -145,88 +199,138 @@ export function collections(mod: NativeModule) {
     });
     /**
      * Access list indices
-     * @backolon
+     *
      * @category Collections
+     * @example
+     *     ```backolon
+     *     x := [1, 2, 3]
+     *     x->1 # => 2
+     *     x->0 = 3 # now x == [3, 2, 3]
+     *     ```;
+     *
+     * @backolon
      * @syntax Index List
      * @pattern list -> number
-     * @example
-     * ```backolon
-     * x := [1, 2, 3]
-     * x->1 # => 2
-     * x->0 = 3 # now x == [3, 2, 3]
-     * ```
      */
     /**
      * Access map keys
-     * @backolon
+     *
      * @category Collections
+     * @example
+     *     ```backolon
+     *     y := ["a": 1, "b": 2]
+     *     y->"b" # => 2
+     *     y->"c" = 3 # now y == ["a": 1, "b": 2, "c": 3]
+     *     ```;
+     *
+     * @backolon
      * @syntax Query Map
      * @pattern map -> any
-     * @example
-     * ```backolon
-     * y := ["a": 1, "b": 2]
-     * y->"b" # => 2
-     * y->"c" = 3 # now y == ["a": 1, "b": 2, "c": 3]
-     * ```
      */
     mod.defop("__getitem", "getitem");
-    mod.defoverload("getitem", [ThingType.list, ThingType.number], (loc, argv) => {
-        const list = argv[0].c;
-        const index = Number(argv[1].v);
-        const value = list.at(index);
-        if (value === undefined) {
-            throw new RuntimeError(`list index ${index} out of range for length ${list.length}`, loc);
-        }
-        return value;
-    });
+    mod.defoverload(
+        "getitem",
+        [ThingType.list, ThingType.number],
+        (loc, argv) => {
+            const list = argv[0].c;
+            const index = Number(argv[1].v);
+            const value = list.at(index);
+            if (value === undefined) {
+                throw new RuntimeError(
+                    `list index ${index} out of range for length ${list.length}`,
+                    loc,
+                );
+            }
+            return value;
+        },
+    );
     mod.defoverload("getitem", [ThingType.map, null], (loc, argv) => {
         const map = argv[0];
         const key = argv[1];
         const value = mapGetKey(map, key, loc);
         if (value === undefined) {
-            throw new RuntimeError(`key ${DEFAULT_UNPARSER.unparse(key)} not found in map`, loc);
+            throw new RuntimeError(
+                `key ${DEFAULT_UNPARSER.unparse(key)} not found in map`,
+                loc,
+            );
         }
         return value;
     });
-    mod.defsyntax("x -> y", -1, false, null, "__rewrite_getitem", (task, state) => {
-        const groups: Thing<ThingType.map> = state.argv[0]! as any;
-        const x = mapGetKey(groups, symbol_x)!;
-        const y = mapGetKey(groups, symbol_y)!;
-        const loc = state.value.loc;
-        task.out(makePrimitiveReference([x, y], "__getitem", "__setitem", state.env, loc));
-    });
+    mod.defsyntax(
+        "x -> y",
+        -1,
+        false,
+        null,
+        "__rewrite_getitem",
+        (task, state) => {
+            const groups: Thing<ThingType.map> = state.argv[0]! as any;
+            const x = mapGetKey(groups, symbol_x)!;
+            const y = mapGetKey(groups, symbol_y)!;
+            const loc = state.value.loc;
+            task.out(
+                makePrimitiveReference(
+                    [x, y],
+                    "__getitem",
+                    "__setitem",
+                    state.env,
+                    loc,
+                ),
+            );
+        },
+    );
     /**
      * Dot-key shorthand for indexing with a name string.
-     * @backolon
+     *
      * @category Collections
+     * @example
+     *     ```backolon
+     *     ["a": 1, "b": 2].b # => 2
+     *     ```;
+     *
+     * @backolon
      * @syntax Query Map String Key Shorthand
      * @pattern map.name
-     * @example
-     * ```backolon
-     * ["a": 1, "b": 2].b # => 2
-     * ```
      */
-    mod.defsyntax("x . [y:name]", -1, false, null, "__rewrite_dot_getitem", (task, state) => {
-        const groups: Thing<ThingType.map> = state.argv[0]! as any;
-        const x = mapGetKey(groups, symbol_x)!;
-        const y = mapGetKey(groups, symbol_y)!;
-        // Create the expression: x -> "y"
-        const arrowExpr = new Thing(ThingType.splat, [
-            x,
-            boxOperatorSymbol("-", x.loc),
-            boxOperatorSymbol(">", x.loc),
-            boxString(y.v, y.loc, stringify(y.v), ""),
-        ], null, "", "", "", state.value.loc);
-        task.out(arrowExpr);
-    });
+    mod.defsyntax(
+        "x . [y:name]",
+        -1,
+        false,
+        null,
+        "__rewrite_dot_getitem",
+        (task, state) => {
+            const groups: Thing<ThingType.map> = state.argv[0]! as any;
+            const x = mapGetKey(groups, symbol_x)!;
+            const y = mapGetKey(groups, symbol_y)!;
+            // Create the expression: x -> "y"
+            const arrowExpr = new Thing(
+                ThingType.splat,
+                [
+                    x,
+                    boxOperatorSymbol("-", x.loc),
+                    boxOperatorSymbol(">", x.loc),
+                    boxString(y.v, y.loc, stringify(y.v), ""),
+                ],
+                null,
+                "",
+                "",
+                "",
+                state.value.loc,
+            );
+            task.out(arrowExpr);
+        },
+    );
     mod.defop("__setitem", "setitem");
-    mod.defoverload("setitem", [ThingType.list, ThingType.number, null], (loc, argv) => {
-        const list = argv[0];
-        const index = argv[1];
-        const value = argv[2];
-        list.c.splice(Number(index.v), 1, value);
-        return value;
-    });
+    mod.defoverload(
+        "setitem",
+        [ThingType.list, ThingType.number, null],
+        (loc, argv) => {
+            const list = argv[0];
+            const index = argv[1];
+            const value = argv[2];
+            list.c.splice(Number(index.v), 1, value);
+            return value;
+        },
+    );
     mod.defoverload("setitem", [ThingType.map, null, null], (loc, argv) => {
         const map = argv[0];
         const key = argv[1];
@@ -236,43 +340,86 @@ export function collections(mod: NativeModule) {
     });
     /**
      * Length of string, list, or map
-     * @backolon
+     *
      * @category Collections
+     * @example
+     *     ```backolon
+     *     #"hello" # => 5
+     *     #[1, 2, 3] # => 3
+     *     #[1: 2] # => 1
+     *     ```;
+     *
+     * @backolon
      * @syntax Length
      * @pattern #collection
-     * @example
-     * ```backolon
-     * #"hello" # => 5
-     * #[1, 2, 3] # => 3
-     * #[1: 2] # => 1
-     * ```
      */
     mod.defop("__length", "length");
-    mod.defoverload("length", [ThingType.list], (loc, argv) => boxNumber(argv[0].c.length, loc));
-    mod.defoverload("length", [ThingType.map], (loc, argv) => boxNumber(argv[0].c.length, loc));
-    mod.defsyntax("#x", 0, true, null, "__rewrite_length", rewriteAsApply([symbol_x], "__length"));
+    mod.defoverload("length", [ThingType.list], (loc, argv) =>
+        boxNumber(argv[0].c.length, loc),
+    );
+    mod.defoverload("length", [ThingType.map], (loc, argv) =>
+        boxNumber(argv[0].c.length, loc),
+    );
+    mod.defsyntax(
+        "#x",
+        0,
+        true,
+        null,
+        "__rewrite_length",
+        rewriteAsApply([symbol_x], "__length"),
+    );
     /**
      * Test if a collection contains an item
-     * @backolon
+     *
      * @category Collections
+     * @example
+     *     ```backolon
+     *     [1, 2, 3] :> 1 # => true
+     *     1 <: [1: 3, 2: 4] # => true
+     *     ```;
+     *
+     * @backolon
      * @syntax Containment
      * @pattern item <: collection
      * @pattern collection :> item
-     * @example
-     * ```backolon
-     * [1, 2, 3] :> 1 # => true
-     * 1 <: [1: 3, 2: 4] # => true
-     * ```
      */
     mod.defop("__in", "in");
     mod.defop("__has", "has");
-    mod.defsyntax("x <: y", 6.9, false, null, "__rewrite_in", rewriteAsApply([symbol_x, symbol_y], "__in"));
-    mod.defsyntax("x :> y", 6.9, false, null, "__rewrite_has", rewriteAsApply([symbol_x, symbol_y], "__has"));
+    mod.defsyntax(
+        "x <: y",
+        6.9,
+        false,
+        null,
+        "__rewrite_in",
+        rewriteAsApply([symbol_x, symbol_y], "__in"),
+    );
+    mod.defsyntax(
+        "x :> y",
+        6.9,
+        false,
+        null,
+        "__rewrite_has",
+        rewriteAsApply([symbol_x, symbol_y], "__has"),
+    );
     // TODO: generalize these to use the equality operator
-    mod.defoverload("in", [null, ThingType.map], (loc, argv) => boxBoolean(!!mapGetKey(argv[1], argv[0], loc), loc));
-    mod.defoverload("has", [ThingType.map, null], (loc, argv) => boxBoolean(!!mapGetKey(argv[0], argv[1], loc), loc));
-    mod.defoverload("in", [null, ThingType.list], (loc, argv) => boxBoolean(argv[1].c.some(({ h }) => h === argv[0].h), loc));
-    mod.defoverload("has", [ThingType.list, null], (loc, argv) => boxBoolean(argv[0].c.some(({ h }) => h === argv[1].h), loc));
+    mod.defoverload("in", [null, ThingType.map], (loc, argv) =>
+        boxBoolean(!!mapGetKey(argv[1], argv[0], loc), loc),
+    );
+    mod.defoverload("has", [ThingType.map, null], (loc, argv) =>
+        boxBoolean(!!mapGetKey(argv[0], argv[1], loc), loc),
+    );
+    mod.defoverload("in", [null, ThingType.list], (loc, argv) =>
+        boxBoolean(
+            argv[1].c.some(({ h }) => h === argv[0].h),
+            loc,
+        ),
+    );
+    mod.defoverload("has", [ThingType.list, null], (loc, argv) =>
+        boxBoolean(
+            argv[0].c.some(({ h }) => h === argv[1].h),
+            loc,
+        ),
+    );
 }
 
 const empty_list_pattern = p("[^] [$]");
@@ -280,4 +427,3 @@ const empty_map_pattern = p("[^] : [$]");
 const split_on_comma = p("[^] x... {, y...|} [$]");
 const split_on_colon = p("[^] x... : y... [$]");
 const implicit_key = p("[^] x... : [$]");
-
