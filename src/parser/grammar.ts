@@ -214,7 +214,7 @@ export const backolonGrammar: Grammar = {
     )],
 
     // right associative
-    cascade: rule("binary_op", rule("pipe"), rule("cascade_op"), rule("pipe"), rule("cascade"), nothing()),
+    cascade: rule("binary_op", rule("pipe"), rule("cascade_op"), rule("pipe"), rule("cascade"), lookahead(true, rule("member"))),
     cascade_op: alt(
         rule("up_dot_null"),
         rule("up_dot"),
@@ -397,13 +397,19 @@ export const backolonGrammar: Grammar = {
     ), // allow blank arguments
 
     // left associative
-    indexing: rule("binary_op", rule("primary"), rule("indexing_op"), rule("postfix"), rule("primary"), nothing()),
+    indexing: rule("binary_op", rule("primary"), rule("indexing_op"), rule("postfix"), rule("member"), nothing()),
     indexing_op: alt(
         rule("dot"),
         rule("null_dot"),
     ),
     dot: op("operator", "."),
     null_dot: op("operator", "?."),
+    // what may follow a dot: a static key, an index, or a computed key
+    member: alt(
+        rule("name"),
+        rule("number"),
+        rule("par_exp"),
+    ),
 
     // primary: unary operators or atom
     primary: alt(

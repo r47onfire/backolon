@@ -3,9 +3,9 @@ import { last } from "lib0/array";
 import { isString } from "lib0/function";
 import { backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST, syncCompile } from "../src";
 
-const SAMPLE_SCRIPT = `(foo()..add(1)..add(2))`;
+const SAMPLE_SCRIPT = `(foo()..add(1)..add(2)..add(3)..add(4))`;
 
-    `
+`
 ## comments: comment, line_comment, block_comment, blank
 ## a trailing line comment
 ##[[ a block comment ##]]
@@ -268,7 +268,9 @@ const callBody = [(nodes: [CSTNode, CSTNode]) => {
 // Root a cascade section at the receiver: descend the section's left
 // spine (a call's callee, an indexing lhs, an assignment's target, any
 // other binary lhs) to the root primary and replace it with an
-// indexing node over the receiver.
+// indexing node over the receiver. The root is the section's key: a
+// name, a number, or a par_exp, the same set the grammar allows after
+// a dot.
 const rootSection = (section: CSTNode, receiver: CSTNode, nullHead: boolean): CSTNode | null => {
     const descend = (node: CSTNode): CSTNode | null => {
         switch (node.type) {
@@ -280,6 +282,7 @@ const rootSection = (section: CSTNode, receiver: CSTNode, nullHead: boolean): CS
                 return head === null ? null : { ...node, children: [head, ...node.children!.slice(1)] };
             }
             case "name":
+            case "number":
             case "par_exp":
                 return {
                     type: "binary_op", start: node.start, end: node.end,
@@ -306,14 +309,16 @@ const cascadePRE = (nullHead: boolean): Parameters<typeof syncCompile>[1][number
     const receiver: CSTNode = temp === undefined ? left
         : { type: "name", start: left.start, end: left.end, children: [{ text: temp as any, start: left.start, end: left.end }] };
     const rooted = rootSection(section, receiver, nullHead);
-    if (rooted === null) return { val: makeSyntaxErrorNode(section, "cascade section must start with a name") };
+    if (rooted === null) return { val: makeSyntaxErrorNode(section, "cascade section must start with a name, number, or (expression)") };
     const stmts: CSTNode[] = [rooted];
     if (rest) stmts.push({
         type: "binary_op", start: right.start, end: right.end,
         children: [receiver, nullHead ? { type: "up_dot_null", start: rest[0].start, end: rest[0].end, children: [] } : rest[0], rest[1]],
     });
     const tbc: [CSTNode, PropertyKey[]][] = stmts.map((stmt, i) => [stmt, [i + 1]] as [CSTNode, PropertyKey[]]);
-    tbc.push([receiver, [stmts.length + 1]]);
+    // only the last link appends the receiver as the value: when
+    // there is a rest, its compiled form already ends with it
+    if (!rest) tbc.push([receiver, [stmts.length + 1]]);
     if (temp === undefined) return { val: ["begin"], tbc, post: "flatten_all_begin" };
     return {
         val: ["let", [[temp, undefined]], ["begin"]],
@@ -322,10 +327,12 @@ const cascadePRE = (nullHead: boolean): Parameters<typeof syncCompile>[1][number
     };
 };
 
+const id: typeof JSON["stringify"] = (x: any, ...x2: any[]): string => Bun.inspect(x, { colors: true, depth: Infinity });
+
 const cst = condenseCST(parseToCST(SAMPLE_SCRIPT, 0, "toplevel_exprs", backolonGrammar, "exprs", "BAD"));
 if (process.argv.includes("--dump")) console.log(JSON.stringify(cst, null, 2));
 
-else console.log(JSON.stringify(syncCompile(cst, {
+else console.log(id(syncCompile(cst, {
     exprs: beginBody,
     body_exprs: beginBody,
     par_exp: [(nodes: CSTNode[]) => {
@@ -664,12 +671,17 @@ else console.log(JSON.stringify(syncCompile(cst, {
         return { val: nodes };
     }],
     flatten_all_begin: [(nodes: any[]) => {
-        return {
-            val: nodes.flatMap(node => {
-                if (Array.isArray(node) && node[0] === "begin") return node.slice(1);
-                return [node];
-            }),
-        };
+        var post: string | undefined;
+        const val = nodes.flatMap(node => {
+            // TODO: this will break when node is wrapped in at()
+            if (Array.isArray(node) && node[0] === "begin") {
+                // we should recurse
+                post = "flatten_all_begin";
+                return node.slice(1);
+            }
+            return [node];
+        });
+        return { val, post };
     }],
     ternary: [(nodes: [CSTNode, CSTNode, CSTNode]) => {
         return {
