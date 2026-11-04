@@ -453,13 +453,14 @@ export const backolonGrammar: Grammar = {
 
     empty_arg: seq(nothing(), lookahead(true, rule("comma"))), // only between commas
 
-    // non associative; the key must be a member or a quoted member
-    // (a computed key needs parens)
+    // non associative; the key must be a member, a quoted member, or a
+    // prefixed member (a sym, unique sym, or option on a member) -- any
+    // other computed key needs parens
     kw_arg: rule(
         "binary_op",
         rule("assign_rev"),
         rule("kw_arg_op"),
-        alt(rule("member"), rule("quote_prefix")),
+        alt(rule("member"), rule("quote_prefix"), rule("member_prefix")),
         rule("assign_rev"),
         nothing(),
     ),

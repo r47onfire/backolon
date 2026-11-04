@@ -10,7 +10,7 @@ import {
     syncCompile,
 } from "../src";
 
-const SAMPLE_SCRIPT = `[(:x): 1]`;
+const SAMPLE_SCRIPT = `[:__add__: 1]`;
 
 `
 ## comments: comment, line_comment, block_comment, blank
@@ -679,10 +679,10 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                 [1, 1],
                 [1, 0],
             ],
-            normal_assign: [["set"], [1], [2]],
-            old_assign: [["set", , , true], [1], [2]],
+            normal_assign: [["assign"], [1], [2]],
+            old_assign: [["assign", , , true], [1], [2]],
             aug_assign: ["aug_assignPRE", [], []],
-            arrow: [["set"], [2], [1]],
+            arrow: [["assign"], [2], [1]],
             kw: ["kwPRE", [], []],
             dot: ["dotPRE", [], []],
             null_dot: ["null_dotPRE", [], []],
@@ -718,7 +718,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
             const right = nodes[1];
             const op = nodes[2];
             return {
-                val: ["set"],
+                val: ["assign"],
                 tbc: [
                     [left, [1]],
                     [
@@ -917,10 +917,17 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                     ),
                 };
             }
-            // A keyed collection is an (object key value...) call: keys are
-            // static names, values compile into the argument list after them.
+            // A keyed collection is an (object key value...) call: a name
+            // or quoted name key is static text in its slot, any other key
+            // (a number, a sym, a par_exp, ...) is computed -- the object
+            // call evaluates its key slots, so the key expression compiles
+            // into the slot like a value does.
             // Splats compile through as arguments: a keyword splat merges its
             // entries, a positional splat splices into the key/value stream
+            const isStaticKey = (key: CSTNode): boolean =>
+                key.type === "name" ||
+                (key.type === "quote_prefix" &&
+                    key.children![0]!.type === "quote");
             const keyText = (key: CSTNode): string => {
                 if (key.type === "name") return key.children![0]!.text!;
                 if (
@@ -939,7 +946,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
             const tbc: [CSTNode, PropertyKey[]][] = [];
             const val2: any = {};
             const tbc2: [CSTNode, PropertyKey[]][] = [];
-            var allConstant = false; // should be true but this is broken
+            var allConstant = true; // should be true but this is broken
             for (var n of nodes) {
                 if (isSplat(n)) {
                     val.push(null);
@@ -952,14 +959,25 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                     tbc.push([nameNode, [val.length - 1]]);
                     tbc2.push([nameNode, [name]]);
                 } else if (isKeyed(n)) {
-                    val.push(keyText(n.children![0]!), null);
-                    tbc.push([n.children![2]!, [val.length - 1]]);
+                    const key = n.children![0]!;
+                    const item = n.children![2]!;
+                    if (isStaticKey(key)) {
+                        const name = keyText(key);
+                        val.push(name, null);
+                        tbc2.push([item, [name]]);
+                    } else {
+                        val.push(null, null);
+                        tbc.push([key, [val.length - 2]]);
+                        allConstant = false;
+                    }
+                    tbc.push([item, [val.length - 1]]);
                 } else {
                     val.push(
                         makeSyntaxErrorNode(n, "expected key-value pair"),
                         null,
                     );
                     tbc.push([n, [val.length - 1]]);
+                    allConstant = false;
                 }
             }
             return allConstant ? { val: val2, tbc: tbc2 } : { val, tbc };
