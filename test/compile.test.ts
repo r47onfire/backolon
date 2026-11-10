@@ -442,7 +442,7 @@ const dotPRE =
     };
 
 const id: (typeof JSON)["stringify"] = (x: any, ...x2: any[]): string =>
-    Bun.inspect(x, { colors: true, depth: Infinity });
+    Bun.inspect(x, { colors: !process.env.NO_COLOR, depth: Infinity });
 
 const handlers: Parameters<typeof syncCompile>[1] = {
     exprs: beginBody,
