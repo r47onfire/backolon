@@ -1,14 +1,3 @@
-import {
-    ErrnoCode,
-    JEBError,
-    makeOpcode,
-    NOTHING,
-    peekData,
-    popData,
-    promisifyVM,
-    theTypeName,
-    typeOf,
-} from "@r47onfire/jeb";
 import { Finder } from "./finder";
 import { JSModule, JSONModule, JSONSourceMap } from "./jsmod";
 import {

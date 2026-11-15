@@ -2,8 +2,9 @@
 bun = true
 [fmt]
 tabWidth = 4
+proseWrap = "always"
 jsdoc = true
-ignorePatterns = ["jeb/**", "skills/**"]
+ignorePatterns = ["jeb/**", "skills/**", "nebula/**"]
 [[fmt.overrides]]
 files = ["test/grammar.test.ts"]
 options = { printWidth = 100000000 }

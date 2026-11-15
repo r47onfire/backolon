@@ -19,7 +19,7 @@
     "scripts": {
         "build": "bun run clean-dist && bun run scripts/build.ts",
         "build-for-fuzzer": "bun run scripts/build-for-fuzzer.ts",
-        "build:website": "bun run clean-docs && . scripts/build-website.sh",
+        "build:website": "bun run clean-docs && bun run build --minify && bun typedoc && bun run scripts/build-website.ts",
         "dev": "bun run --parallel \"dev:*\"",
         "dev:serve": "python3 -m http.server -d docs",
         "dev:watch": "bun nodemon -e js,json,ts,css,md,html,bk -i docs -w src -w website -w scripts --exec \"bun run build:website\"",
@@ -46,7 +46,7 @@
         "@types/prismjs": "^1.26.6",
         "markdown-it": "^15.0.3",
         "markdown-it-attrs": "^5.0.1",
-        "node-html-parser": "^9.0.6",
+        "node-html-parser": "^9.0.7",
         "nodemon": "^3.1.14",
         "prismjs": "^1.30.0",
         "typedoc": "^0.28.20"
@@ -54,8 +54,8 @@
     "type": "module",
     "dependencies": {
         "@r47onfire/game-math": "github:r47onfire/game-math",
-        "@r47onfire/jeb": "file:jeb",
-        "lib0": "^0.2.119",
+        "@r47onfire/nebula": "file:nebula",
+        "lib0": "^0.2.120",
         "lz-string": "^1.5.0",
         "resurrect-esm": "^2.0.9"
     }

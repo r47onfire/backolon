@@ -1,4 +1,3 @@
-import { Continuation, OP_apply, pushCommand, pushData } from "@r47onfire/jeb";
 import { Importer } from "./importer";
 import { Module } from "./module";
 import { BackolonVM } from "./vm";
@@ -72,10 +71,6 @@ export class BackolonSourceModuleLoader extends Loader {
     }
     async load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
         const text = await importer.getText(url);
-        pushData(vm, new Continuation(vm, []));
-        pushCommand(vm, OP_apply, [module], undefined, true, true);
-        pushCommand(vm, OP_runModule, vm.setSource(url, text)!);
-        pushCommand(vm, OP_setupModuleGlobals);
-        vm.currentEnv = module.global;
+        throw new Error("text");
     }
 }

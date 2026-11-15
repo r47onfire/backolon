@@ -1,14 +1,3 @@
-import {
-    AccessType,
-    ErrnoCode,
-    JEBError,
-    JebVM,
-    Location,
-    pushCommand,
-    pushData,
-    VariableReference,
-} from "@r47onfire/jeb";
-import { Span } from "../parser/span";
 import { Importer, OP_do_import, SourceTracker } from "./importer";
 import { Module } from "./module";
 
@@ -41,31 +30,12 @@ export interface ModuleCacheEntry {
  * module cache, the current parser (if any), and the span tables that map JEB
  * {@link Location}s back to source ranges.
  */
-export class BackolonVM extends JebVM<BackolonVM> {
+export class BackolonVM {
     /** Current parser context - null if not parsing */
     parser: Parser | null = null;
     constructor(public importer: Importer) {
-        super();
         this.#createBuiltinsModule();
         create_parser_module(this);
-    }
-    /** Captures the module `parent` links (and parser) for rollback. */
-    override getState(): BackolonVMState {
-        return {
-            moduleLoad: (this.modcache ?? []).map((mod) => mod.mod.parent),
-            parser: this.parser,
-            resetParser: true,
-        };
-    }
-    /**
-     * Restores a state captured by {@link getState}; the parser is always reset
-     * to the captured one.
-     */
-    override restoreState(state: BackolonVMState) {
-        state.moduleLoad.forEach(
-            (parent, i) => (this.modcache[i]!.mod.parent = parent),
-        );
-        if (state.resetParser) this.parser = state.parser;
     }
     /**
      * All modules this VM knows about, in registration order. An entry's index
@@ -73,15 +43,6 @@ export class BackolonVM extends JebVM<BackolonVM> {
      * module.
      */
     modcache: ModuleCacheEntry[] = [];
-    /**
-     * Starts running the main module
-     *
-     * @param url URL of the main module
-     */
-    override start(url: URL) {
-        pushCommand(this, OP_do_import, null, true);
-        pushData(this, url);
-    }
     /**
      * Looks up a module's cache entry by exact URL; returns its index and the
      * entry (or undefined).
@@ -114,68 +75,6 @@ export class BackolonVM extends JebVM<BackolonVM> {
             map: [],
         });
         return mod;
-    }
-    /**
-     * Records the source text of an already-registered module and returns its
-     * tracker. If the module isn't registered, warns and returns undefined
-     * instead.
-     */
-    setSource(url: URL, src: string): SourceTracker | undefined {
-        const i = this.#modcacheGet(url)[1];
-        if (!i) {
-            console.warn(
-                `attempted to set source for module ${url} that has not yet been registered`,
-            );
-            return;
-        }
-        return (i.src = new SourceTracker(url, src, {}));
-    }
-    /** The recorded source text of the module at `url`, if any. */
-    getSource(url: URL): string | undefined {
-        return this.#modcacheGet(url)[1]?.src?.code;
-    }
-    /**
-     * Registers a source span with its module and returns the opaque
-     * {@link Location} (span index, module index) that represents it elsewhere
-     * in the VM. Throws if the span's module isn't registered.
-     */
-    registerSpan(span: Span): Location {
-        const url = span.file;
-        const { 0: index, 1: mc } = this.#modcacheGet(url);
-        if (!mc) throw new JEBError(ErrnoCode.ENOENT);
-        return location([mc.map.push(span) - 1, index]);
-    }
-    /** Resolves a {@link Location} back to the span it was registered from. */
-    getSpan(location: Location): Span {
-        const span = this.modcache[location[1]!]?.map[location[0]!];
-        if (!span) throw new JEBError(ErrnoCode.ENOENT);
-        return span;
-    }
-    /**
-     * Adds a syntax-highlight tag to every character position covered by the
-     * span at `location`, in that module's {@link SourceTracker}. Unknown
-     * locations and source-less modules are ignored (with a warning), since
-     * highlighting is best-effort.
-     */
-    tag(location: Location, tag: string) {
-        const { 0: spanIndex, 1: fileIndex } = location;
-        const modentry = this.modcache[fileIndex!];
-        const mySpan = modentry?.map[spanIndex!];
-        if (!mySpan) {
-            console.warn(
-                `tried to tag span at location ${location} which doesn't exist`,
-            );
-            return;
-        }
-        const st = modentry?.src;
-        if (!st) {
-            console.warn(
-                `ignoring tag on module ${modentry.mod.id} which has no source`,
-            );
-            return;
-        }
-        const { start, end } = mySpan;
-        for (var i = start; i < end; i++) (st.tags[i] ??= []).push(tag);
     }
     /**
      * Registers the special `backolon:builtins` module, whose exports mirror

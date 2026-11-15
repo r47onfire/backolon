@@ -1,10 +1,12 @@
+import { CSTNode, describeCombinator, parseToCST } from "@r47onfire/nebula";
+import { condenseCST } from "@r47onfire/nebula/compile";
 import { describe, expect, test } from "bun:test";
-import { backolonGrammar, condenseCST, CSTNode, describeCombinator, parseToCST } from "../src";
+import { backolonGrammar } from "../src";
 
 type ASTNode = string | number | undefined | ASTNode[];
 const toAST = (cst: CSTNode): ASTNode => {
     const recur = (cst: CSTNode): ASTNode => {
-        if (cst.errorExpected) return [cst.type, describeCombinator(cst.errorExpected), cst.end, cst.text];
+        if (cst.errorExpected) return [cst.type, describeCombinator(cst.errorExpected), cst.span.end, cst.text];
         if (cst.type) return [cst.type, ...cst.children!.map(recur)];
         return cst.text;
     };
@@ -12,7 +14,7 @@ const toAST = (cst: CSTNode): ASTNode => {
 };
 
 const parse = (text: string): CSTNode => {
-    const cst = parseToCST(text, 0, "toplevel_exprs", backolonGrammar, "exprs");
+    const cst = parseToCST(text, new URL("test:"), 0, "toplevel_exprs", backolonGrammar, "exprs");
     // console.log(text + "\n" + JSON.stringify(toAST(cst)));
     return cst;
 };
@@ -23,12 +25,12 @@ const leaves = (node: CSTNode): string[] => {
     return node.children.flatMap(leaves);
 };
 const checkSource = (node: CSTNode, source: string): void => {
-    expect(leaves(node).join("")).toBe(source.slice(node.start, node.end));
+    expect(leaves(node).join("")).toBe(source.slice(node.span.begin, node.span.end));
 };
 
 const parsesFully = (text: string): CSTNode => {
     const cst = parse(text);
-    expect(cst.end).toBe(text.length);
+    expect(cst.span.end).toBe(text.length);
     checkSource(cst, text);
     return cst;
 };
@@ -280,7 +282,7 @@ describe.each(Object.entries(TESTS))("%s", (_, list) => {
         if (node === "BAD") {
             const cst = parse(str);
             checkSource(cst, str);
-            expect(errorNodes(cst).length > 0 || cst.end < str.length).toBe(true);
+            expect(errorNodes(cst).length > 0 || cst.span.end < str.length).toBe(true);
             return;
         }
         expect(toAST(parsesFully(str))).toEqual(node);
@@ -292,21 +294,21 @@ describe("error nodes", () => {
     test("@", () => {
         const text = "@";
         const cst = parse(text);
-        expect(cst.end).toBe(text.length);
+        expect(cst.span.end).toBe(text.length);
         checkSource(cst, text);
         const errors = errorNodes(cst);
         expect(errors).toHaveLength(1);
-        expect([errors[0]!.start, errors[0]!.end, errors[0]!.text]).toEqual([0, 1, "@"]);
+        expect([errors[0]!.span.begin, errors[0]!.span.end, errors[0]!.text]).toEqual([0, 1, "@"]);
     });
     // "1 + % 2": "%" can't start a term, but the "2" after it is recovered as a number, and the result should be 1 + 2
     test("%", () => {
         const text = "1 + % 2";
         const cst = parse(text);
-        expect(cst.end).toBe(text.length);
+        expect(cst.span.end).toBe(text.length);
         checkSource(cst, text);
         const errors = errorNodes(cst);
         expect(errors).toHaveLength(1);
-        expect(errors[0]!.end).toBeLessThanOrEqual(6); // the error is before the recovered "2"
+        expect(errors[0]!.span.end).toBeLessThanOrEqual(6); // the error is before the recovered "2"
         const str = JSON.stringify(toAST(cst));
         expect(str).toContain(`"dec","1"`);
         expect(str).toContain(`"dec","2"`);
@@ -316,12 +318,12 @@ describe("error nodes", () => {
     test("(+)", () => {
         const text = "1 + (+) + 1";
         const cst = parse(text);
-        expect(cst.end).toBe(text.length);
+        expect(cst.span.end).toBe(text.length);
         checkSource(cst, text);
         const errors = errorNodes(cst);
         expect(errors).toHaveLength(1);
         expect(errors[0]!.text).toBe("+");
-        expect([errors[0]!.start, errors[0]!.end]).toEqual([5, 6]);
+        expect([errors[0]!.span.begin, errors[0]!.span.end]).toEqual([5, 6]);
         // add(add(1, BAD), 1): nested sums, error inside the inner one, not toplevel
         const ast = toAST(cst) as ASTNode[];
         expect(ast[0]).toBe("exprs");
@@ -333,7 +335,7 @@ describe("error nodes", () => {
     test("++%++", () => {
         const text = "1 + 1 + % 1 + 1 + 1";
         const cst = parse(text);
-        expect(cst.end).toBe(text.length);
+        expect(cst.span.end).toBe(text.length);
         checkSource(cst, text);
         const errors = errorNodes(cst);
         expect(errors).toHaveLength(1);

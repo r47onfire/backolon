@@ -1,0 +1,41 @@
+{
+    "$schema": "https://typedoc.org/schema.json",
+    "entryPointStrategy": "expand",
+    "tsconfig": "./tsconfig.json",
+    "excludeExternals": true,
+    "hideGenerator": true,
+    "includeVersion": true,
+    "disableSources": false,
+    "skipErrorChecking": true,
+    "disableGit": false,
+    "favicon": "./website/images/icon.png",
+    "useTsLinkResolution": true,
+    "ignoredHighlightLanguages": ["backolon"],
+    "intentionallyNotExported": [],
+    "externalSymbolLinkMappings": {
+        "bun": {
+            "BunPlugin": "https://bun.com/docs/bundler/plugins"
+        }
+    },
+    "sort": [
+        "documents-first",
+        "alphabetical",
+        "kind",
+        "enum-member-source-order"
+    ],
+    "plugin": ["@skillit/typedoc"],
+    "llmsTxt": true,
+    "llmsTxtOutDir": "docs",
+    "out": "./docs/js/",
+    "projectDocuments": ["guides/index.md"],
+    "readme": "docs_readme.md",
+    "searchInDocuments": true,
+    "sourceLinkTemplate": "https://github.com/r47onfire/backolon/blob/main/src/{path}#L{line}",
+    "navigationLinks": {
+        "Home": "/",
+        "REPL": "/repl",
+        "Language Docs": "/docs",
+        "JS API": "/js",
+        "Github": "https://github.com/r47onfire/backolon"
+    }
+}

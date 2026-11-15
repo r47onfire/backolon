@@ -28,9 +28,9 @@ import {
     ssep,
     tag,
     try_,
+    walkCombinator,
     yes,
-} from "./combinator";
-import { walkCombinator } from "./walk";
+} from "@r47onfire/nebula";
 
 /**
  * The Backolon grammar, as plain combinator data.

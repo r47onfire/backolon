@@ -1,14 +1,9 @@
 import { gensym, Identifier } from "@r47onfire/jeb";
+import { CSTNode, describeCombinator, parseToCST } from "@r47onfire/nebula";
+import { condenseCST, syncCompile } from "@r47onfire/nebula/compile";
 import { last } from "lib0/array";
 import { isString } from "lib0/function";
-import {
-    backolonGrammar,
-    condenseCST,
-    CSTNode,
-    describeCombinator,
-    parseToCST,
-    syncCompile,
-} from "../src";
+import { backolonGrammar } from "../src";
 
 const SAMPLE_SCRIPT = `[:__add__: 1]`;
 
@@ -308,14 +303,12 @@ const rootSection = (
             case "par_exp":
                 return {
                     type: "binary_op",
-                    start: node.start,
-                    end: node.end,
+                    span: node.span,
                     children: [
                         receiver,
                         {
                             type: nullHead ? "null_dot" : "dot",
-                            start: node.start,
-                            end: node.end,
+                            span: node.span,
                             children: [],
                         },
                         node,
@@ -351,13 +344,11 @@ const cascadePRE =
                 ? left
                 : {
                       type: "name",
-                      start: left.start,
-                      end: left.end,
+                      span: left.span,
                       children: [
                           {
                               text: temp as any,
-                              start: left.start,
-                              end: left.end,
+                              span: left.span,
                           },
                       ],
                   };
@@ -373,15 +364,13 @@ const cascadePRE =
         if (rest)
             stmts.push({
                 type: "binary_op",
-                start: right.start,
-                end: right.end,
+                span: right.span,
                 children: [
                     receiver,
                     nullHead
                         ? {
                               type: "up_dot_null",
-                              start: rest[0].start,
-                              end: rest[0].end,
+                              span: rest[0].span,
                               children: [],
                           }
                         : rest[0],
@@ -724,18 +713,15 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                     [
                         {
                             type: "binary_op",
-                            start: op.start,
-                            end: op.end,
+                            span: op.span,
                             children: [
                                 {
                                     type: "name",
-                                    start: op.start,
-                                    end: op.end,
+                                    span: op.span,
                                     children: [
                                         {
                                             text: "_",
-                                            start: op.start,
-                                            end: op.end,
+                                            span: op.span,
                                         },
                                     ],
                                 },
@@ -1181,6 +1167,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
 const cst = condenseCST(
     parseToCST(
         SAMPLE_SCRIPT,
+        new URL("sample:"),
         0,
         "toplevel_exprs",
         backolonGrammar,

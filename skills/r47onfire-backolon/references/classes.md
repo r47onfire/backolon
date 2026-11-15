@@ -1,29 +1,5 @@
 # Classes
 
-## parser
-
-### `MatchFail`
-A failed match. `i` is the index where the failure occurred (used for error
-reporting), `cut` is the remaining cut depth (Infinity for `die`), and
-`expected` is the combinator that failed to match.
-```ts
-constructor(i: number, cut: number, expected: GrammarCombinator): MatchFail
-```
-**Properties:**
-- `i: number`
-- `cut: number`
-- `expected: GrammarCombinator`
-
-### `Span`
-Source location information for a token.
-```ts
-constructor(file: Readonly<URL>, start: number, end: number): Span
-```
-**Properties:**
-- `file: Readonly<URL>` — URL uniquely identifying the source that this span is from.
-- `start: number` — Source index at which this span starts. (not line or column.)
-- `end: number` — Source index at which this span ends.
-
 ## runtime
 
 ### `Finder`
@@ -60,7 +36,7 @@ constructor(resolver: Resolver, finders: Finder[], loaders: Loader[]): Importer
 - `finders: Finder[]`
 - `loaders: Loader[]`
 **Methods:**
-- `loadModule(vm: BackolonVM, parent: Module | null, path: URL, asMain: boolean): Promise<Module | typeof NOTHING>` — Pushes the required opcodes to the stack to load the module at the given
+- `loadModule(vm: BackolonVM, parent: Module | null, path: URL, asMain: boolean): Promise<any>` — Pushes the required opcodes to the stack to load the module at the given
 URL and leave the Module on the stack.
 - `getBytes(path: URL): Promise<Uint8Array<ArrayBufferLike>>` — The raw bytes of the file at `path`, via the matching finder.
 - `getText(path: URL): Promise<string>` — The file at `path` as text, via the matching finder.
@@ -164,7 +140,6 @@ exist).
 The JEB VM specialized for Backolon: on top of the base VM it keeps the
 module cache, the current parser (if any), and the span tables that map JEB
 Locations back to source ranges.
-*extends `JebVM<BackolonVM>`*
 ```ts
 constructor(importer: Importer): BackolonVM
 ```
@@ -175,23 +150,7 @@ constructor(importer: Importer): BackolonVM
 here is the second component of every Location pointing into that
 module.
 **Methods:**
-- `getState(): BackolonVMState` — Captures the module `parent` links (and parser) for rollback.
-- `restoreState(state: BackolonVMState): void` — Restores a state captured by getState; the parser is always reset
-to the captured one.
-- `start(url: URL): void` — Starts running the main module
 - `getModule(url: URL): Module | undefined` — The registered module for `url`, or undefined if it was never created.
 - `createModule(url: URL, parent: Module | null): Module` — Creates a module for `url` -- with a fresh global environment nested
 inside the builtins environment -- and registers it in the cache. Throws
 if a module for `url` already exists.
-- `setSource(url: URL, src: string): SourceTracker | undefined` — Records the source text of an already-registered module and returns its
-tracker. If the module isn't registered, warns and returns undefined
-instead.
-- `getSource(url: URL): string | undefined` — The recorded source text of the module at `url`, if any.
-- `registerSpan(span: Span): Location` — Registers a source span with its module and returns the opaque
-Location (span index, module index) that represents it elsewhere
-in the VM. Throws if the span's module isn't registered.
-- `getSpan(location: Location): Span` — Resolves a Location back to the span it was registered from.
-- `tag(location: Location, tag: string): void` — Adds a syntax-highlight tag to every character position covered by the
-span at `location`, in that module's SourceTracker. Unknown
-locations and source-less modules are ignored (with a warning), since
-highlighting is best-effort.
