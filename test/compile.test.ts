@@ -1,5 +1,4 @@
-import { gensym, Identifier } from "@r47onfire/jeb";
-import { CSTNode<any>, describeCombinator, parseToCST } from "@r47onfire/nebula";
+import { CSTNode, describeCombinator, parseToCST } from "@r47onfire/nebula";
 import { condenseCST, syncCompile } from "@r47onfire/nebula/compile";
 import { last } from "lib0/array";
 import { isString } from "lib0/function";
