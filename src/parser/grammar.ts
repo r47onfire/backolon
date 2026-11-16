@@ -36,7 +36,6 @@ import { Callable } from "../obj/monkey";
 import { objectValues } from "../utils";
 
 // TODO: add rocket operator => - what precedence? what does it even do?
-// TODO: tweak indexing operators to be chain-associative, will make evaluation easier
 // TODO: tweak strong blocks to allow do and begin blocks to be passed to a parameter to an implicit call
 // TODO: rework comma system; comma operator one greater than assignment; creates frozen arrays and frozen objects when bare; creates arrays and objects when enclosed in brackets; creates Sets and Maps when ????? new syntax (#10)
 
@@ -402,24 +401,51 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         ),
     },
 
-    // right associative
-    // within the sections (the right side, recursively), an assignment's right side may not itself be a cascade (Dart's expressionWithoutCascade)
-    // so a later .. link stays a section of this cascade instead of being swallowed into the assigned value.
-    // the receiver on the left is outside the bind, so x = a..b still assigns the whole cascade
+    // chain-associative: [cascade, receiver, op, section, op, section, ...],
+    // so an evaluator can walk the sections left to right instead of unwinding
+    // right-nested binary nodes. within the sections, an assignment's
+    // right side may not itself be a cascade (Dart's
+    // expressionWithoutCascade) so a later .. link stays a section of
+    // this cascade instead of being swallowed into the assigned value;
+    // the fence bind therefore wraps each section. the receiver on the
+    // left is outside the bind, so x = a..b still assigns the whole
+    // cascade
     cascade: {
         params: ["operand"],
-        def: rule(
-            "binary_op",
-            param("operand"),
-            donate(rule("cascade_op")),
-            param("operand"),
-            bind(
-                "assign_rhs",
-                false,
-                altFirst(rule("block_expr"), rule("pipe")),
-                rule("cascade", param("operand")),
+        def: alt(
+            seq(
+                param("operand"),
+                seq(
+                    ignored(opt(rule("blank"))),
+                    rule("cascade_op"),
+                    ignored(opt(rule("blank"))),
+                    ignored(lookahead(true, rule("member"))),
+                    cut(),
+                    bind(
+                        "assign_rhs",
+                        false,
+                        altFirst(rule("block_expr"), rule("pipe")),
+                        param("operand"),
+                    ),
+                ),
+                rep(
+                    false,
+                    seq(
+                        ignored(opt(rule("blank"))),
+                        rule("cascade_op"),
+                        ignored(opt(rule("blank"))),
+                        ignored(lookahead(true, rule("member"))),
+                        cut(),
+                        bind(
+                            "assign_rhs",
+                            false,
+                            altFirst(rule("block_expr"), rule("pipe")),
+                            param("operand"),
+                        ),
+                    ),
+                ),
             ),
-            lookahead(true, rule("member")),
+            param("operand"),
         ),
     },
     cascade_op: { def: alt(rule("up_dot_null"), rule("up_dot")) },
@@ -865,15 +891,37 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         ),
     },
 
-    // left associative
+    // chain-associative: a whole run of indexing is one flat node,
+    // [indexing, base, op, member, op, member, ...], so an evaluator can
+    // walk the links left to right (with ?. short-circuiting) instead of
+    // unwinding left-nested binary nodes. the base is a whole postfix, so
+    // a call in the middle (a.b(1).c) interrupts the chain: the call's
+    // callee is the chain so far, and the remaining links form a new
+    // chain based on that call. with no link at all, indexing is just a
+    // primary
     indexing: {
-        def: rule(
-            "binary_op",
+        def: alt(
+            seq(
+                rule("postfix"),
+                seq(
+                    ignored(opt(rule("blank"))),
+                    rule("indexing_op"),
+                    ignored(opt(rule("blank"))),
+                    cut(),
+                    rule("member"),
+                ),
+                rep(
+                    false,
+                    seq(
+                        ignored(opt(rule("blank"))),
+                        rule("indexing_op"),
+                        ignored(opt(rule("blank"))),
+                        cut(),
+                        rule("member"),
+                    ),
+                ),
+            ),
             rule("primary"),
-            donate(rule("indexing_op")),
-            rule("postfix"),
-            rule("member"),
-            nothing(),
         ),
     },
     indexing_op: { def: alt(rule("dot"), rule("null_dot")) },
@@ -895,18 +943,29 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
     // these are all prefix unary
     unary: { def: alt(rule("member_prefix"), rule("func_prefix")) },
     func_prefix: {
-        def: ssep(rule("blank"), rule("func_prefix_op"), cut(), rule("factor")),
+        def: adopt(
+            ssep(
+                rule("blank"),
+                donate(rule("func_prefix_op")),
+                cut(),
+                rule("factor"),
+            ),
+        ),
     },
     member_prefix: {
-        def: ssep(
-            rule("blank"),
-            rule("member_prefix_op"),
-            cut(),
-            rule("member"),
+        def: adopt(
+            ssep(
+                rule("blank"),
+                donate(rule("member_prefix_op")),
+                cut(),
+                rule("member"),
+            ),
         ),
     },
     quote_prefix: {
-        def: ssep(rule("blank"), rule("quote"), cut(), rule("member")),
+        def: adopt(
+            ssep(rule("blank"), donate(rule("quote")), cut(), rule("member")),
+        ),
     },
     func_prefix_op: {
         def: alt(
