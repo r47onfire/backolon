@@ -53,7 +53,10 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
             if (t2) return t2;
         }
         const t = new Task(this, id, priority);
-        const env = new Env([this.builtinsEnv], new Map(objectEntries(context)));
+        const env = new Env(
+            [this.builtinsEnv],
+            new Map(objectEntries(context)),
+        );
         t.gen = this.eval(form, t, env, null, null);
         this.tasks.push(t);
         insertionSort(this.tasks, (t1, t2) => t2.priority - t1.priority);

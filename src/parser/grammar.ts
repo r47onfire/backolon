@@ -28,18 +28,16 @@ import {
     tag,
     try_,
     walkCombinator,
-    yes
+    yes,
 } from "@r47onfire/nebula";
 import { Callable } from "../obj/monkey";
 import { objectValues } from "../utils";
 
-// TODO: add format operator %% - what precedence level?
 // TODO: add rocket operator => - what precedence? what does it even do?
 // TODO: add wavydot operator ~. - need to look more closely at https://github.com/tc39/proposal-wavy-dot - does this even make sense in a language that makes async things invisible
 // TODO: tweak indexing operators to be chain-associative, will make evaluation easier
 // TODO: tweak strong blocks to allow do and begin blocks to be passed to a parameter to an implicit call
 // TODO: tweak binary operator cascade to make the top named rule adopt the name of the operator itself (e.g. instead of [binary_op, left, op, right] be [op, left, right]) - will require new combinators/tweaks in Nebula
-// TODO: tweak implicit_call and explicit_call to just say "call" in CST
 // TODO: rework comma system; comma operator one greater than assignment; creates frozen arrays and frozen objects when bare; creates arrays and objects when enclosed in brackets; creates Sets and Maps when ????? new syntax (#10)
 
 /**
@@ -460,16 +458,26 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         ),
     },
 
+    // the shared node type for both call forms: implicit_call and
+    // explicit_call delegate here so their CST nodes just say "call"
+    call: {
+        params: ["form"],
+        def: param("form"),
+    },
+
     // right associative
     // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try kw_arg
     implicit_call: {
-        def: alt(
-            ssep(
-                rule("blank_sameline"),
+        def: rule(
+            "call",
+            alt(
+                ssep(
+                    rule("blank_sameline"),
+                    rule("kw_arg"),
+                    try_(nonempty(rule("implicit_args"))),
+                ),
                 rule("kw_arg"),
-                try_(nonempty(rule("implicit_args"))),
             ),
-            rule("kw_arg"),
         ),
     },
     implicit_args: {
@@ -758,12 +766,15 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
             lookahead(false, rule("assign_op")),
         ),
     },
-    term_op: { def: alt(rule("mul"), rule("div"), rule("mod")) },
+    term_op: {
+        def: alt(rule("mul"), rule("div"), rule("mod"), rule("format")),
+    },
     mul: { def: op("operator", "*") },
     div: { def: op("operator", "/") },
     mod: {
         def: op("operator", "%"),
     },
+    format: { def: op("operator", "%%") },
 
     // right associative
     factor: {
@@ -785,13 +796,16 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
     // indexing are one left-associative level entered through here
     postfix: { def: altFirst(rule("explicit_call"), rule("indexing")) },
     explicit_call: {
-        def: ssep(
-            rule("blank"),
-            rule("postfix"),
-            op("punctuation", "("),
-            cut(),
-            rule("explicit_args"),
-            op("punctuation", ")"),
+        def: rule(
+            "call",
+            ssep(
+                rule("blank"),
+                rule("postfix"),
+                op("punctuation", "("),
+                cut(),
+                rule("explicit_args"),
+                op("punctuation", ")"),
+            ),
         ),
     },
     explicit_args: {

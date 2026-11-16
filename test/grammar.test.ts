@@ -4,31 +4,31 @@ import { describe, expect, test } from "bun:test";
 import { backolonGrammar, objectEntries } from "../src";
 
 type ASTNode = string | number | undefined | ASTNode[];
-const toAST = (cst: CSTNode): ASTNode => {
-    const recur = (cst: CSTNode): ASTNode => {
+const toAST = (cst: CSTNode<any>): ASTNode => {
+    const recur = (cst: CSTNode<any>): ASTNode => {
         if (cst.errorExpected) return [cst.type, describeCombinator(cst.errorExpected), cst.span.end, cst.text];
         if (cst.type) return [cst.type, ...cst.children!.map(recur)];
-        return cst.text;
+        return cst.text ?? undefined;
     };
     return recur(condenseCST(cst));
 };
 
-const parse = (text: string): CSTNode => {
+const parse = (text: string): CSTNode<any> => {
     const cst = parseToCST(text, new URL("test:"), 0, "toplevel_exprs", backolonGrammar, "exprs");
     // console.log(text + "\n" + JSON.stringify(toAST(cst)));
     return cst;
 };
 
 /** Concatenating the leaves must exactly reproduce the source span */
-const leaves = (node: CSTNode): string[] => {
+const leaves = (node: CSTNode<any>): string[] => {
     if (node.children === undefined || node.children.length === 0) return [node.text ?? ""];
     return node.children.flatMap(leaves);
 };
-const checkSource = (node: CSTNode, source: string): void => {
+const checkSource = (node: CSTNode<any>, source: string): void => {
     expect(leaves(node).join("")).toBe(source.slice(node.span.begin, node.span.end));
 };
 
-const parsesFully = (text: string): CSTNode => {
+const parsesFully = (text: string): CSTNode<any> => {
     const cst = parse(text);
     expect(cst.span.end).toBe(text.length);
     checkSource(cst, text);
@@ -36,7 +36,7 @@ const parsesFully = (text: string): CSTNode => {
 };
 
 /** Every error node (type "BAD", i.e. has errorExpected) under node, in document order */
-const errorNodes = (node: CSTNode): CSTNode[] => [...(node.errorExpected !== undefined ? [node] : []), ...(node.children ?? []).flatMap(errorNodes)];
+const errorNodes = (node: CSTNode<any>): CSTNode<any>[] => [...(node.errorExpected !== undefined ? [node] : []), ...(node.children ?? []).flatMap(errorNodes)];
 
 const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
     comments: ["## line comment", "##line comment2", "##[[ block comment ##]]", "##[[block comment2##]]", "##[[nested ##[[block comment##]]##]]"].map((x) => [x, ["exprs"]]),
@@ -58,21 +58,21 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         [`"hello"`, ["exprs", ["i_string", ["i_body", "hello"]]]],
         [`'hello'`, ["exprs", ["r_string", ["r_body", "hello"]]]],
         [`"fizzbuzz: \\(n) mississippi"`, ["exprs", ["i_string", ["i_body", "fizzbuzz: "], ["i_interpolation", ["exprs", ["name", "n"]]], ["i_body", " mississippi"]]]],
-        [`"fizzbuzz: \\(\n    print 1\n    1 + 2\n) mississippi"`, ["exprs", ["i_string", ["i_body", "fizzbuzz: "], ["i_interpolation", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["binary_op", ["number", ["dec", "1"]], ["add"], ["number", ["dec", "2"]]]]], ["i_body", " mississippi"]]]],
+        [`"fizzbuzz: \\(\n    print 1\n    1 + 2\n) mississippi"`, ["exprs", ["i_string", ["i_body", "fizzbuzz: "], ["i_interpolation", ["exprs", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["binary_op", ["number", ["dec", "1"]], ["add"], ["number", ["dec", "2"]]]]], ["i_body", " mississippi"]]]],
         [`"a\\"b"`, ["exprs", ["i_string", ["i_body", "a"], ["i_known_escape", '"'], ["i_body", "b"]]]],
         [`'it\\'s'`, ["exprs", ["r_string", ["r_body", "it"], ["r_escape", "\\'"], ["r_body", "s"]]]],
     ],
 
     "comments + separators": [
-        [`## hello\nprint 1`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
-        [`print 1; print 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
-        [`print 1\nprint 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
-        [`print 1;;;;;;;;;print 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
-        [`;print 1;`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
-        [`print 1 ## trailing\nprint 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
+        [`## hello\nprint 1`, ["exprs", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
+        [`print 1; print 2`, ["exprs", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
+        [`print 1\nprint 2`, ["exprs", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
+        [`print 1;;;;;;;;;print 2`, ["exprs", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
+        [`;print 1;`, ["exprs", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
+        [`print 1 ## trailing\nprint 2`, ["exprs", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]],
         [`##[[\nprint 1\n##]]`, ["exprs"]],
-        [`###[[\nprint 1\n##]]`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
-        [`##[[\nprint 1\n##]]\nprint 1\n##[[\nprint 1\n##]]`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
+        [`###[[\nprint 1\n##]]`, ["exprs", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
+        [`##[[\nprint 1\n##]]\nprint 1\n##[[\nprint 1\n##]]`, ["exprs", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]]]],
     ],
 
     "precedence/associativity": [
@@ -87,14 +87,14 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         [`a = b <- 1`, ["exprs", ["binary_op", ["name", "a"], ["normal_assign"], ["binary_op", ["name", "b"], ["old_assign"], ["number", ["dec", "1"]]]]]],
         [`x -> y -> z`, ["exprs", ["binary_op", ["binary_op", ["name", "x"], ["arrow"], ["name", "y"]], ["arrow"], ["name", "z"]]]], // Augmented assignment
         [`a += b /= c`, ["exprs", ["binary_op", ["name", "a"], ["aug_assign", ["add"]], ["binary_op", ["name", "b"], ["aug_assign", ["div"]], ["name", "c"]]]]], // Implicit calling
-        // [`a + b 1 + c`, ["exprs", ["binary_op", ["name", "a"], ["add"], ["implicit_call", ["name", "b"], ["implicit_args", ["binary_op", ["number", ["dec", "1"]], ["add"], ["name", "c"]]]]]]],],calls: [[`print(1, 2)`,["exprs",["explicit_call",["name", "print"],["explicit_args",["number", ["dec", "1"]],["number", ["dec", "2"]],],],],],[`print (1, 2)`,["exprs",["explicit_call",["name", "print"],["explicit_args",["number", ["dec", "1"]],["number", ["dec", "2"]],],],],],[`print 1, 2`,["exprs",["implicit_call",["name", "print"],["implicit_args",["number", ["dec", "1"]],["number", ["dec", "2"]],],],],],// juxtaposition is right-nested: 'print print 1, 2' parses as 'print(print(1, 2))'
-        [`print print 1, 2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "2"]]]]]]]], // a cascade in an implicit argument binds to the argument (as in
+        // [`a + b 1 + c`, ["exprs", ["binary_op", ["name", "a"], ["add"], ["call", ["name", "b"], ["implicit_args", ["binary_op", ["number", ["dec", "1"]], ["add"], ["name", "c"]]]]]]],],calls: [[`print(1, 2)`,["exprs",["call",["name", "print"],["explicit_args",["number", ["dec", "1"]],["number", ["dec", "2"]],],],],],[`print (1, 2)`,["exprs",["call",["name", "print"],["explicit_args",["number", ["dec", "1"]],["number", ["dec", "2"]],],],],],[`print 1, 2`,["exprs",["call",["name", "print"],["implicit_args",["number", ["dec", "1"]],["number", ["dec", "2"]],],],],],// juxtaposition is right-nested: 'print print 1, 2' parses as 'print(print(1, 2))'
+        [`print print 1, 2`, ["exprs", ["call", ["name", "print"], ["implicit_args", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "2"]]]]]]]], // a cascade in an implicit argument binds to the argument (as in
         // f(a..b)), not to the whole call; a pipe stays outside it
-        [`f a..b`, ["exprs", ["implicit_call", ["name", "f"], ["implicit_args", ["binary_op", ["name", "a"], ["up_dot"], ["name", "b"]]]]]], // zero args
-        [`print()`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args"]]]], // (1,,2) has an empty middle arg (null)
-        [`print(1,,2)`, ["exprs", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["dec", "1"]], ["empty_arg", undefined], ["number", ["dec", "2"]]]]]],
-        [`print 1,,2`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]], ["empty_arg", undefined], ["number", ["dec", "2"]]]]]], // chained calls: f(x)(y)
-        [`print(1)(2)`, ["exprs", ["explicit_call", ["explicit_call", ["name", "print"], ["explicit_args", ["number", ["dec", "1"]]]], ["explicit_args", ["number", ["dec", "2"]]]]]], // bare name is NOT a call
+        [`f a..b`, ["exprs", ["call", ["name", "f"], ["implicit_args", ["binary_op", ["name", "a"], ["up_dot"], ["name", "b"]]]]]], // zero args
+        [`print()`, ["exprs", ["call", ["name", "print"], ["explicit_args"]]]], // (1,,2) has an empty middle arg (null)
+        [`print(1,,2)`, ["exprs", ["call", ["name", "print"], ["explicit_args", ["number", ["dec", "1"]], ["empty_arg", undefined], ["number", ["dec", "2"]]]]]],
+        [`print 1,,2`, ["exprs", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]], ["empty_arg", undefined], ["number", ["dec", "2"]]]]]], // chained calls: f(x)(y)
+        [`print(1)(2)`, ["exprs", ["call", ["call", ["name", "print"], ["explicit_args", ["number", ["dec", "1"]]]], ["explicit_args", ["number", ["dec", "2"]]]]]], // bare name is NOT a call
         [`print`, ["exprs", ["name", "print"]]], // i'm not sure what this actually is supposed to do
         ["print(1, 2), 3", "BAD"],
     ],
@@ -129,8 +129,8 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         // right-nested: a..(b..c), so the compiler mirrors the tree --
         // each link's right child is the rest of the chain
         [`a..b..c`, ["exprs", ["binary_op", ["name", "a"], ["up_dot"], ["binary_op", ["name", "b"], ["up_dot"], ["name", "c"]]]]], // the receiver is everything before the first .., calls included
-        [`a.b()..c()`, ["exprs", ["binary_op", ["explicit_call", ["binary_op", ["name", "a"], ["dot"], ["name", "b"]], ["explicit_args"]], ["up_dot"], ["explicit_call", ["name", "c"], ["explicit_args"]]]]], // a section head may be computed: dynamic dispatch on a ternary-chosen name
-        [`x..(foo ? 'a' : 'b')(45)`, ["exprs", ["binary_op", ["name", "x"], ["up_dot"], ["explicit_call", ["par_exp", ["exprs", ["ternary", ["name", "foo"], ["r_string", ["r_body", "a"]], ["r_string", ["r_body", "b"]]]]], ["explicit_args", ["number", ["dec", "45"]]]]]]], // cascades are values: assignment rhs, not assignment targets
+        [`a.b()..c()`, ["exprs", ["binary_op", ["call", ["binary_op", ["name", "a"], ["dot"], ["name", "b"]], ["explicit_args"]], ["up_dot"], ["call", ["name", "c"], ["explicit_args"]]]]], // a section head may be computed: dynamic dispatch on a ternary-chosen name
+        [`x..(foo ? 'a' : 'b')(45)`, ["exprs", ["binary_op", ["name", "x"], ["up_dot"], ["call", ["par_exp", ["exprs", ["ternary", ["name", "foo"], ["r_string", ["r_body", "a"]], ["r_string", ["r_body", "b"]]]]], ["explicit_args", ["number", ["dec", "45"]]]]]]], // cascades are values: assignment rhs, not assignment targets
         [`x = a..b`, ["exprs", ["binary_op", ["name", "x"], ["normal_assign"], ["binary_op", ["name", "a"], ["up_dot"], ["name", "b"]]]]], // a cascade's value is always its left side, so the receiver being guarded never changes after the first link, which makes ?.. after the first link pointless, but we still support it anyway because that makes things easier to parse
         [`a?..b..c`, ["exprs", ["binary_op", ["name", "a"], ["up_dot_null"], ["binary_op", ["name", "b"], ["up_dot"], ["name", "c"]]]]],
         [`a..b?..c`, ["exprs", ["binary_op", ["name", "a"], ["up_dot"], ["binary_op", ["name", "b"], ["up_dot_null"], ["name", "c"]]]]], // a section may be a numeric index, like a member after a dot
@@ -138,8 +138,8 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         // the ..d is a second section, not part of the assigned value
         [`a..b = c..d`, ["exprs", ["binary_op", ["name", "a"], ["up_dot"], ["binary_op", ["binary_op", ["name", "b"], ["normal_assign"], ["name", "c"]], ["up_dot"], ["name", "d"]]]]], // a multi-line cascade on an implicit call result, with an
         // assignment section per line
-        [`return makeFoo()\n  ..bar = 1\n  ..baz = 2`, ["exprs", ["implicit_call", ["name", "return"], ["implicit_args", ["binary_op", ["explicit_call", ["name", "makeFoo"], ["explicit_args"]], ["up_dot"], ["binary_op", ["binary_op", ["name", "bar"], ["normal_assign"], ["number", ["dec", "1"]]], ["up_dot"], ["binary_op", ["name", "baz"], ["normal_assign"], ["number", ["dec", "2"]]]]]]]]], // parenthesis always reset ambients
-        [`return foo()..(x()..y = 2) = 1`, ["exprs", ["implicit_call", ["name", "return"], ["implicit_args", ["binary_op", ["explicit_call", ["name", "foo"], ["explicit_args"]], ["up_dot"], ["binary_op", ["par_exp", ["exprs", ["binary_op", ["explicit_call", ["name", "x"], ["explicit_args"]], ["up_dot"], ["binary_op", ["name", "y"], ["normal_assign"], ["number", ["dec", "2"]]]]]], ["normal_assign"], ["number", ["dec", "1"]]]]]]]], // a cascade operator with no section after it: the parse
+        [`return makeFoo()\n  ..bar = 1\n  ..baz = 2`, ["exprs", ["call", ["name", "return"], ["implicit_args", ["binary_op", ["call", ["name", "makeFoo"], ["explicit_args"]], ["up_dot"], ["binary_op", ["binary_op", ["name", "bar"], ["normal_assign"], ["number", ["dec", "1"]]], ["up_dot"], ["binary_op", ["name", "baz"], ["normal_assign"], ["number", ["dec", "2"]]]]]]]]], // parenthesis always reset ambients
+        [`return foo()..(x()..y = 2) = 1`, ["exprs", ["call", ["name", "return"], ["implicit_args", ["binary_op", ["call", ["name", "foo"], ["explicit_args"]], ["up_dot"], ["binary_op", ["par_exp", ["exprs", ["binary_op", ["call", ["name", "x"], ["explicit_args"]], ["up_dot"], ["binary_op", ["name", "y"], ["normal_assign"], ["number", ["dec", "2"]]]]]], ["normal_assign"], ["number", ["dec", "1"]]]]]]]], // a cascade operator with no section after it: the parse
         // stops at the receiver and drops the operator
         [`a..`, "BAD"],
         [`a?..`, "BAD"],
@@ -159,8 +159,8 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
 
     pipes: [
         // pipes are left-associative
-        [`a |> b it |> c it`, ["exprs", ["binary_op", ["binary_op", ["name", "a"], ["normal_pipe"], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "it"]]]], ["normal_pipe"], ["implicit_call", ["name", "c"], ["implicit_args", ["name", "it"]]]]]],
-        [`["hello", "world", "!"] |?> it != "!" |*> upper it`, ["exprs", ["binary_op", ["binary_op", ["collection", ["i_string", ["i_body", "hello"]], ["i_string", ["i_body", "world"]], ["i_string", ["i_body", "!"]]], ["filter_pipe"], ["comparison", ["name", "it"], ["not_equal"], ["i_string", ["i_body", "!"]]]], ["map_pipe"], ["implicit_call", ["name", "upper"], ["implicit_args", ["name", "it"]]]]]],
+        [`a |> b it |> c it`, ["exprs", ["binary_op", ["binary_op", ["name", "a"], ["normal_pipe"], ["call", ["name", "b"], ["implicit_args", ["name", "it"]]]], ["normal_pipe"], ["call", ["name", "c"], ["implicit_args", ["name", "it"]]]]]],
+        [`["hello", "world", "!"] |?> it != "!" |*> upper it`, ["exprs", ["binary_op", ["binary_op", ["collection", ["i_string", ["i_body", "hello"]], ["i_string", ["i_body", "world"]], ["i_string", ["i_body", "!"]]], ["filter_pipe"], ["comparison", ["name", "it"], ["not_equal"], ["i_string", ["i_body", "!"]]]], ["map_pipe"], ["call", ["name", "upper"], ["implicit_args", ["name", "it"]]]]]],
     ],
 
     ternary: [
@@ -170,15 +170,15 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
 
     let: [
         [`let a = b`, ["exprs", ["let", ["simple_let", ["let_bindings", ["binary_op", ["name", "a"], ["normal_assign"], ["name", "b"]]]]]]],
-        [`let a = b c`, ["exprs", ["let", ["simple_let", ["let_bindings", ["binary_op", ["name", "a"], ["normal_assign"], ["implicit_call", ["name", "b"], ["implicit_args", ["name", "c"]]]]]]]]],
-        [`let x = a, y = b in foo x end`, ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]]]],
-        [`let x = a, y = b in foo x end a b`, ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]], ["implicit_call", ["name", "a"], ["implicit_args", ["name", "b"]]]]],
-        [`let(loop) x = a in foo loop end`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]],
-        [`let(loop) x = a in\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
-        [`let(loop) x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
-        [`let(loop) ##[[ inner comment ##]] x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
-        [`(let x = a in\n    foo loop)`, ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]]],
-        [`let x = a, y = b in x y\nfoo a`, ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["implicit_call", ["name", "x"], ["implicit_args", ["name", "y"]]]]]], ["implicit_call", ["name", "foo"], ["implicit_args", ["name", "a"]]]]], // a binding target must be a bare name: the par_exp binding
+        [`let a = b c`, ["exprs", ["let", ["simple_let", ["let_bindings", ["binary_op", ["name", "a"], ["normal_assign"], ["call", ["name", "b"], ["implicit_args", ["name", "c"]]]]]]]]],
+        [`let x = a, y = b in foo x end`, ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]]]],
+        [`let x = a, y = b in foo x end a b`, ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["call", ["name", "foo"], ["implicit_args", ["name", "x"]]]]]], ["call", ["name", "a"], ["implicit_args", ["name", "b"]]]]],
+        [`let(loop) x = a in foo loop end`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]],
+        [`let(loop) x = a in\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
+        [`let(loop) x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
+        [`let(loop) ##[[ inner comment ##]] x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]],
+        [`(let x = a in\n    foo loop)`, ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["exprs", ["call", ["name", "foo"], ["implicit_args", ["name", "loop"]]]]]]]]]]],
+        [`let x = a, y = b in x y\nfoo a`, ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["name", "a"]], ["binary_op", ["name", "y"], ["normal_assign"], ["name", "b"]]], ["body_exprs", ["call", ["name", "x"], ["implicit_args", ["name", "y"]]]]]], ["call", ["name", "foo"], ["implicit_args", ["name", "a"]]]]], // a binding target must be a bare name: the par_exp binding
         // cannot even start, and the recovery consumes the header tail
         [`let x = z, (y) = x in y end`, "BAD"], // only = can bind: += leaves an error node, -> stops the parse
         [`let x += 3 in x end`, "BAD"],
@@ -189,28 +189,28 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
     ],
 
     if: [
-        [`if a == b then c() end`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_no_else", ["body_exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]]]]],
-        [`if a == b then\n    c()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_no_else", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]]]]]],
-        [`if a == b\n    c()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_no_else", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]]]]]],
-        [`if a == b then c() else d() end`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_else", ["body_exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]], ["body_exprs", ["explicit_call", ["name", "d"], ["explicit_args"]]]]]]],
-        [`if a == b then\n    c()\nelse\n    d()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_else", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]], ["body_exprs", ["exprs", ["explicit_call", ["name", "d"], ["explicit_args"]]]]]]]],
-        [`if a == b\n    c()\nelse\n    d()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_else", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]], ["body_exprs", ["exprs", ["explicit_call", ["name", "d"], ["explicit_args"]]]]]]]],
+        [`if a == b then c() end`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_no_else", ["body_exprs", ["call", ["name", "c"], ["explicit_args"]]]]]]],
+        [`if a == b then\n    c()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_no_else", ["body_exprs", ["exprs", ["call", ["name", "c"], ["explicit_args"]]]]]]]],
+        [`if a == b\n    c()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_no_else", ["body_exprs", ["exprs", ["call", ["name", "c"], ["explicit_args"]]]]]]]],
+        [`if a == b then c() else d() end`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_else", ["body_exprs", ["call", ["name", "c"], ["explicit_args"]]], ["body_exprs", ["call", ["name", "d"], ["explicit_args"]]]]]]],
+        [`if a == b then\n    c()\nelse\n    d()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_else", ["body_exprs", ["exprs", ["call", ["name", "c"], ["explicit_args"]]]], ["body_exprs", ["exprs", ["call", ["name", "d"], ["explicit_args"]]]]]]]],
+        [`if a == b\n    c()\nelse\n    d()\nend`, ["exprs", ["if", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["if_else", ["body_exprs", ["exprs", ["call", ["name", "c"], ["explicit_args"]]]], ["body_exprs", ["exprs", ["call", ["name", "d"], ["explicit_args"]]]]]]]],
     ],
 
     while: [
-        [`while a == b do c() end`, ["exprs", ["while", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]]]]]]],
-        [`while a == b\n    c()\nend`, ["exprs", ["while", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args"]]]]]]],
+        [`while a == b do c() end`, ["exprs", ["while", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["call", ["name", "c"], ["explicit_args"]]]]]]]]],
+        [`while a == b\n    c()\nend`, ["exprs", ["while", ["comparison", ["name", "a"], ["equal"], ["name", "b"]], ["body_exprs", ["exprs", ["call", ["name", "c"], ["explicit_args"]]]]]]],
     ],
 
     trycatch: [
-        [`try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end`, ["exprs", ["trycatch", ["body_exprs", ["exprs", ["explicit_call", ["name", "x"], ["explicit_args"]]]], ["trycatch_handler", ["binary_op", ["name", "e"], ["normal_assign"], ["name", "ENOENT"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "b"], ["explicit_args", ["name", "e"]]]]]]]], ["trycatch_handler", ["binary_op", ["name", "e"], ["normal_assign"], ["name", "EPERM"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args", ["name", "e"]]]]]]]], undefined, undefined]]],
-        [`try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end else foo() finally bar() end`, ["exprs", ["trycatch", ["body_exprs", ["exprs", ["explicit_call", ["name", "x"], ["explicit_args"]]]], ["trycatch_handler", ["binary_op", ["name", "e"], ["normal_assign"], ["name", "ENOENT"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "b"], ["explicit_args", ["name", "e"]]]]]]]], ["trycatch_handler", ["binary_op", ["name", "e"], ["normal_assign"], ["name", "EPERM"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["explicit_call", ["name", "c"], ["explicit_args", ["name", "e"]]]]]]]], ["trycatch_else", ["body_exprs", ["explicit_call", ["name", "foo"], ["explicit_args"]]]], ["trycatch_finally", ["body_exprs", ["explicit_call", ["name", "bar"], ["explicit_args"]]]]]]],
-        [`try\n    x()\ncatch e = ENOENT\n    b(e)\nelse\n    foo()\nfinally\n    bar()\nend`, ["exprs", ["trycatch", ["body_exprs", ["exprs", ["explicit_call", ["name", "x"], ["explicit_args"]]]], ["trycatch_handler", ["binary_op", ["name", "e"], ["normal_assign"], ["name", "ENOENT"]], ["body_exprs", ["exprs", ["explicit_call", ["name", "b"], ["explicit_args", ["name", "e"]]]]]], ["trycatch_else", ["body_exprs", ["exprs", ["explicit_call", ["name", "foo"], ["explicit_args"]]]]], ["trycatch_finally", ["body_exprs", ["exprs", ["explicit_call", ["name", "bar"], ["explicit_args"]]]]]]]],
+        [`try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end`, ["exprs", ["trycatch", ["body_exprs", ["exprs", ["call", ["name", "x"], ["explicit_args"]]]], ["trycatch_handler", ["binary_op", ["name", "e"], ["normal_assign"], ["name", "ENOENT"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["call", ["name", "b"], ["explicit_args", ["name", "e"]]]]]]]], ["trycatch_handler", ["binary_op", ["name", "e"], ["normal_assign"], ["name", "EPERM"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["call", ["name", "c"], ["explicit_args", ["name", "e"]]]]]]]], undefined, undefined]]],
+        [`try x() catch e = ENOENT do b(e) end catch e = EPERM do c(e) end else foo() finally bar() end`, ["exprs", ["trycatch", ["body_exprs", ["exprs", ["call", ["name", "x"], ["explicit_args"]]]], ["trycatch_handler", ["binary_op", ["name", "e"], ["normal_assign"], ["name", "ENOENT"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["call", ["name", "b"], ["explicit_args", ["name", "e"]]]]]]]], ["trycatch_handler", ["binary_op", ["name", "e"], ["normal_assign"], ["name", "EPERM"]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["call", ["name", "c"], ["explicit_args", ["name", "e"]]]]]]]], ["trycatch_else", ["body_exprs", ["call", ["name", "foo"], ["explicit_args"]]]], ["trycatch_finally", ["body_exprs", ["call", ["name", "bar"], ["explicit_args"]]]]]]],
+        [`try\n    x()\ncatch e = ENOENT\n    b(e)\nelse\n    foo()\nfinally\n    bar()\nend`, ["exprs", ["trycatch", ["body_exprs", ["exprs", ["call", ["name", "x"], ["explicit_args"]]]], ["trycatch_handler", ["binary_op", ["name", "e"], ["normal_assign"], ["name", "ENOENT"]], ["body_exprs", ["exprs", ["call", ["name", "b"], ["explicit_args", ["name", "e"]]]]]], ["trycatch_else", ["body_exprs", ["exprs", ["call", ["name", "foo"], ["explicit_args"]]]]], ["trycatch_finally", ["body_exprs", ["exprs", ["call", ["name", "bar"], ["explicit_args"]]]]]]]],
     ],
 
     for: [
-        [`for i = range 1, 100 do print fizzbuzz i end`, ["exprs", ["for", ["binary_op", ["name", "i"], ["normal_assign"], ["implicit_call", ["name", "range"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "100"]]]]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]]]],
-        [`for i = range 1, 100\n    print fizzbuzz i\nend`, ["exprs", ["for", ["binary_op", ["name", "i"], ["normal_assign"], ["implicit_call", ["name", "range"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "100"]]]]], ["body_exprs", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["implicit_call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]],
+        [`for i = range 1, 100 do print fizzbuzz i end`, ["exprs", ["for", ["binary_op", ["name", "i"], ["normal_assign"], ["call", ["name", "range"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "100"]]]]], ["body_exprs", ["do", ["body_exprs", ["exprs", ["call", ["name", "print"], ["implicit_args", ["call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]]]],
+        [`for i = range 1, 100\n    print fizzbuzz i\nend`, ["exprs", ["for", ["binary_op", ["name", "i"], ["normal_assign"], ["call", ["name", "range"], ["implicit_args", ["number", ["dec", "1"]], ["number", ["dec", "100"]]]]], ["body_exprs", ["exprs", ["call", ["name", "print"], ["implicit_args", ["call", ["name", "fizzbuzz"], ["implicit_args", ["name", "i"]]]]]]]]]],
     ],
 
     fn: [
@@ -218,7 +218,7 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         [`fn (x) x + 1`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["binary_op", ["name", "x"], ["add"], ["number", ["dec", "1"]]]]]]],
         [`fn(x)\n    x + 1\nend`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["exprs", ["binary_op", ["name", "x"], ["add"], ["number", ["dec", "1"]]]]]]]],
         [`fn(x, y, ...z) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"], ["name", "y"], ["func_prefix", ["splat"], ["name", "z"]]], ["body_exprs", ["name", "x"]]]]],
-        [`fn(x) callcc fn(c) c`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["implicit_call", ["name", "callcc"], ["implicit_args", ["fn", ["explicit_args", ["name", "c"]], ["body_exprs", ["name", "c"]]]]]]]]],
+        [`fn(x) callcc fn(c) c`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["call", ["name", "callcc"], ["implicit_args", ["fn", ["explicit_args", ["name", "c"]], ["body_exprs", ["name", "c"]]]]]]]]],
         [`fn(x) x;\nfn(x) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]], ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]]]],
         [`fn(x) x\nfn(x) x`, ["exprs", ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]], ["fn", ["explicit_args", ["name", "x"]], ["body_exprs", ["name", "x"]]]]],
     ],
@@ -250,15 +250,15 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
 
     parens: [
         [`(1 + 2) * 3`, ["exprs", ["binary_op", ["par_exp", ["exprs", ["binary_op", ["number", ["dec", "1"]], ["add"], ["number", ["dec", "2"]]]]], ["mul"], ["number", ["dec", "3"]]]]],
-        [`(print 1; print 2)`, ["exprs", ["par_exp", ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["implicit_call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]]]],
+        [`(print 1; print 2)`, ["exprs", ["par_exp", ["exprs", ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "1"]]]], ["call", ["name", "print"], ["implicit_args", ["number", ["dec", "2"]]]]]]]],
         [`(a)`, ["exprs", ["par_exp", ["exprs", ["name", "a"]]]]],
         [`()`, ["exprs", ["par_exp", ["exprs"]]]],
-        [`(f)(x)`, ["exprs", ["explicit_call", ["par_exp", ["exprs", ["name", "f"]]], ["explicit_args", ["name", "x"]]]]],
+        [`(f)(x)`, ["exprs", ["call", ["par_exp", ["exprs", ["name", "f"]]], ["explicit_args", ["name", "x"]]]]],
     ],
 
     "README examples": [
-        [`print "Hello, World!"`, ["exprs", ["implicit_call", ["name", "print"], ["implicit_args", ["i_string", ["i_body", "Hello, World!"]]]]]],
-        [`["hello", "world", "!"] |?> it != "!" |*> upper it`, ["exprs", ["binary_op", ["binary_op", ["collection", ["i_string", ["i_body", "hello"]], ["i_string", ["i_body", "world"]], ["i_string", ["i_body", "!"]]], ["filter_pipe"], ["comparison", ["name", "it"], ["not_equal"], ["i_string", ["i_body", "!"]]]], ["map_pipe"], ["implicit_call", ["name", "upper"], ["implicit_args", ["name", "it"]]]]]], // TODO: rest of these
+        [`print "Hello, World!"`, ["exprs", ["call", ["name", "print"], ["implicit_args", ["i_string", ["i_body", "Hello, World!"]]]]]],
+        [`["hello", "world", "!"] |?> it != "!" |*> upper it`, ["exprs", ["binary_op", ["binary_op", ["collection", ["i_string", ["i_body", "hello"]], ["i_string", ["i_body", "world"]], ["i_string", ["i_body", "!"]]], ["filter_pipe"], ["comparison", ["name", "it"], ["not_equal"], ["i_string", ["i_body", "!"]]]], ["map_pipe"], ["call", ["name", "upper"], ["implicit_args", ["name", "it"]]]]]], // TODO: rest of these
     ],
 
     // Inside brackets nothing can end an enclosing block, so the guard is
@@ -271,6 +271,12 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         ["(end)", ["exprs", ["par_exp", ["exprs", ["name", "end"]]]]],
         ["(let else = a in else end)", ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "else"], ["normal_assign"], ["name", "a"]]], ["body_exprs", ["name", "else"]]]]]]]],
         ["let x = (in) in x end", ["exprs", ["let", ["let_block", ["let_bindings", ["binary_op", ["name", "x"], ["normal_assign"], ["par_exp", ["exprs", ["name", "in"]]]]], ["body_exprs", ["name", "x"]]]]]],
+    ],
+
+    "format operator": [
+        [`1 %% 2`, ["exprs", ["binary_op", ["number", ["dec", "1"]], ["format"], ["number", ["dec", "2"]]]]],
+        // format binds at the term level, like the other term operators
+        [`1 + 2 %% 3 * 4`, ["exprs", ["binary_op", ["number", ["dec", "1"]], ["add"], ["binary_op", ["binary_op", ["number", ["dec", "2"]], ["format"], ["number", ["dec", "3"]]], ["mul"], ["number", ["dec", "4"]]]]]],
     ],
 };
 

@@ -55,7 +55,7 @@ export const isIdentifier = (x: unknown): x is Identifier =>
     isString(x) || typeof x === "symbol";
 
 export const objectEntries = <T>(x: Record<Identifier, T>): [Identifier, T][] =>
-    Reflect.ownKeys(x).map(k => [k, x[k]!]);
+    Reflect.ownKeys(x).map((k) => [k, x[k]!]);
 
 export const objectValues = <T>(x: Record<Identifier, T>): T[] =>
-    Reflect.ownKeys(x).map(k => x[k]!);
+    Reflect.ownKeys(x).map((k) => x[k]!);

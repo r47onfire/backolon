@@ -84,7 +84,7 @@ re2 = /[a-z]+\\d/gi;
 (a);
 ();
 
-## calls: explicit_call, explicit_args, implicit_call,
+## calls
 ## implicit_args, empty_arg, blank_sameline, blank_required
 print(1, 2);
 print (1, 2);
@@ -264,16 +264,6 @@ const beginBody = [
               };
     },
 ] as Parameters<typeof syncCompile>[1][number];
-const callBody = [
-    (nodes: [CSTNode<any>, CSTNode<any>]) => {
-        const callee = nodes[0];
-        const argv = nodes[1].children!;
-        return {
-            val: [],
-            tbc: [callee, ...argv].map((x, i) => [x, [i]]),
-        };
-    },
-] as Parameters<typeof syncCompile>[1][number];
 
 // Root a cascade section at the receiver: descend the section's left
 // spine (a call's callee, an indexing lhs, an assignment's target, any
@@ -288,8 +278,7 @@ const rootSection = (
 ): CSTNode<any> | null => {
     const descend = (node: CSTNode<any>): CSTNode<any> | null => {
         switch (node.type) {
-            case "explicit_call":
-            case "implicit_call":
+            case "call":
             case "binary_op":
             case "comparison": {
                 const head = descend(node.children![0]!);
@@ -603,8 +592,16 @@ const handlers: Parameters<typeof syncCompile>[1] = {
             };
         },
     ],
-    implicit_call: callBody,
-    explicit_call: callBody,
+    call: [
+        (nodes: [CSTNode<any>, CSTNode<any>]) => {
+            const callee = nodes[0];
+            const argv = nodes[1].children!;
+            return {
+                val: [],
+                tbc: [callee, ...argv].map((x, i) => [x, [i]]),
+            };
+        },
+    ],
     empty_arg: [() => ({ val: ["empty"] })],
     binary_op: [
         (
@@ -1061,7 +1058,9 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                 path: (i: number) => PropertyKey[],
             ) =>
                 pairs.flatMap(([, value], i) =>
-                    value ? [[value, path(i)] as [CSTNode<any>, PropertyKey[]]] : [],
+                    value
+                        ? [[value, path(i)] as [CSTNode<any>, PropertyKey[]]]
+                        : [],
                 );
             switch (node.type) {
                 case "simple_let": {

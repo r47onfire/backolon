@@ -47,7 +47,9 @@ export class Env {
      * a handle that removes the watcher when called.
      */
     watch(name: Identifier, handler: unknown) {
-        return this.watchers.getOrInsertComputed(name, () => new RemovableSet()).push(handler);
+        return this.watchers
+            .getOrInsertComputed(name, () => new RemovableSet())
+            .push(handler);
     }
     /** Look up the value, and return its value and whether it exists or not */
     get(name: Identifier): [value: any, exists: boolean] {
