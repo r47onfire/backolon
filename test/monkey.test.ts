@@ -81,34 +81,34 @@ describe("Number", () => {
 
 describe("BigInt", () => {
     test("add, including the number mixing rules", () => {
-        expect(v((5n).__add__(task, 3n))).toBe(8n);
-        expect(v((5n).__add__(task, 3))).toBe(8n);
-        expect(v((5n).__add__(task, 3.5))).toBe(8.5);
-        expect(v((5n).__radd__!(task, 3))).toBe(8n);
-        expect(() => v((5n).__add__(task, "a"))).toThrow(
+        expect(v(5n.__add__(task, 3n))).toBe(8n);
+        expect(v(5n.__add__(task, 3))).toBe(8n);
+        expect(v(5n.__add__(task, 3.5))).toBe(8.5);
+        expect(v(5n.__radd__!(task, 3))).toBe(8n);
+        expect(() => v(5n.__add__(task, "a"))).toThrow(
             "backolon.math.wrongtype.add.bigint",
         );
     });
 
     test("sub, rsub, mul", () => {
-        expect(v((5n).__sub__(task, 10))).toBe(-5n);
-        expect(v((5n).__rsub__!(task, 3))).toBe(-2n);
-        expect(v((5n).__rsub__!(task, 3.5))).toBe(-1.5);
-        expect(v((5n).__mul__(task, 3))).toBe(15n);
-        expect(v((5n).__mul__(task, 1.5))).toBe(7.5);
+        expect(v(5n.__sub__(task, 10))).toBe(-5n);
+        expect(v(5n.__rsub__!(task, 3))).toBe(-2n);
+        expect(v(5n.__rsub__!(task, 3.5))).toBe(-1.5);
+        expect(v(5n.__mul__(task, 3))).toBe(15n);
+        expect(v(5n.__mul__(task, 1.5))).toBe(7.5);
     });
 
     test("div truncates and errors on zero", () => {
-        expect(v((5n).__div__(task, 2n))).toBe(2n);
-        expect(v((5n).__div__(task, 2))).toBe(2n);
-        expect(v((5n).__div__(task, 2.5))).toBe(2);
-        expect(() => v((5n).__div__(task, 0n))).toThrow(BValueError);
-        expect(() => v((5n).__div__(task, 0))).toThrow(
+        expect(v(5n.__div__(task, 2n))).toBe(2n);
+        expect(v(5n.__div__(task, 2))).toBe(2n);
+        expect(v(5n.__div__(task, 2.5))).toBe(2);
+        expect(() => v(5n.__div__(task, 0n))).toThrow(BValueError);
+        expect(() => v(5n.__div__(task, 0))).toThrow(
             "backolon.math.undefined.div_zero.bigint",
         );
-        expect(v((5n).__rdiv__!(task, 10n))).toBe(2n);
-        expect(() => v((0n).__rdiv__!(task, 10n))).toThrow(BValueError);
-        expect(() => v((5n).__div__(task, "a"))).toThrow(
+        expect(v(5n.__rdiv__!(task, 10n))).toBe(2n);
+        expect(() => v(0n.__rdiv__!(task, 10n))).toThrow(BValueError);
+        expect(() => v(5n.__div__(task, "a"))).toThrow(
             "backolon.math.wrongtype.div.bigint",
         );
     });
@@ -116,66 +116,66 @@ describe("BigInt", () => {
     test("neg, abs, comparisons, eq", () => {
         expect(v((-5n).__neg__!(task))).toBe(5n);
         expect(v((-5n).__abs__!(task))).toBe(5n);
-        expect(v((5n).__lt__!(task, 5.5))).toBeTrue();
-        expect(v((10n).__gt__!(task, true))).toBeTrue();
-        expect(() => v((5n).__lt__!(task, "a"))).toThrow(
+        expect(v(5n.__lt__!(task, 5.5))).toBeTrue();
+        expect(v(10n.__gt__!(task, true))).toBeTrue();
+        expect(() => v(5n.__lt__!(task, "a"))).toThrow(
             "backolon.compare.bigint.lt",
         );
-        expect(v((5n).__eq__!(task, 5))).toBeTrue();
-        expect(v((5n).__eq__!(task, 5.5))).toBeFalse();
-        expect(v((0n).__eq__!(task, false))).toBeTrue();
-        expect(v((5n).__ne__!(task, 5))).toBeFalse();
+        expect(v(5n.__eq__!(task, 5))).toBeTrue();
+        expect(v(5n.__eq__!(task, 5.5))).toBeFalse();
+        expect(v(0n.__eq__!(task, false))).toBeTrue();
+        expect(v(5n.__ne__!(task, 5))).toBeFalse();
     });
 });
 
 describe("Boolean", () => {
     test("arithmetic delegates to Number with the value as 0/1", () => {
-        expect(v((true).__add__(task, true))).toBe(2);
-        expect(v((true).__add__(task, 1n))).toBe(2n);
-        expect(v((false).__sub__(task, 1))).toBe(-1);
-        expect(v((true).__rsub__!(task, 5))).toBe(4);
-        expect(v((true).__mul__!(task, 3))).toBe(3);
-        expect(v((true).__div__!(task, 2))).toBe(0.5);
-        expect(v((true).__neg__!(task))).toBe(-1);
-        expect(v((false).__abs__!(task))).toBe(0);
-        expect(() => v((true).__add__(task, "a"))).toThrow(BTypeError);
+        expect(v(true.__add__(task, true))).toBe(2);
+        expect(v(true.__add__(task, 1n))).toBe(2n);
+        expect(v(false.__sub__(task, 1))).toBe(-1);
+        expect(v(true.__rsub__!(task, 5))).toBe(4);
+        expect(v(true.__mul__!(task, 3))).toBe(3);
+        expect(v(true.__div__!(task, 2))).toBe(0.5);
+        expect(v(true.__neg__!(task))).toBe(-1);
+        expect(v(false.__abs__!(task))).toBe(0);
+        expect(() => v(true.__add__(task, "a"))).toThrow(BTypeError);
     });
 
     test("comparisons delegate too", () => {
-        expect(v((true).__eq__!(task, 1))).toBeTrue();
-        expect(v((false).__eq__!(task, 0n))).toBeTrue();
-        expect(v((true).__lt__!(task, 2))).toBeTrue();
-        expect(v((false).__ne__!(task, 0))).toBeFalse();
+        expect(v(true.__eq__!(task, 1))).toBeTrue();
+        expect(v(false.__eq__!(task, 0n))).toBeTrue();
+        expect(v(true.__lt__!(task, 2))).toBeTrue();
+        expect(v(false.__ne__!(task, 0))).toBeFalse();
     });
 });
 
 describe("String", () => {
     test("add concatenates strings only", () => {
-        expect(v(("ab").__add__(task, "cd"))).toBe("abcd");
-        expect(() => v(("ab").__add__(task, 1))).toThrow(
+        expect(v("ab".__add__(task, "cd"))).toBe("abcd");
+        expect(() => v("ab".__add__(task, 1))).toThrow(
             "backolon.math.string.add",
         );
     });
 
     test("mul repeats, either way around", () => {
-        expect(v(("ab").__mul__(task, 3))).toBe("ababab");
-        expect(v(("ab").__mul__(task, -1))).toBe("");
-        expect(v(("ab").__mul__(task, 2n))).toBe("abab");
-        expect(v(("ab").__rmul__(task, 3))).toBe("ababab");
-        expect(() => v(("ab").__mul__(task, 1.5))).toThrow(
+        expect(v("ab".__mul__(task, 3))).toBe("ababab");
+        expect(v("ab".__mul__(task, -1))).toBe("");
+        expect(v("ab".__mul__(task, 2n))).toBe("abab");
+        expect(v("ab".__rmul__(task, 3))).toBe("ababab");
+        expect(() => v("ab".__mul__(task, 1.5))).toThrow(
             "backolon.math.string.mul",
         );
     });
 
     test("comparisons are lexicographic, eq is by value", () => {
-        expect(v(("abc").__lt__!(task, "abd"))).toBeTrue();
-        expect(v(("abc").__gte__!(task, "abc"))).toBeTrue();
-        expect(() => v(("a").__lt__!(task, 1))).toThrow(
+        expect(v("abc".__lt__!(task, "abd"))).toBeTrue();
+        expect(v("abc".__gte__!(task, "abc"))).toBeTrue();
+        expect(() => v("a".__lt__!(task, 1))).toThrow(
             "backolon.compare.string.lt",
         );
-        expect(v(("a").__eq__!(task, "a"))).toBeTrue();
-        expect(v(("a").__eq__!(task, 1))).toBeFalse();
-        expect(v(("a").__ne__!(task, 1))).toBeTrue();
+        expect(v("a".__eq__!(task, "a"))).toBeTrue();
+        expect(v("a".__eq__!(task, 1))).toBeFalse();
+        expect(v("a".__ne__!(task, 1))).toBeTrue();
     });
 });
 
@@ -184,9 +184,7 @@ describe("Array", () => {
         const a = [1, 2];
         expect(v(a.__add__(task, [3]))).toEqual([1, 2, 3]);
         expect(a).toEqual([1, 2]);
-        expect(() => v(a.__add__(task, 5))).toThrow(
-            "backolon.math.array.add",
-        );
+        expect(() => v(a.__add__(task, 5))).toThrow("backolon.math.array.add");
     });
 
     test("mul repeats, either way around", () => {

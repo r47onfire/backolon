@@ -438,12 +438,7 @@ const binaryOpTemplates: Record<string, BinaryTemplate> = {
     normal_pipe: [["let", [["it"]]], [1, 0, 1], [2]],
     map_pipe: [["map", , ["fn", true, ["it"]]], [1], [2, 3]],
     filter_pipe: [["filter", , ["fn", true, ["it"]]], [1], [2, 3]],
-    reduce_pipe: [
-        ["reduce", , , ["fn", true, ["_", "it"]]],
-        [1],
-        [3, 3],
-        [2],
-    ],
+    reduce_pipe: [["reduce", , , ["fn", true, ["_", "it"]]], [1], [3, 3], [2]],
 };
 const binaryOp = (nodes: CSTNode<any>[], entry?: BinaryTemplate) => {
     const [template, leftPath, rightPath, childPath] = entry!;
@@ -490,9 +485,7 @@ const augAssign =
                             {
                                 type: "name",
                                 span: node!.span,
-                                children: [
-                                    { text: "_", span: node!.span },
-                                ],
+                                children: [{ text: "_", span: node!.span }],
                             },
                             right,
                         ],
@@ -865,7 +858,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                     n.children![0]!.type === "splat_kw");
             const isKeyed = (n: CSTNode<any>) =>
                 n.type === "collection_shorthand" ||
-                (n.type === "kw") ||
+                n.type === "kw" ||
                 (n.type === "func_prefix" &&
                     n.children![0]!.type === "splat_kw");
             if (!nodes.some(isKeyed)) {

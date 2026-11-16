@@ -643,13 +643,27 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
     shift_right_assign: {
         def: seq(ignored(rule("shift_right")), ignored(rule("normal_assign"))),
     },
-    add_assign: { def: seq(ignored(rule("add")), ignored(rule("normal_assign"))) },
-    sub_assign: { def: seq(ignored(rule("sub")), ignored(rule("normal_assign"))) },
-    mul_assign: { def: seq(ignored(rule("mul")), ignored(rule("normal_assign"))) },
-    div_assign: { def: seq(ignored(rule("div")), ignored(rule("normal_assign"))) },
-    mod_assign: { def: seq(ignored(rule("mod")), ignored(rule("normal_assign"))) },
-    format_assign: { def: seq(ignored(rule("format")), ignored(rule("normal_assign"))) },
-    pow_assign: { def: seq(ignored(rule("pow")), ignored(rule("normal_assign"))) },
+    add_assign: {
+        def: seq(ignored(rule("add")), ignored(rule("normal_assign"))),
+    },
+    sub_assign: {
+        def: seq(ignored(rule("sub")), ignored(rule("normal_assign"))),
+    },
+    mul_assign: {
+        def: seq(ignored(rule("mul")), ignored(rule("normal_assign"))),
+    },
+    div_assign: {
+        def: seq(ignored(rule("div")), ignored(rule("normal_assign"))),
+    },
+    mod_assign: {
+        def: seq(ignored(rule("mod")), ignored(rule("normal_assign"))),
+    },
+    format_assign: {
+        def: seq(ignored(rule("format")), ignored(rule("normal_assign"))),
+    },
+    pow_assign: {
+        def: seq(ignored(rule("pow")), ignored(rule("normal_assign"))),
+    },
 
     // right associative
     ternary: {

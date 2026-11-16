@@ -11,8 +11,12 @@ export interface Mathable {
     __div__(task: Task, other: any): TaskGen<any>;
     __matmul__?(task: Task, other: any): TaskGen<any>;
     __rmatmul__?(task: Task, other: any): TaskGen<any>;
-    __neg__?(task: Task): TaskGen<any>;
-    __abs__?(task: Task): TaskGen<any>;
+}
+export interface Negateable {
+    __neg__(task: Task): TaskGen<any>;
+}
+export interface Absable {
+    __abs__(task: Task): TaskGen<any>;
 }
 
 export interface ReflectedMathable extends Mathable {
@@ -23,12 +27,12 @@ export interface ReflectedMathable extends Mathable {
 }
 
 export interface Comparable {
-    __lt__?(task: Task, other: any): TaskGen<any>;
-    __gt__?(task: Task, other: any): TaskGen<any>;
-    __lte__?(task: Task, other: any): TaskGen<any>;
-    __gte__?(task: Task, other: any): TaskGen<any>;
-    __eq__?(task: Task, other: any): TaskGen<any>;
-    __ne__?(task: Task, other: any): TaskGen<any>;
+    __lt__?(task: Task, other: any): TaskGen<boolean>;
+    __gt__?(task: Task, other: any): TaskGen<boolean>;
+    __lte__?(task: Task, other: any): TaskGen<boolean>;
+    __gte__?(task: Task, other: any): TaskGen<boolean>;
+    __eq__?(task: Task, other: any): TaskGen<boolean>;
+    __ne__?(task: Task, other: any): TaskGen<boolean>;
 }
 
 export interface Callable {
@@ -37,21 +41,24 @@ export interface Callable {
 }
 
 declare global {
-    interface Number extends ReflectedMathable, Comparable {}
-    interface BigInt extends ReflectedMathable, Comparable {}
-    // bool is treated as an int subclass
-    interface Boolean extends ReflectedMathable, Comparable {}
+    interface Number
+        extends ReflectedMathable, Negateable, Absable, Comparable {}
+    interface BigInt
+        extends ReflectedMathable, Negateable, Absable, Comparable {}
+    /** bool is treated as an int subclass */
+    interface Boolean
+        extends Number, ReflectedMathable, Negateable, Absable, Comparable {}
     interface String extends Comparable {
-        __add__(task: Task, other: any): TaskGen<any>;
-        __mul__(task: Task, other: any): TaskGen<any>;
-        __rmul__(task: Task, other: any): TaskGen<any>;
+        __add__(task: Task, other: any): TaskGen<string>;
+        __mul__(task: Task, other: any): TaskGen<string>;
+        __rmul__(task: Task, other: any): TaskGen<string>;
     }
     interface Array<T> {
-        __add__(task: Task, other: any): TaskGen<any>;
-        __mul__(task: Task, other: any): TaskGen<any>;
-        __rmul__(task: Task, other: any): TaskGen<any>;
-        __eq__(task: Task, other: any): TaskGen<any>;
-        __ne__(task: Task, other: any): TaskGen<any>;
+        __add__(task: Task, other: any): TaskGen<any[]>;
+        __mul__(task: Task, other: any): TaskGen<any[]>;
+        __rmul__(task: Task, other: any): TaskGen<any[]>;
+        __eq__(task: Task, other: any): TaskGen<boolean>;
+        __ne__(task: Task, other: any): TaskGen<boolean>;
     }
     // object implements only the default identity __eq__/__ne__
     interface Object extends Comparable {}
@@ -64,6 +71,7 @@ Number.prototype.__add__ = function* (
     task: Task,
     other: unknown,
 ) {
+    if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
         if (Number.isInteger(this)) {
             return BigInt(this) + other;
@@ -84,6 +92,7 @@ Number.prototype.__sub__ = function* (
     task: Task,
     other: unknown,
 ) {
+    if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
         if (Number.isInteger(this)) {
             return BigInt(this) - other;
@@ -101,6 +110,7 @@ Number.prototype.__rsub__ = function* (
     task: Task,
     other: unknown,
 ) {
+    if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
         if (Number.isInteger(this)) {
             return other - BigInt(this);
@@ -118,6 +128,7 @@ Number.prototype.__mul__ = function* (
     task: Task,
     other: unknown,
 ) {
+    if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
         if (Number.isInteger(this)) {
             return BigInt(this) * other;
@@ -138,10 +149,14 @@ Number.prototype.__div__ = function* (
     task: Task,
     other: unknown,
 ) {
+    if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
         if (Number.isInteger(this)) {
             if (other === 0n) {
-                throw new BValueError("backolon.math.undefined.div_zero.bigint", other);
+                throw new BValueError(
+                    "backolon.math.undefined.div_zero.bigint",
+                    other,
+                );
             }
             return BigInt(this) / other;
         }
@@ -158,10 +173,14 @@ Number.prototype.__rdiv__ = function* (
     task: Task,
     other: unknown,
 ) {
+    if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
         if (Number.isInteger(this)) {
             if (this === 0) {
-                throw new BValueError("backolon.math.undefined.div_zero.bigint", this);
+                throw new BValueError(
+                    "backolon.math.undefined.div_zero.bigint",
+                    this,
+                );
             }
             return other / BigInt(this);
         }
@@ -181,11 +200,7 @@ Number.prototype.__abs__ = function* (this: number, task: Task) {
     return abs(this);
 };
 
-Number.prototype.__lt__ = function* (
-    this: number,
-    task: Task,
-    other: unknown,
-) {
+Number.prototype.__lt__ = function* (this: number, task: Task, other: unknown) {
     // booleans compare as 0/1: bool is an int subclass
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
@@ -194,11 +209,7 @@ Number.prototype.__lt__ = function* (
     throw new BTypeError("backolon.compare.number.lt", other);
 };
 
-Number.prototype.__gt__ = function* (
-    this: number,
-    task: Task,
-    other: unknown,
-) {
+Number.prototype.__gt__ = function* (this: number, task: Task, other: unknown) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
         return this > other;
@@ -230,11 +241,7 @@ Number.prototype.__gte__ = function* (
     throw new BTypeError("backolon.compare.number.gte", other);
 };
 
-Number.prototype.__eq__ = function* (
-    this: number,
-    task: Task,
-    other: unknown,
-) {
+Number.prototype.__eq__ = function* (this: number, task: Task, other: unknown) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number") {
         return this === other;
@@ -245,12 +252,11 @@ Number.prototype.__eq__ = function* (
     return false;
 };
 
-Number.prototype.__ne__ = function* (
-    this: number,
-    task: Task,
-    other: unknown,
-) {
-    return !(yield* Reflect.apply(Number.prototype.__eq__!, this, [task, other]));
+Number.prototype.__ne__ = function* (this: number, task: Task, other: unknown) {
+    return !(yield* Reflect.apply(Number.prototype.__eq__!, this, [
+        task,
+        other,
+    ]));
 };
 
 BigInt.prototype.__add__ = function* (
@@ -334,14 +340,20 @@ BigInt.prototype.__div__ = function* (
 ) {
     if (typeof other === "bigint") {
         if (other === 0n) {
-            throw new BValueError("backolon.math.undefined.div_zero.bigint", other);
+            throw new BValueError(
+                "backolon.math.undefined.div_zero.bigint",
+                other,
+            );
         }
         return this / other;
     }
     if (typeof other === "number") {
         if (Number.isInteger(other)) {
             if (other === 0) {
-                throw new BValueError("backolon.math.undefined.div_zero.bigint", other);
+                throw new BValueError(
+                    "backolon.math.undefined.div_zero.bigint",
+                    other,
+                );
             }
             return this / BigInt(other);
         }
@@ -357,14 +369,20 @@ BigInt.prototype.__rdiv__ = function* (
 ) {
     if (typeof other === "bigint") {
         if (this === 0n) {
-            throw new BValueError("backolon.math.undefined.div_zero.bigint", this);
+            throw new BValueError(
+                "backolon.math.undefined.div_zero.bigint",
+                this,
+            );
         }
         return other / this;
     }
     if (typeof other === "number") {
         if (Number.isInteger(other)) {
             if (this === 0n) {
-                throw new BValueError("backolon.math.undefined.div_zero.bigint", this);
+                throw new BValueError(
+                    "backolon.math.undefined.div_zero.bigint",
+                    this,
+                );
             }
             return BigInt(other) / this;
         }
@@ -381,11 +399,7 @@ BigInt.prototype.__abs__ = function* (this: bigint, task: Task) {
     return this < 0n ? -this : this;
 };
 
-BigInt.prototype.__lt__ = function* (
-    this: bigint,
-    task: Task,
-    other: unknown,
-) {
+BigInt.prototype.__lt__ = function* (this: bigint, task: Task, other: unknown) {
     // booleans compare as 0/1: bool is an int subclass
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
@@ -394,11 +408,7 @@ BigInt.prototype.__lt__ = function* (
     throw new BTypeError("backolon.compare.bigint.lt", other);
 };
 
-BigInt.prototype.__gt__ = function* (
-    this: bigint,
-    task: Task,
-    other: unknown,
-) {
+BigInt.prototype.__gt__ = function* (this: bigint, task: Task, other: unknown) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
         return this > other;
@@ -430,11 +440,7 @@ BigInt.prototype.__gte__ = function* (
     throw new BTypeError("backolon.compare.bigint.gte", other);
 };
 
-BigInt.prototype.__eq__ = function* (
-    this: bigint,
-    task: Task,
-    other: unknown,
-) {
+BigInt.prototype.__eq__ = function* (this: bigint, task: Task, other: unknown) {
     if (typeof other === "boolean") return this === BigInt(other);
     if (typeof other === "bigint") {
         return this === other;
@@ -445,88 +451,16 @@ BigInt.prototype.__eq__ = function* (
     return false;
 };
 
-BigInt.prototype.__ne__ = function* (
-    this: bigint,
-    task: Task,
-    other: unknown,
-) {
-    return !(yield* Reflect.apply(BigInt.prototype.__eq__!, this, [task, other]));
+BigInt.prototype.__ne__ = function* (this: bigint, task: Task, other: unknown) {
+    return !(yield* Reflect.apply(BigInt.prototype.__eq__!, this, [
+        task,
+        other,
+    ]));
 };
 
 // booleans are 0/1 in numeric contexts (bool is an int subclass), so
 // every numeric method delegates to Number's with the value converted
-const boolDelegate = (
-    method: "__add__" | "__sub__" | "__mul__" | "__div__",
-) =>
-    function* (this: boolean, task: Task, other: unknown) {
-        // a boolean on either side is 0/1; Number's methods do not
-        // accept booleans, so convert the other side here too
-        if (typeof other === "boolean") other = Number(other);
-        return yield* Reflect.apply(Number.prototype[method], Number(this), [
-            task,
-            other,
-        ]);
-    };
-
-Boolean.prototype.__add__ = boolDelegate("__add__");
-Boolean.prototype.__radd__ = Boolean.prototype.__add__;
-Boolean.prototype.__sub__ = boolDelegate("__sub__");
-Boolean.prototype.__mul__ = boolDelegate("__mul__");
-Boolean.prototype.__rmul__ = Boolean.prototype.__mul__;
-Boolean.prototype.__div__ = boolDelegate("__div__");
-
-Boolean.prototype.__rsub__ = function* (
-    this: boolean,
-    task: Task,
-    other: unknown,
-) {
-    if (typeof other === "boolean") other = Number(other);
-    return yield* Reflect.apply(Number.prototype.__rsub__!, Number(this), [
-        task,
-        other,
-    ]);
-};
-
-Boolean.prototype.__rdiv__ = function* (
-    this: boolean,
-    task: Task,
-    other: unknown,
-) {
-    if (typeof other === "boolean") other = Number(other);
-    return yield* Reflect.apply(Number.prototype.__rdiv__!, Number(this), [
-        task,
-        other,
-    ]);
-};
-
-Boolean.prototype.__neg__ = function* (this: boolean, task: Task) {
-    return yield* Reflect.apply(Number.prototype.__neg__!, Number(this), [
-        task,
-    ]);
-};
-
-Boolean.prototype.__abs__ = function* (this: boolean, task: Task) {
-    return yield* Reflect.apply(Number.prototype.__abs__!, Number(this), [
-        task,
-    ]);
-};
-
-const boolCompare = (
-    method: "__lt__" | "__gt__" | "__lte__" | "__gte__" | "__eq__" | "__ne__",
-) =>
-    function* (this: boolean, task: Task, other: unknown) {
-        return yield* Reflect.apply(Number.prototype[method]!, Number(this), [
-            task,
-            other,
-        ]);
-    };
-
-Boolean.prototype.__lt__ = boolCompare("__lt__");
-Boolean.prototype.__gt__ = boolCompare("__gt__");
-Boolean.prototype.__lte__ = boolCompare("__lte__");
-Boolean.prototype.__gte__ = boolCompare("__gte__");
-Boolean.prototype.__eq__ = boolCompare("__eq__");
-Boolean.prototype.__ne__ = boolCompare("__ne__");
+Object.setPrototypeOf(Boolean.prototype, Number.prototype);
 
 String.prototype.__add__ = function* (
     this: string,
@@ -570,22 +504,14 @@ String.prototype.__mul__ = function* (
 // the count is the other operand either way around
 String.prototype.__rmul__ = String.prototype.__mul__;
 
-String.prototype.__lt__ = function* (
-    this: string,
-    task: Task,
-    other: unknown,
-) {
+String.prototype.__lt__ = function* (this: string, task: Task, other: unknown) {
     if (typeof other === "string") {
         return this < other;
     }
     throw new BTypeError("backolon.compare.string.lt", other);
 };
 
-String.prototype.__gt__ = function* (
-    this: string,
-    task: Task,
-    other: unknown,
-) {
+String.prototype.__gt__ = function* (this: string, task: Task, other: unknown) {
     if (typeof other === "string") {
         return this > other;
     }
@@ -614,20 +540,15 @@ String.prototype.__gte__ = function* (
     throw new BTypeError("backolon.compare.string.gte", other);
 };
 
-String.prototype.__eq__ = function* (
-    this: string,
-    task: Task,
-    other: unknown,
-) {
+String.prototype.__eq__ = function* (this: string, task: Task, other: unknown) {
     return typeof other === "string" && this === other;
 };
 
-String.prototype.__ne__ = function* (
-    this: string,
-    task: Task,
-    other: unknown,
-) {
-    return !(yield* Reflect.apply(String.prototype.__eq__!, this, [task, other]));
+String.prototype.__ne__ = function* (this: string, task: Task, other: unknown) {
+    return !(yield* Reflect.apply(String.prototype.__eq__!, this, [
+        task,
+        other,
+    ]));
 };
 
 Array.prototype.__add__ = function* (
@@ -692,7 +613,10 @@ Object.defineProperty(Object.prototype, "__eq__", {
 
 Object.defineProperty(Object.prototype, "__ne__", {
     value: function* (this: unknown, task: Task, other: unknown) {
-        return !(yield* Reflect.apply(Object.prototype.__eq__!, this, [task, other]));
+        return !(yield* Reflect.apply(Object.prototype.__eq__!, this, [
+            task,
+            other,
+        ]));
     },
     writable: true,
     configurable: true,
