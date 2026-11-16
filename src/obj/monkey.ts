@@ -45,9 +45,8 @@ declare global {
         extends ReflectedMathable, Negateable, Absable, Comparable {}
     interface BigInt
         extends ReflectedMathable, Negateable, Absable, Comparable {}
-    /** bool is treated as an int subclass */
-    interface Boolean
-        extends Number, ReflectedMathable, Negateable, Absable, Comparable {}
+    /** Bool is treated as an int subclass */
+    interface Boolean extends Number {}
     interface String extends Comparable {
         __add__(task: Task, other: any): TaskGen<string>;
         __mul__(task: Task, other: any): TaskGen<string>;
