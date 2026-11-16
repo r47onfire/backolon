@@ -1,4 +1,6 @@
 import { parse } from "lib0/json";
+import { TaskGen } from "../vm";
+import type { Importer } from "./importer";
 import { JSModule, JSONModule, JSONSourceMap } from "./jsmod";
 
 const defaultDecoder = new TextDecoder();
@@ -18,29 +20,31 @@ export abstract class Finder {
      */
     abstract match(url: URL): Finder | undefined;
     /** Whether a file exists at `url`. */
-    abstract stat(url: URL): Promise<boolean>;
+    abstract stat(url: URL): TaskGen<boolean>;
     /**
      * The raw bytes of the file at `path`. The base implementation just throws;
      * finders override the fetch methods for the URLs they serve.
      */
-    async getBytes(path: URL): Promise<Uint8Array> {
+    *getBytes(path: URL): TaskGen<Uint8Array> {
         throw new Error("getBytes() not implemented");
     }
     /** The file at `path`, decoded as UTF-8 text. */
-    async getText(path: URL): Promise<string> {
-        return defaultDecoder.decode(await this.getBytes(path));
+    *getText(path: URL): TaskGen<string> {
+        return defaultDecoder.decode(yield* this.getBytes(path));
     }
     /** The file at `path`, parsed as JSON. */
-    async getJSON(path: URL): Promise<JSONModule | JSONSourceMap> {
-        return parse(await this.getText(path));
+    *getJSON(path: URL): TaskGen<JSONModule | JSONSourceMap> {
+        return parse(yield* this.getText(path));
     }
     /**
      * The file at `path`, imported as a Javascript module. Implemented by
-     * fetching the source and importing it through a `data:` URL.
+     * getting the source using {@link getText} and importing it through a
+     * `data:` URL, so the file will not be able to import other modules unless
+     * this hook is overridden.
      */
-    async getImport(path: URL): Promise<JSModule> {
-        return await import(
-            `data:text/javascript;charset=utf-8,${encodeURIComponent(await this.getText(path))}`
+    *getImport(path: URL): TaskGen<JSModule> {
+        return yield import(
+            `data:text/javascript;charset=utf-8,${encodeURIComponent(yield* this.getText(path))}`
         );
     }
 }

@@ -38,7 +38,7 @@ function renderNameThing<T extends keyof HTMLElementTagNameMap>(
     description: string | undefined,
     colon: boolean,
 ) {
-    var str = `<${elType}>${e(name)}`;
+    let str = `<${elType}>${e(name)}`;
     if (type || lazy || rest) str += " (";
     if (lazy) {
         str += "lazy";
@@ -144,15 +144,15 @@ function renderSyntax(modName: string, syn: SyntaxDoc) {
 }
 
 export function docsToHTML(docs: Documentation) {
-    var html = "",
+    let html = "",
         sidebar = "";
     // TODO:
-    // for (var [modName, modDoc] of Object.entries(docs)) {
+    // for (let [modName, modDoc] of Object.entries(docs)) {
     //     sidebar += `<details open><summary><a href="#module-${s(modName)}">${e(modName)}</a></summary>`;
-    //     var section = "";
+    //     let section = "";
     //     if (modDoc.functions.length > 0) {
     //         section += `<section class="api-section"><h3>Functions</h3>`;
-    //         for (var doc of modDoc.functions) {
+    //         for (let doc of modDoc.functions) {
     //             const { html, nav } = renderFunction(modName, doc);
     //             section += html;
     //             sidebar += nav;
@@ -161,7 +161,7 @@ export function docsToHTML(docs: Documentation) {
     //     }
     //     if (modDoc.values.length > 0) {
     //         section += `<section class="api-section"><h3>Values</h3>`;
-    //         for (var val of modDoc.values) {
+    //         for (let val of modDoc.values) {
     //             const { html, nav } = renderValue(modName, val);
     //             section += html;
     //             sidebar += nav;
@@ -170,7 +170,7 @@ export function docsToHTML(docs: Documentation) {
     //     }
     //     if (modDoc.syntax.length > 0) {
     //         section += `<section class="api-section"><h3>Syntax</h3>`;
-    //         for (var syn of modDoc.syntax) {
+    //         for (let syn of modDoc.syntax) {
     //             const { html, nav } = renderSyntax(modName, syn);
     //             section += html;
     //             sidebar += nav;

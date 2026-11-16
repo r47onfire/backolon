@@ -38,7 +38,7 @@ function dedent(str: string) {
 
 function markdownElement(html: HTMLElement) {
     const elsWithMarkdown = html.querySelectorAll("[markdown]");
-    for (var el of elsWithMarkdown) {
+    for (let el of elsWithMarkdown) {
         const html2 = dedent(el.innerHTML);
         if (parse(html2).querySelector("[markdown]"))
             throw new Error("nested [markdown] attributes are buggy af");

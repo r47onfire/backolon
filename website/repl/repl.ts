@@ -126,7 +126,7 @@ function initREPL() {
             }
 
             // Start executing Backolon code
-            var code;
+            let code;
             try {
                 code = Backolon.parse(
                     command,

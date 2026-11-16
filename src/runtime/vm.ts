@@ -1,106 +1,104 @@
-import { Importer, OP_do_import, SourceTracker } from "./importer";
-import { Module } from "./module";
+import {
+    EventDispatcher,
+    insertionSort,
+    LinkedList,
+} from "@r47onfire/game-math";
+import { CSTNode, Memo } from "@r47onfire/nebula";
+import { StackTreeNode } from "../errors/compress";
+import { backolonGrammar } from "../parser";
+import { BackolonAuditEvents } from "./audit";
+import { Env } from "./env";
+import { Importer } from "./modules/importer";
+import { Module } from "./modules/module";
+import { TryCatchHandler } from "./trycatch";
+import { Identifier, objectEntries } from "../utils";
+import { Callable } from "../obj/monkey";
+
+export type FormFunc = (
+    task: Task,
+    node: CSTNode<any>,
+    env: Env,
+    traceback: LinkedList<StackTreeNode>,
+    handlers: LinkedList<TryCatchHandler>,
+) => TaskGen<any>;
+
+export type TaskGen<T> = Generator<PromiseLike<unknown>, T, any>;
 
 /**
- * The part of {@link BackolonVM} state captured by JEB's state snapshot/rollback
- * mechanism. Module loading state is represented as each cached module's
- * `parent` link (see {@link Module.parent}); restoring it makes half-loaded
- * modules look unloaded again.
+ * The Backolon thread dispatcher: on top of the base VM it keeps the module
+ * cache, and the current grammar (if any).
  */
-export interface BackolonVMState {
-    moduleLoad: (Module | null)[];
-    parser: Parser | null;
-    resetParser: boolean;
-}
-
-/** Everything the VM tracks about one registered module. */
-export interface ModuleCacheEntry {
-    mod: Module;
-    /** The module's source, once a loader has provided it. */
-    src: SourceTracker | undefined;
-    /**
-     * Source spans registered for this module; a span's index in this array is
-     * part of its {@link Location}.
-     */
-    map: Span[];
-}
-
-/**
- * The JEB VM specialized for Backolon: on top of the base VM it keeps the
- * module cache, the current parser (if any), and the span tables that map JEB
- * {@link Location}s back to source ranges.
- */
-export class BackolonVM {
-    /** Current parser context - null if not parsing */
-    parser: Parser | null = null;
+export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
     constructor(public importer: Importer) {
-        this.#createBuiltinsModule();
-        create_parser_module(this);
+        super();
     }
-    /**
-     * All modules this VM knows about, in registration order. An entry's index
-     * here is the second component of every {@link Location} pointing into that
-     * module.
-     */
-    modcache: ModuleCacheEntry[] = [];
-    /**
-     * Looks up a module's cache entry by exact URL; returns its index and the
-     * entry (or undefined).
-     */
-    #modcacheGet(url: URL): [number, ModuleCacheEntry | undefined] {
-        const i = this.modcache.findIndex((m) => m.mod.id.href === url.href);
-        return [i, this.modcache[i]];
+    modules: Record<string, Module> = {};
+    getModule(resolved: URL) {
+        return this.modules[resolved.href];
     }
-    /** The registered module for `url`, or undefined if it was never created. */
-    getModule(url: URL) {
-        return this.#modcacheGet(url)[1]?.mod;
+    createModule(name: URL, parent: Module | null) {
+        return (this.modules[name.href] = new Module(name, parent));
     }
-    /**
-     * Creates a module for `url` -- with a fresh global environment nested
-     * inside the builtins environment -- and registers it in the cache. Throws
-     * if a module for `url` already exists.
-     */
-    createModule(url: URL, parent: Module | null): Module {
-        const exist = this.#modcacheGet(url)[1];
-        if (exist) {
-            throw new JEBError(
-                ErrnoCode.EEXIST,
-                `module ${url.href} already exists`,
-            );
+    /** List of tasks, sorted by priority. */
+    tasks: Task[] = [];
+    addTask(
+        id: string,
+        priority: number,
+        form: CSTNode<any>,
+        context: Record<Identifier, any>,
+        exclusive = false,
+    ): Task {
+        if (exclusive) {
+            const t2 = this.tasks.find((t) => t.id === id);
+            if (t2) return t2;
         }
-        const mod = new Module(this.createEnv(this.builtinsEnv), url, parent);
-        this.modcache.push({
-            mod,
-            src: undefined,
-            map: [],
-        });
-        return mod;
+        const t = new Task(this, id, priority);
+        const env = new Env([this.builtinsEnv], new Map(objectEntries(context)));
+        t.gen = this.eval(form, t, env, null, null);
+        this.tasks.push(t);
+        insertionSort(this.tasks, (t1, t2) => t2.priority - t1.priority);
+        return t;
     }
-    /**
-     * Registers the special `backolon:builtins` module, whose exports mirror
-     * every binding of the builtins environment, so builtin names can be
-     * imported like any other module's exports.
-     */
-    #createBuiltinsModule() {
-        const env = this.builtinsEnv;
-        this.createModule(new URL("backolon:builtins"), null).exports =
-            Object.fromEntries(
-                Object.keys(env.bindings).map((k) => [
-                    k,
-                    new VariableReference(AccessType.PROPERTY, env, k),
-                ]),
-            );
+    eval(
+        form: CSTNode<any>,
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+    ) {
+        return callValue(
+            task.grammar[form.type]?.run,
+            [task, form, env, traceback, handlers],
+            true,
+        );
     }
 }
 
-/**
- * Brand symbol stamped on arrays that are {@link Location}s, so they can be told
- * apart from plain number pairs.
- */
-export const LOCATION_TAG = Symbol("__location__");
+export class Task {
+    grammar = backolonGrammar;
+    memo: Memo<any> = {};
+    gen!: TaskGen<any>;
+    constructor(
+        readonly vm: BackolonVM,
+        readonly id: string,
+        readonly priority: number,
+    ) {}
+}
 
-/** Stamps `x` with {@link LOCATION_TAG} and returns it as a {@link Location}. */
-const location = (x: Location): Location => {
-    (x as any)[LOCATION_TAG] = LOCATION_TAG;
-    return x;
-};
+export function callValue(
+    handler: Callable | undefined,
+    args: CSTNode<any>[],
+    computed?: false,
+): TaskGen<any>;
+export function callValue(
+    handler: Callable | undefined,
+    args: any[],
+    computed: true,
+): TaskGen<any>;
+export function* callValue(
+    handler: Callable | undefined,
+    args: any[],
+    computed?: boolean,
+) {
+    // TODO: what to do here?
+}

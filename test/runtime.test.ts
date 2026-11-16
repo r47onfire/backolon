@@ -1,5 +1,3 @@
-import { popData } from "@r47onfire/jeb";
-import { makeTestRun, runAsync } from "@r47onfire/jeb/test";
 import { describe, expect, test } from "bun:test";
 import { BackolonVM, Finder, Importer, IndexResolver, Module } from "../src";
 
@@ -9,10 +7,10 @@ class TestFinder extends Finder {
     match() {
         return this;
     }
-    async stat(path: URL) {
+    *stat(path: URL) {
         return this.vfs[path.href] !== undefined;
     }
-    async getText(path: URL) {
+    *getText(path: URL) {
         return this.vfs[path.href]!;
     }
     vfs: VFS = {};
@@ -22,7 +20,7 @@ const vfs = (vm: BackolonVM, files: VFS) => {
     Object.assign((vm.importer.finders[0] as TestFinder).vfs, files);
 };
 
-const vfsURL = (file: string) => new URL(file, "test://");
+const vfsURL = (file: string) => new URL(file, "test:");
 const MAIN = vfsURL("main.bk");
 
 const main = (vm: BackolonVM, file: string) => vfs(vm, { [MAIN.href]: file });

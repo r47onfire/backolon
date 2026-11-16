@@ -1,7 +1,7 @@
 import { CSTNode, describeCombinator, parseToCST } from "@r47onfire/nebula";
 import { condenseCST } from "@r47onfire/nebula/compile";
 import { describe, expect, test } from "bun:test";
-import { backolonGrammar } from "../src";
+import { backolonGrammar, objectEntries } from "../src";
 
 type ASTNode = string | number | undefined | ASTNode[];
 const toAST = (cst: CSTNode): ASTNode => {
@@ -274,7 +274,7 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
     ],
 };
 
-describe.each(Object.entries(TESTS))("%s", (_, list) => {
+describe.each(objectEntries(TESTS))("%s", (_, list) => {
     test.each(list.map(([s, n]) => [JSON.stringify(s), s, n]))("%s", (_, str, node) => {
         // a "BAD" entry must not parse cleanly: it either stops
         // before the end of the input (silent truncation) or

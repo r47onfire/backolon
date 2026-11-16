@@ -1,5 +1,5 @@
 import { gensym, Identifier } from "@r47onfire/jeb";
-import { CSTNode, describeCombinator, parseToCST } from "@r47onfire/nebula";
+import { CSTNode<any>, describeCombinator, parseToCST } from "@r47onfire/nebula";
 import { condenseCST, syncCompile } from "@r47onfire/nebula/compile";
 import { last } from "lib0/array";
 import { isString } from "lib0/function";
@@ -246,13 +246,13 @@ print 2
 print 1;;;;;;;;;print 2
 `;
 
-const makeSyntaxErrorNode = (node: CSTNode, msg: string) => [
+const makeSyntaxErrorNode = (node: CSTNode<any>, msg: string) => [
     "throw",
     ["err", "ESYNTAX", msg],
 ];
 
 const beginBody = [
-    (nodes: CSTNode[]) => {
+    (nodes: CSTNode<any>[]) => {
         return nodes.length === 1
             ? {
                   val: [],
@@ -266,7 +266,7 @@ const beginBody = [
     },
 ] as Parameters<typeof syncCompile>[1][number];
 const callBody = [
-    (nodes: [CSTNode, CSTNode]) => {
+    (nodes: [CSTNode<any>, CSTNode<any>]) => {
         const callee = nodes[0];
         const argv = nodes[1].children!;
         return {
@@ -283,11 +283,11 @@ const callBody = [
 // name, a number, or a par_exp, the same set the grammar allows after
 // a dot.
 const rootSection = (
-    section: CSTNode,
-    receiver: CSTNode,
+    section: CSTNode<any>,
+    receiver: CSTNode<any>,
     nullHead: boolean,
-): CSTNode | null => {
-    const descend = (node: CSTNode): CSTNode | null => {
+): CSTNode<any> | null => {
+    const descend = (node: CSTNode<any>): CSTNode<any> | null => {
         switch (node.type) {
             case "explicit_call":
             case "implicit_call":
@@ -326,10 +326,10 @@ const rootSection = (
 // the receiver itself.
 const cascadePRE =
     (nullHead: boolean): Parameters<typeof syncCompile>[1][number][0] =>
-    (nodes: [CSTNode, CSTNode]) => {
+    (nodes: [CSTNode<any>, CSTNode<any>]) => {
         const [left, right] = nodes;
-        var section = right,
-            rest: [CSTNode, CSTNode] | undefined;
+        let section = right,
+            rest: [CSTNode<any>, CSTNode<any>] | undefined;
         if (
             right.type === "binary_op" &&
             (right.children![1]!.type === "up_dot" ||
@@ -339,7 +339,7 @@ const cascadePRE =
             rest = [right.children![1]!, right.children![2]!];
         }
         const temp = left.type === "name" ? undefined : gensym("cascade");
-        const receiver: CSTNode =
+        const receiver: CSTNode<any> =
             temp === undefined
                 ? left
                 : {
@@ -360,7 +360,7 @@ const cascadePRE =
                     "cascade section must start with a name, number, or (expression)",
                 ),
             };
-        const stmts: CSTNode[] = [rooted];
+        const stmts: CSTNode<any>[] = [rooted];
         if (rest)
             stmts.push({
                 type: "binary_op",
@@ -377,8 +377,8 @@ const cascadePRE =
                     rest[1],
                 ],
             });
-        const tbc: [CSTNode, PropertyKey[]][] = stmts.map(
-            (stmt, i) => [stmt, [i + 1]] as [CSTNode, PropertyKey[]],
+        const tbc: [CSTNode<any>, PropertyKey[]][] = stmts.map(
+            (stmt, i) => [stmt, [i + 1]] as [CSTNode<any>, PropertyKey[]],
         );
         // only the last link appends the receiver as the value: when
         // there is a rest, its compiled form already ends with it
@@ -391,7 +391,7 @@ const cascadePRE =
                 [left, [1, 0, 1]],
                 ...tbc.map(
                     ([node, path]) =>
-                        [node, [2, ...path]] as [CSTNode, PropertyKey[]],
+                        [node, [2, ...path]] as [CSTNode<any>, PropertyKey[]],
                 ),
             ],
             post: "flatten_all_begin",
@@ -403,7 +403,7 @@ const dotPRE =
         val: string,
         transposed = false,
     ): Parameters<typeof syncCompile>[1][number][0] =>
-    (nodes: [CSTNode, CSTNode]) => {
+    (nodes: [CSTNode<any>, CSTNode<any>]) => {
         const left = nodes[0];
         const right = nodes[1];
         if (transposed) {
@@ -437,7 +437,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
     exprs: beginBody,
     body_exprs: beginBody,
     par_exp: [
-        (nodes: CSTNode[]) => {
+        (nodes: CSTNode<any>[]) => {
             return {
                 val: ["begin"],
                 tbc:
@@ -448,13 +448,13 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     number: [
-        (nodes: CSTNode[], table?: Record<string, number>) => {
+        (nodes: CSTNode<any>[], table?: Record<string, number>) => {
             const node = nodes[0]!;
             const type = node.type!;
             const text = node.children![0]!.text!;
             const base = table![type];
             if (!base) throw new Error("unknown number type " + type);
-            var n: BigInt | number | undefined;
+            let n: BigInt | number | undefined;
             if (base === 10 && /[.e]/i.test(text)) {
                 const [mantissa, exp] = text.split(/e/i);
                 const [int, frac = ""] = mantissa!.split(".");
@@ -475,7 +475,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
             }
             if (n === undefined) n = parseFloat(text);
             else {
-                var n2 = Number(n);
+                let n2 = Number(n);
                 n = Number.isFinite(n2) && BigInt(n2) === n ? n2 : n;
             }
             return {
@@ -489,21 +489,21 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         } as Record<string, number>,
     ],
     boolean: [
-        (nodes: [CSTNode]) => {
+        (nodes: [CSTNode<any>]) => {
             return {
                 val: nodes[0]!.type === "boolean_true",
             };
         },
     ],
     name: [
-        (nodes: [CSTNode]) => {
+        (nodes: [CSTNode<any>]) => {
             return {
                 val: ["local", nodes[0]!.text],
             };
         },
     ],
     regex: [
-        (nodes: [CSTNode, CSTNode]) => {
+        (nodes: [CSTNode<any>, CSTNode<any>]) => {
             const body = nodes[0].text!;
             const flags = nodes[1].text!;
             return {
@@ -512,7 +512,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     r_string: [
-        (nodes: CSTNode[]) => {
+        (nodes: CSTNode<any>[]) => {
             return {
                 val: nodes
                     .map((n) =>
@@ -525,7 +525,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     i_string: [
-        (nodes: CSTNode[], table: any) => {
+        (nodes: CSTNode<any>[], table: any) => {
             return {
                 val: [],
                 tbc: nodes.map((i, j) => [i, [j]]),
@@ -533,30 +533,30 @@ const handlers: Parameters<typeof syncCompile>[1] = {
             };
         },
     ],
-    i_body: [(nodes: [CSTNode]) => ({ val: nodes[0].text })],
+    i_body: [(nodes: [CSTNode<any>]) => ({ val: nodes[0].text })],
     i_interpolation: [
-        (nodes: [CSTNode]) => ({
+        (nodes: [CSTNode<any>]) => ({
             val: 0,
             tbc: [[nodes[0], []]],
         }),
     ],
     i_x_escape: [
-        (nodes: [CSTNode]) => ({
+        (nodes: [CSTNode<any>]) => ({
             val: String.fromCodePoint(parseInt(nodes[0].text!, 16)),
         }),
     ],
     i_u_escape: [
-        (nodes: [CSTNode]) => ({
+        (nodes: [CSTNode<any>]) => ({
             val: String.fromCodePoint(parseInt(nodes[0].text!, 16)),
         }),
     ],
     i_U_escape: [
-        (nodes: [CSTNode]) => ({
+        (nodes: [CSTNode<any>]) => ({
             val: String.fromCodePoint(parseInt(nodes[0].text!, 16)),
         }),
     ],
     i_known_escape: [
-        (nodes: [CSTNode], tab?: Record<string, string>) => {
+        (nodes: [CSTNode<any>], tab?: Record<string, string>) => {
             const text = nodes[0].text!;
             if (!Reflect.has(tab!, text)) {
                 return {
@@ -581,7 +581,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     i_stringPOST: [
-        (nodes: (string | CSTNode)[]) => {
+        (nodes: (string | CSTNode<any>)[]) => {
             nodes = nodes.reduce(
                 (acc, item) => {
                     const lastitem = acc.pop()!;
@@ -595,7 +595,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                     }
                     return acc;
                 },
-                [""] as (string | CSTNode)[],
+                [""] as (string | CSTNode<any>)[],
             );
             return {
                 val: nodes
@@ -609,7 +609,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
     empty_arg: [() => ({ val: ["empty"] })],
     binary_op: [
         (
-            nodes: [CSTNode, CSTNode, CSTNode],
+            nodes: [CSTNode<any>, CSTNode<any>, CSTNode<any>],
             table?: Record<
                 string,
                 [
@@ -641,7 +641,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                     [left, leftPath],
                     [right, rightPath],
                     ...(childPath
-                        ? [[child, childPath] as [CSTNode, PropertyKey[]]]
+                        ? [[child, childPath] as [CSTNode<any>, PropertyKey[]]]
                         : []),
                 ],
             };
@@ -702,7 +702,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
     up_dotPRE: [cascadePRE(false)],
     up_dot_nullPRE: [cascadePRE(true)],
     aug_assignPRE: [
-        (nodes: [CSTNode, CSTNode, CSTNode]) => {
+        (nodes: [CSTNode<any>, CSTNode<any>, CSTNode<any>]) => {
             const left = nodes[0];
             const right = nodes[1];
             const op = nodes[2];
@@ -736,7 +736,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     comparison: [
-        (nodes: CSTNode[], tab?: Record<string, any>) => {
+        (nodes: CSTNode<any>[], tab?: Record<string, any>) => {
             const simple = nodes.length < 4;
             const getOp = (opName: string) => {
                 const entry = tab![opName];
@@ -777,7 +777,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     comparisonPOST: [
-        (nodes: [any[], CSTNode[]]) => {
+        (nodes: [any[], CSTNode<any>[]]) => {
             const ops = nodes[0];
             const operands = nodes[1];
             // Each pair is its own binary call, joined by `and`: the chain
@@ -830,7 +830,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     func_prefix: [
-        (nodes: [CSTNode, CSTNode], table?: Record<string, any>) => {
+        (nodes: [CSTNode<any>, CSTNode<any>], table?: Record<string, any>) => {
             const type = nodes[0].type!;
             const func = structuredClone(table![nodes[0].type!]);
             if (!func)
@@ -858,7 +858,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     member_prefix: [
-        (nodes: [CSTNode, CSTNode], table?: Record<string, any>) => {
+        (nodes: [CSTNode<any>, CSTNode<any>], table?: Record<string, any>) => {
             const type = nodes[0].type!;
             const func = structuredClone(table![type]);
             if (!func)
@@ -881,16 +881,16 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     collection: [
-        (nodes: [CSTNode]) => {
+        (nodes: [CSTNode<any>]) => {
             if (nodes.length === 1 && nodes[0]!.type === "empty_list")
                 return { val: ["list"] };
             if (nodes.length === 1 && nodes[0]!.type === "empty_map")
                 return { val: {} };
-            const isSplat = (n: CSTNode) =>
+            const isSplat = (n: CSTNode<any>) =>
                 n.type === "func_prefix" &&
                 (n.children![0]!.type === "splat" ||
                     n.children![0]!.type === "splat_kw");
-            const isKeyed = (n: CSTNode) =>
+            const isKeyed = (n: CSTNode<any>) =>
                 n.type === "collection_shorthand" ||
                 (n.type === "binary_op" && n.children![1]!.type === "kw") ||
                 (n.type === "func_prefix" &&
@@ -899,7 +899,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                 return {
                     val: ["list"],
                     tbc: nodes.map(
-                        (n, i) => [n, [i + 1]] as [CSTNode, PropertyKey[]],
+                        (n, i) => [n, [i + 1]] as [CSTNode<any>, PropertyKey[]],
                     ),
                 };
             }
@@ -910,11 +910,11 @@ const handlers: Parameters<typeof syncCompile>[1] = {
             // into the slot like a value does.
             // Splats compile through as arguments: a keyword splat merges its
             // entries, a positional splat splices into the key/value stream
-            const isStaticKey = (key: CSTNode): boolean =>
+            const isStaticKey = (key: CSTNode<any>): boolean =>
                 key.type === "name" ||
                 (key.type === "quote_prefix" &&
                     key.children![0]!.type === "quote");
-            const keyText = (key: CSTNode): string => {
+            const keyText = (key: CSTNode<any>): string => {
                 if (key.type === "name") return key.children![0]!.text!;
                 if (
                     key.type === "quote_prefix" &&
@@ -929,11 +929,11 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                 ) as any as string;
             };
             const val: any[] = ["object"];
-            const tbc: [CSTNode, PropertyKey[]][] = [];
+            const tbc: [CSTNode<any>, PropertyKey[]][] = [];
             const val2: any = {};
-            const tbc2: [CSTNode, PropertyKey[]][] = [];
-            var allConstant = true; // should be true but this is broken
-            for (var n of nodes) {
+            const tbc2: [CSTNode<any>, PropertyKey[]][] = [];
+            let allConstant = true; // should be true but this is broken
+            for (let n of nodes) {
                 if (isSplat(n)) {
                     val.push(null);
                     tbc.push([n, [val.length - 1]]);
@@ -970,7 +970,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     quasiquote: [
-        (nodes: [CSTNode]) => {
+        (nodes: [CSTNode<any>]) => {
             return {
                 val: ["quasiquote"],
                 tbc: [[nodes[0], [1]]],
@@ -990,7 +990,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
     ],
     flatten_all_begin: [
         (nodes: any[]) => {
-            var post: string | undefined;
+            let post: string | undefined;
             const val = nodes.flatMap((node) => {
                 // TODO: this will break when node is wrapped in at()
                 if (Array.isArray(node) && node[0] === "begin") {
@@ -1004,7 +1004,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     ternary: [
-        (nodes: [CSTNode, CSTNode, CSTNode]) => {
+        (nodes: [CSTNode<any>, CSTNode<any>, CSTNode<any>]) => {
             return {
                 val: ["if"],
                 tbc: [
@@ -1016,7 +1016,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     if: [
-        (nodes: [CSTNode, CSTNode]) => {
+        (nodes: [CSTNode<any>, CSTNode<any>]) => {
             const cond = nodes[0],
                 body = nodes[1];
             if (body.type === "if_no_else") {
@@ -1040,29 +1040,29 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     let: [
-        (nodes: [CSTNode]) => {
+        (nodes: [CSTNode<any>]) => {
             const node = nodes[0];
-            const bindings = (argsNode: CSTNode) =>
+            const bindings = (argsNode: CSTNode<any>) =>
                 argsNode.children!.map((binding) => {
                     if (binding.type === "name")
                         return [binding.children![0]!.text!, undefined] as [
                             string,
-                            CSTNode | undefined,
+                            CSTNode<any> | undefined,
                         ];
                     const [target, , value] = binding.children!;
                     return [target!.children![0]!.text!, value] as [
                         string,
-                        CSTNode | undefined,
+                        CSTNode<any> | undefined,
                     ];
                 });
             // tbc entries for the bindings that have a value to compile;
             // a bare binding keeps the undefined already in its value slot
             const valueTbc = (
-                pairs: [string, CSTNode | undefined][],
+                pairs: [string, CSTNode<any> | undefined][],
                 path: (i: number) => PropertyKey[],
             ) =>
                 pairs.flatMap(([, value], i) =>
-                    value ? [[value, path(i)] as [CSTNode, PropertyKey[]]] : [],
+                    value ? [[value, path(i)] as [CSTNode<any>, PropertyKey[]]] : [],
                 );
             switch (node.type) {
                 case "simple_let": {
@@ -1109,7 +1109,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     while: [
-        (nodes: [CSTNode, CSTNode]) => {
+        (nodes: [CSTNode<any>, CSTNode<any>]) => {
             return {
                 val: ["while"],
                 tbc: [
@@ -1121,31 +1121,31 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     for: [
-        (nodes: CSTNode[]) => {
+        (nodes: CSTNode<any>[]) => {
             console.error(nodes);
             throw "FOR";
         },
     ],
     trycatch: [
-        (nodes: CSTNode[]) => {
+        (nodes: CSTNode<any>[]) => {
             console.error(nodes);
             throw "TRYCATCH";
         },
     ],
     with: [
-        (nodes: CSTNode[]) => {
+        (nodes: CSTNode<any>[]) => {
             console.error(nodes);
             throw "WITH";
         },
     ],
     fn: [
-        (nodes: CSTNode[]) => {
+        (nodes: CSTNode<any>[]) => {
             console.error(nodes);
             throw "FN";
         },
     ],
     always: [
-        (nodes: CSTNode[]) => {
+        (nodes: CSTNode<any>[]) => {
             console.error(nodes);
             throw "ALWAYS";
         },

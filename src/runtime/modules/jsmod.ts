@@ -1,5 +1,5 @@
 import { Module } from "./module";
-import { BackolonVM } from "./vm";
+import { BackolonVM, TaskGen } from "../vm";
 
 /**
  * Interface for what a Javascript module needs to comply with to be able to be
@@ -10,7 +10,7 @@ export interface JSModule {
         module: Module,
         query: URLSearchParams,
         vm: BackolonVM,
-    ): Promise<void>;
+    ): TaskGen<void>;
 }
 
 /** Interface for a JSON module object */

@@ -18,7 +18,7 @@ await build({
                     { filter: /src\/stdlib\/index\.ts$/ },
                     async (args) => {
                         const text = await Bun.file(args.path).text();
-                        var lines = text.split("\n");
+                        let lines = text.split("\n");
                         lines = lines.map((line) =>
                             /CORE = parse/.test(line) ? "//" + line : line,
                         );

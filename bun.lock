@@ -28,6 +28,9 @@
       },
     },
   },
+  "trustedDependencies": [
+    "@r47onfire/game-math",
+  ],
   "packages": {
     "@ast-grep/napi": ["@ast-grep/napi@0.45.3", "", { "optionalDependencies": { "@ast-grep/napi-darwin-arm64": "0.45.3", "@ast-grep/napi-darwin-x64": "0.45.3", "@ast-grep/napi-linux-arm64-gnu": "0.45.3", "@ast-grep/napi-linux-arm64-musl": "0.45.3", "@ast-grep/napi-linux-x64-gnu": "0.45.3", "@ast-grep/napi-linux-x64-musl": "0.45.3", "@ast-grep/napi-win32-arm64-msvc": "0.45.3", "@ast-grep/napi-win32-ia32-msvc": "0.45.3", "@ast-grep/napi-win32-x64-msvc": "0.45.3" } }, "sha512-bjJsUt0g3UCwbn9bjv7MnoR15rszSm79yPCXn4DWWK0NuYUUqBU/srtNMR4WnpfR7TnfBRdYFoqSNx0pGCNWJg=="],
 
@@ -99,11 +102,9 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@mxssfd/typedoc-theme": ["@mxssfd/typedoc-theme@1.1.7", "", { "peerDependencies": { "typedoc": "^0.26.7" } }, "sha512-dj4p0TjIoudD8j1u+Kf+KzcEc+je3IB/B1oohWcVJmMRfbw5uZYX6qOGHzfUzAPiU1pYe2u5Vo1IPqgLo58taA=="],
-
     "@r47onfire/game-math": ["@r47onfire/game-math@github:r47onfire/game-math#68f45da", { "dependencies": { "lib0": "^0.2.117" } }, "r47onfire-game-math-68f45da", "sha512-Gf9PtDO/lAScjaLfaQGPVuWxjGJeai1vp46HXLSJmE15MQUWyBRjG/ejZ/kcAMwAzmJqe3vwB7esEBwTU6diHQ=="],
 
-    "@r47onfire/nebula": ["@r47onfire/nebula@file:nebula", { "dependencies": { "@r47onfire/game-math": "github:r47onfire/game-math", "lib0": "^0.2.119" }, "devDependencies": { "@mxssfd/typedoc-theme": "^1.1.7", "@skillit/typedoc": "^2.0.4", "@types/bun": "^1.4.4", "@types/node": "^26.6.6", "nodemon": "^3.1.14", "typedoc": "^0.28.20" }, "hasInstallScript": true }],
+    "@r47onfire/nebula": ["@r47onfire/nebula@file:nebula", { "dependencies": { "@r47onfire/game-math": "github:r47onfire/game-math", "lib0": "^0.2.120" }, "devDependencies": { "@skillit/typedoc": "^2.0.4", "@types/bun": "^1.4.4", "@types/node": "^26.6.6", "nodemon": "^3.1.14", "typedoc": "^0.28.20" }, "hasInstallScript": true }],
 
     "@shikijs/engine-oniguruma": ["@shikijs/engine-oniguruma@3.23.0", "", { "dependencies": { "@shikijs/types": "3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-1nWINwKXxKKLqPibT5f4pAFLej9oZzQTsby8942OTlsJzOBZ0MWKiwzMsd+jhzu8YPCHAswGnnN1YtQfirL35g=="],
 

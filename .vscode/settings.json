@@ -10,6 +10,9 @@
         "EPANIC",
         "ESYNTAX",
         "exuo",
+        "fdel",
+        "fget",
+        "fset",
         "imaginarny",
         "jsfuzz",
         "jsmod",
@@ -19,9 +22,15 @@
         "lookaheads",
         "lvalue",
         "lvalues",
+        "matmul",
         "onfire",
         "opsym",
+        "radd",
+        "rdiv",
         "repr",
+        "rmatmul",
+        "rmul",
+        "rsub",
         "skillit",
         "sloink",
         "sloinked",
@@ -30,6 +39,8 @@
         "unhashable",
         "unhygenic",
         "UNPARSE",
-        "Unparser"
+        "Unparser",
+        "unshadowable",
+        "unshadowables"
     ]
 }

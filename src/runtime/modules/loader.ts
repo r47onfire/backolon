@@ -1,6 +1,6 @@
 import { Importer } from "./importer";
 import { Module } from "./module";
-import { BackolonVM } from "./vm";
+import { BackolonVM, TaskGen } from "../vm";
 
 /**
  * Object whose job it is to download or open the file and then load its
@@ -22,7 +22,7 @@ export abstract class Loader {
         url: URL,
         module: Module,
         importer: Importer,
-    ): Promise<void>;
+    ): TaskGen<void>;
 }
 
 /** Loader that handles loading the Javascript modules via `import()`. */
@@ -30,10 +30,12 @@ export class JavascriptModuleLoader extends Loader {
     match(url: URL): Loader | undefined {
         if (url.pathname.endsWith(".js")) return this;
     }
-    async load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
-        await (
-            await importer.getImport(url)
-        ).setup(module, url.searchParams, vm);
+    *load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
+        yield* (yield* importer.getImport(url)).setup(
+            module,
+            url.searchParams,
+            vm,
+        );
     }
 }
 
@@ -45,7 +47,7 @@ export class JavascriptModuleLoader extends Loader {
 //         if (url.pathname.endsWith(".bk.json")) return this;
 //     }
 //     async load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
-//         var { code, sourceMap, files } = await importer.getJSON(url) as JSONModule;
+//         let { code, sourceMap, files } = await importer.getJSON(url) as JSONModule;
 //         vm.currentEnv = module.global;
 //         const absFiles = files.map(f => new URL(f, url));
 //         // TODO: make the data be sloinked and use sloink to rewrite the tagged indices on load time
@@ -69,8 +71,8 @@ export class BackolonSourceModuleLoader extends Loader {
     match(url: URL): Loader | undefined {
         if (url.pathname.endsWith(".bk")) return this;
     }
-    async load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
-        const text = await importer.getText(url);
+    *load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
+        const text = yield* importer.getText(url);
         throw new Error("text");
     }
 }

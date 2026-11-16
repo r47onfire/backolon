@@ -4,8 +4,7 @@ import {
     ambient,
     bind,
     cut,
-    Grammar,
-    GrammarCombinator,
+    defineGrammar,
     if_,
     ignored,
     joined,
@@ -29,290 +28,342 @@ import {
     tag,
     try_,
     walkCombinator,
-    yes,
+    yes
 } from "@r47onfire/nebula";
+import { Callable } from "../obj/monkey";
+import { objectValues } from "../utils";
+
+// TODO: add format operator %% - what precedence level?
+// TODO: add rocket operator => - what precedence? what does it even do?
+// TODO: add wavydot operator ~. - need to look more closely at https://github.com/tc39/proposal-wavy-dot - does this even make sense in a language that makes async things invisible
+// TODO: tweak indexing operators to be chain-associative, will make evaluation easier
+// TODO: tweak strong blocks to allow do and begin blocks to be passed to a parameter to an implicit call
+// TODO: tweak binary operator cascade to make the top named rule adopt the name of the operator itself (e.g. instead of [binary_op, left, op, right] be [op, left, right]) - will require new combinators/tweaks in Nebula
+// TODO: tweak implicit_call and explicit_call to just say "call" in CST
+// TODO: rework comma system; comma operator one greater than assignment; creates frozen arrays and frozen objects when bare; creates arrays and objects when enclosed in brackets; creates Sets and Maps when ????? new syntax (#10)
 
 /**
- * The Backolon grammar, as plain combinator data.
+ * The Backolon grammar.
  *
  * The expression rules form a precedence chain from loosest to tightest:
  *
- * - Expr
- * - Cascade
- * - Pipe
- * - Implicit_call
- * - Kw_arg
- * - Assign_rev
- * - Assignment
- * - Ternary
- * - Logical
- * - Comparison
- * - Predicate
- * - Containment
- * - Bitwise
- * - Bitshift
- * - Sum
- * - Term
- * - Factor
- * - Indexing
- * - Primary
+ * - `expr`
+ * - `cascade`
+ * - `pipe`
+ * - `implicit_call`
+ * - `kw_arg`
+ * - `assign_rev`
+ * - `assignment`
+ * - `ternary`
+ * - `logical`
+ * - `comparison`
+ * - `predicate`
+ * - `containment`
+ * - `bitwise`
+ * - `bitshift`
+ * - `sum`
+ * - `term`
+ * - `factor`
+ * - `indexing`
+ * - `primary`
  *
  * Binary levels are written left-recursively (the parser grows the recursion),
  * and after matching an operator each level first checks a negative lookahead
  * on `assign_op` -- so `a += b` is not misread as a binary `+` followed by a
  * prefix `=` assignment -- and then cuts to commit the level.
  */
-export const backolonGrammar: Grammar = {
-    blank: ignored(rep(false, alt(regex(/\s*/), rule("comment")))),
-    blank_required: ignored(nonempty(rule("blank"))),
-    blank_sameline: ignored(sameline(rule("blank_required"))),
-
-    comment: ignored(
-        tag("comment", alt(rule("block_comment"), rule("line_comment"))),
-    ),
-    block_comment: seq(
-        lit("##[["),
-        rep(
-            false,
-            alt(
-                rule("block_comment"),
-                seq(lookahead(false, lit("##]]")), regex(/((?!##).)+|./s)),
-            ),
+export const backolonGrammar = defineGrammar<{ run?: Callable }>({
+    blank: { def: ignored(rep(false, alt(regex(/\s*/), rule("comment")))) },
+    blank_required: { def: ignored(nonempty(rule("blank"))) },
+    blank_sameline: { def: ignored(sameline(rule("blank_required"))) },
+    comment: {
+        def: ignored(
+            tag("comment", alt(rule("block_comment"), rule("line_comment"))),
         ),
-        lit("##]]"),
-    ),
-    line_comment: regex(/##(?!\[\[)[^\n]*(\n|$)/),
-
-    expr_sep: ignored(
-        rep(true, alt(rule("semi"), rule("nl"), rule("comment"))),
-    ),
-    semi: op("punctuation", ";"),
-    nl: lit("\n"),
-    comma: op("punctuation", ","),
-
-    exprs: seq(
-        rep(
-            false,
+    },
+    block_comment: {
+        def: seq(
+            lit("##[["),
+            rep(
+                false,
+                alt(
+                    rule("block_comment"),
+                    seq(lookahead(false, lit("##]]")), regex(/((?!##).)+|./s)),
+                ),
+            ),
+            lit("##]]"),
+        ),
+    },
+    line_comment: { def: regex(/##(?!\[\[)[^\n]*(\n|$)/) },
+    expr_sep: {
+        def: ignored(rep(true, alt(rule("semi"), rule("nl"), rule("comment")))),
+    },
+    semi: { def: op("punctuation", ";") },
+    nl: { def: lit("\n") },
+    comma: { def: op("punctuation", ",") },
+    exprs: {
+        def: seq(
+            rep(
+                false,
+                seq(
+                    ignored(opt(rule("expr_sep"))),
+                    ignored(opt(rule("blank"))),
+                    ignored(ambient("guard", nothing())),
+                    rule("expr"),
+                ),
+            ),
+            ignored(opt(rule("expr_sep"))),
+        ),
+    },
+    toplevel_exprs: { def: nonempty(rule("exprs")) },
+    toplevel_expr: {
+        def: rep(
+            true,
             seq(
                 ignored(opt(rule("expr_sep"))),
                 ignored(opt(rule("blank"))),
-                ignored(ambient("guard", nothing())),
                 rule("expr"),
             ),
         ),
-        ignored(opt(rule("expr_sep"))),
-    ),
-    toplevel_exprs: nonempty(rule("exprs")),
-    toplevel_expr: rep(
-        true,
-        seq(
-            ignored(opt(rule("expr_sep"))),
-            ignored(opt(rule("blank"))),
-            rule("expr"),
-        ),
-    ),
-    expr: altFirst(rule("block_expr"), rule("simple_expr")),
+    },
+    expr: {
+        def: altFirst(rule("block_expr"), rule("simple_expr")),
+    },
 
     // block_expr: let, if, while, foreach, trycatch, with, fn
-    block_expr: alt(
-        rule("strong_block"),
-        rule("let"),
-        rule("if"),
-        rule("while"),
-        rule("for"),
-        rule("trycatch"),
-        rule("with"),
-        rule("fn"),
-        rule("always"),
-    ),
-    strong_block: alt(rule("do")),
-
-    let: ssep(
-        rule("blank"),
-        kw("keyword", "let"),
-        alt(rule("let_loop_block"), rule("let_block"), rule("simple_let")),
-    ),
+    block_expr: {
+        def: alt(
+            rule("strong_block"),
+            rule("let"),
+            rule("if"),
+            rule("while"),
+            rule("for"),
+            rule("trycatch"),
+            rule("with"),
+            rule("fn"),
+            rule("always"),
+        ),
+    },
+    strong_block: { def: alt(rule("do")) },
+    let: {
+        def: ssep(
+            rule("blank"),
+            kw("keyword", "let"),
+            alt(rule("let_loop_block"), rule("let_block"), rule("simple_let")),
+        ),
+    },
     // add a blank node before to prevent the single rule wrapped from being elided
-    simple_let: seq(ignored(nothing()), rule("let_header")),
-    let_header: bind(
-        "guard",
-        true,
-        lookahead(false, kw("keyword", "in")),
-        rule("let_bindings"),
-    ),
-    let_bindings: joined(
-        ignored(
-            seq(
-                opt(rule("blank_sameline")),
-                rule("comma"),
-                opt(rule("blank_sameline")),
-            ),
-        ),
-        seq(
-            ignored(ambient("guard", nothing())),
-            lookahead(false, rule("strong_block")),
-            rule("let_binding"),
-        ),
-        false,
-        false,
-    ),
-    let_binding: rule(
-        "binary_op",
-        rule("name"),
-        rule("let_assign_op"),
-        rule("name"),
-        rule("expr"),
-        nothing(),
-    ),
-    let_assign_op: alt(rule("normal_assign")),
-
-    let_block: ssep(
-        rule("blank"),
-        rule("let_header"),
-        seq(
-            kw("keyword", "in"),
-            // no sep here!
-            rule("body_exprs", kw("keyword", "end"), yes()),
-        ),
-    ),
-    let_loop_block: ssep(
-        rule("blank"),
-        op("punctuation", "("),
-        cut(),
-        rule("name"),
-        op("punctuation", ")"),
-        rule("let_block"),
-    ),
-
-    if: ssep(
-        rule("blank"),
-        kw("keyword", "if"),
-        seq(
-            bind(
-                "guard",
-                true,
-                lookahead(false, kw("keyword", "then")),
-                rule("expr"),
-            ),
-            ignored(opt(rule("blank"))),
-            ignored(opt(kw("keyword", "then"))),
-            altFirst(rule("if_else"), rule("if_no_else")),
-        ),
-    ),
-    if_else: seq(
-        rule("body_exprs", kw("keyword", "else", "end"), no()),
-        ignored(rule("blank")),
-        kw("keyword", "else"),
-        rule("body_exprs", kw("keyword", "end"), yes()),
-    ),
-    if_no_else: seq(
-        rule("body_exprs", kw("keyword", "else", "end"), no()),
-        ignored(opt(seq(rule("blank"), kw("keyword", "end")))),
-    ),
-
-    while: ssep(
-        rule("blank"),
-        kw("keyword", "while"),
-        seq(
-            ignored(rule("blank")),
-            rule("expr"),
-            rule("body_exprs", kw("keyword", "end"), yes()),
-        ),
-    ),
-
-    for: ssep(
-        rule("blank"),
-        kw("keyword", "for"),
-        seq(
-            ignored(rule("blank")),
-            rule("assignment"),
-            rule("body_exprs", kw("keyword", "end"), yes()),
-        ),
-    ),
-
-    trycatch: ssep(
-        rule("blank"),
-        kw("keyword", "try"),
-        seq(
-            rule("trycatch_guarded"),
-            cut(),
-            rep(false, rule("trycatch_handler")),
-            opt(rule("trycatch_else")),
-            opt(rule("trycatch_finally")),
-            ignored(opt(seq(rule("blank"), kw("keyword", "end")))),
-        ),
-    ),
-    trycatch_guarded: rule(
-        "body_exprs",
-        kw("keyword", "catch", "finally", "else", "end"),
-        no(),
-    ),
-    trycatch_handler: seq(
-        ignored(rule("blank")),
-        kw("keyword", "catch"),
-        ignored(rule("blank")),
-        bind(
+    simple_let: { def: seq(ignored(nothing()), rule("let_header")) },
+    let_header: {
+        def: bind(
             "guard",
             true,
-            lookahead(false, kw("keyword", "catch", "finally", "else", "end")),
-            rule("expr"),
+            lookahead(false, kw("keyword", "in")),
+            rule("let_bindings"),
         ),
-        rule(
+    },
+    let_bindings: {
+        def: joined(
+            ignored(
+                seq(
+                    opt(rule("blank_sameline")),
+                    rule("comma"),
+                    opt(rule("blank_sameline")),
+                ),
+            ),
+            seq(
+                ignored(ambient("guard", nothing())),
+                lookahead(false, rule("strong_block")),
+                rule("let_binding"),
+            ),
+            false,
+            false,
+        ),
+    },
+    let_binding: {
+        def: rule(
+            "binary_op",
+            rule("name"),
+            rule("let_assign_op"),
+            rule("name"),
+            rule("expr"),
+            nothing(),
+        ),
+    },
+    let_assign_op: { def: alt(rule("normal_assign")) },
+    let_block: {
+        def: ssep(
+            rule("blank"),
+            rule("let_header"),
+            seq(
+                kw("keyword", "in"),
+                // no sep here!
+                rule("body_exprs", kw("keyword", "end"), yes()),
+            ),
+        ),
+    },
+    let_loop_block: {
+        def: ssep(
+            rule("blank"),
+            op("punctuation", "("),
+            cut(),
+            rule("name"),
+            op("punctuation", ")"),
+            rule("let_block"),
+        ),
+    },
+    if: {
+        def: ssep(
+            rule("blank"),
+            kw("keyword", "if"),
+            seq(
+                bind(
+                    "guard",
+                    true,
+                    lookahead(false, kw("keyword", "then")),
+                    rule("expr"),
+                ),
+                ignored(opt(rule("blank"))),
+                ignored(opt(kw("keyword", "then"))),
+                altFirst(rule("if_else"), rule("if_no_else")),
+            ),
+        ),
+    },
+    if_else: {
+        def: seq(
+            rule("body_exprs", kw("keyword", "else", "end"), no()),
+            ignored(rule("blank")),
+            kw("keyword", "else"),
+            rule("body_exprs", kw("keyword", "end"), yes()),
+        ),
+    },
+    if_no_else: {
+        def: seq(
+            rule("body_exprs", kw("keyword", "else", "end"), no()),
+            ignored(opt(seq(rule("blank"), kw("keyword", "end")))),
+        ),
+    },
+    while: {
+        def: ssep(
+            rule("blank"),
+            kw("keyword", "while"),
+            seq(
+                ignored(rule("blank")),
+                rule("expr"),
+                rule("body_exprs", kw("keyword", "end"), yes()),
+            ),
+        ),
+    },
+    for: {
+        def: ssep(
+            rule("blank"),
+            kw("keyword", "for"),
+            seq(
+                ignored(rule("blank")),
+                rule("assignment"),
+                rule("body_exprs", kw("keyword", "end"), yes()),
+            ),
+        ),
+    },
+    trycatch: {
+        def: ssep(
+            rule("blank"),
+            kw("keyword", "try"),
+            seq(
+                rule("trycatch_guarded"),
+                cut(),
+                rep(false, rule("trycatch_handler")),
+                opt(rule("trycatch_else")),
+                opt(rule("trycatch_finally")),
+                ignored(opt(seq(rule("blank"), kw("keyword", "end")))),
+            ),
+        ),
+    },
+    trycatch_guarded: {
+        def: rule(
             "body_exprs",
             kw("keyword", "catch", "finally", "else", "end"),
             no(),
         ),
-    ),
-    trycatch_else: seq(
-        ignored(rule("blank")),
-        kw("keyword", "else"),
-        rule("body_exprs", kw("keyword", "finally", "end"), no()),
-    ),
-    trycatch_finally: seq(
-        ignored(rule("blank")),
-        kw("keyword", "finally"),
-        rule("body_exprs", kw("keyword", "end"), no()),
-    ),
-
-    with: ssep(
-        rule("blank"),
-        kw("keyword", "with"),
-        seq(rule("expr"), rule("body_exprs", kw("keyword", "end"), yes())),
-    ),
-
-    fn: ssep(
-        rule("blank"),
-        kw("keyword", "fn"),
-        op("punctuation", "("),
-        cut(),
-        rule("explicit_args"),
-        seq(
-            op("punctuation", ")"),
+    },
+    trycatch_handler: {
+        def: seq(
+            ignored(rule("blank")),
+            kw("keyword", "catch"),
+            ignored(rule("blank")),
+            bind(
+                "guard",
+                true,
+                lookahead(
+                    false,
+                    kw("keyword", "catch", "finally", "else", "end"),
+                ),
+                rule("expr"),
+            ),
+            rule(
+                "body_exprs",
+                kw("keyword", "catch", "finally", "else", "end"),
+                no(),
+            ),
+        ),
+    },
+    trycatch_else: {
+        def: seq(
+            ignored(rule("blank")),
+            kw("keyword", "else"),
+            rule("body_exprs", kw("keyword", "finally", "end"), no()),
+        ),
+    },
+    trycatch_finally: {
+        def: seq(
+            ignored(rule("blank")),
+            kw("keyword", "finally"),
+            rule("body_exprs", kw("keyword", "end"), no()),
+        ),
+    },
+    with: {
+        def: ssep(
+            rule("blank"),
+            kw("keyword", "with"),
+            seq(rule("expr"), rule("body_exprs", kw("keyword", "end"), yes())),
+        ),
+    },
+    fn: {
+        def: ssep(
+            rule("blank"),
+            kw("keyword", "fn"),
+            op("punctuation", "("),
+            cut(),
+            rule("explicit_args"),
+            seq(
+                op("punctuation", ")"),
+                rule("body_exprs", kw("keyword", "end"), yes()),
+            ),
+        ),
+    },
+    always: {
+        def: ssep(
+            rule("blank"),
+            kw("keyword", "always"),
+            seq(
+                cut(),
+                ignored(tag("keyword", lit("@"))),
+                cut(),
+                rule("par_exp"),
+                rule("body_exprs", kw("keyword", "end"), yes()),
+            ),
+        ),
+    },
+    do: {
+        def: ssep(
+            rule("blank"),
+            kw("keyword", "do", "begin"),
             rule("body_exprs", kw("keyword", "end"), yes()),
         ),
-    ),
-
-    always: ssep(
-        rule("blank"),
-        kw("keyword", "always"),
-        seq(
-            cut(),
-            ignored(tag("keyword", lit("@"))),
-            cut(),
-            rule("par_exp"),
-            rule("body_exprs", kw("keyword", "end"), yes()),
-        ),
-    ),
-
-    do: ssep(
-        rule("blank"),
-        kw("keyword", "do", "begin"),
-        rule("body_exprs", kw("keyword", "end"), yes()),
-    ),
-
-    body_exprs: [
-        ["end", "consume"],
-        bind(
+    },
+    body_exprs: {
+        params: ["end", "consume"],
+        def: bind(
             "guard",
             true,
             lookahead(false, param("end")),
@@ -334,13 +385,11 @@ export const backolonGrammar: Grammar = {
                 ),
             ),
         ),
-    ],
-
-    simple_expr: rule("cascade", rule("pipe")),
-
-    binary_op: [
-        ["nomatch", "op", "lhs", "rhs", "guard"],
-        alt(
+    },
+    simple_expr: { def: rule("cascade", rule("pipe")) },
+    binary_op: {
+        params: ["nomatch", "op", "lhs", "rhs", "guard"],
+        def: alt(
             ssep(
                 rule("blank"),
                 param("lhs"),
@@ -351,15 +400,15 @@ export const backolonGrammar: Grammar = {
             ),
             param("nomatch"),
         ),
-    ],
+    },
 
     // right associative
     // within the sections (the right side, recursively), an assignment's right side may not itself be a cascade (Dart's expressionWithoutCascade)
     // so a later .. link stays a section of this cascade instead of being swallowed into the assigned value.
     // the receiver on the left is outside the bind, so x = a..b still assigns the whole cascade
-    cascade: [
-        ["operand"],
-        rule(
+    cascade: {
+        params: ["operand"],
+        def: rule(
             "binary_op",
             param("operand"),
             rule("cascade_op"),
@@ -372,50 +421,60 @@ export const backolonGrammar: Grammar = {
             ),
             lookahead(true, rule("member")),
         ),
-    ],
-    cascade_op: alt(rule("up_dot_null"), rule("up_dot")),
-    up_dot: op("operator", ".."),
-    up_dot_null: op("operator", "?.."),
+    },
+    cascade_op: { def: alt(rule("up_dot_null"), rule("up_dot")) },
+    up_dot: { def: op("operator", "..") },
+    up_dot_null: {
+        def: op("operator", "?.."),
+    },
 
     // left associative
-    pipe: rule(
-        "binary_op",
-        rule("implicit_call"),
-        rule("pipe_op"),
-        rule("pipe"),
-        rule("implicit_call"),
-        nothing(),
-    ),
-    pipe_op: alt(
-        rule("normal_pipe"),
-        rule("filter_pipe"),
-        rule("map_pipe"),
-        rule("reduce_pipe"),
-    ),
-    normal_pipe: op("operator", "|>"),
-    filter_pipe: op("operator", "|?>"),
-    map_pipe: op("operator", "|*>"),
-    reduce_pipe: seq(
-        op("operator", "|+>"),
-        cut(),
-        op("punctuation", "["),
-        bind("guard", false, nothing(), rule("exprs")),
-        op("punctuation", "]"),
-    ),
+    pipe: {
+        def: rule(
+            "binary_op",
+            rule("implicit_call"),
+            rule("pipe_op"),
+            rule("pipe"),
+            rule("implicit_call"),
+            nothing(),
+        ),
+    },
+    pipe_op: {
+        def: alt(
+            rule("normal_pipe"),
+            rule("filter_pipe"),
+            rule("map_pipe"),
+            rule("reduce_pipe"),
+        ),
+    },
+    normal_pipe: { def: op("operator", "|>") },
+    filter_pipe: { def: op("operator", "|?>") },
+    map_pipe: { def: op("operator", "|*>") },
+    reduce_pipe: {
+        def: seq(
+            op("operator", "|+>"),
+            cut(),
+            op("punctuation", "["),
+            bind("guard", false, nothing(), rule("exprs")),
+            op("punctuation", "]"),
+        ),
+    },
 
     // right associative
     // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try kw_arg
-    implicit_call: alt(
-        ssep(
-            rule("blank_sameline"),
+    implicit_call: {
+        def: alt(
+            ssep(
+                rule("blank_sameline"),
+                rule("kw_arg"),
+                try_(nonempty(rule("implicit_args"))),
+            ),
             rule("kw_arg"),
-            try_(nonempty(rule("implicit_args"))),
         ),
-        rule("kw_arg"),
-    ),
-    implicit_args: [
-        ["first", "rest"],
-        seq(
+    },
+    implicit_args: {
+        params: ["first", "rest"],
+        def: seq(
             // can't use joined() here since the first and second are different + there are lookahead assertions!
             ignored(ambient("guard", nothing())),
             lookahead(false, rule("strong_block")),
@@ -449,460 +508,553 @@ export const backolonGrammar: Grammar = {
                 ),
             ),
         ),
-    ],
-
-    empty_arg: seq(nothing(), lookahead(true, rule("comma"))), // only between commas
+    },
+    empty_arg: {
+        def: seq(nothing(), lookahead(true, rule("comma"))), // only between commas
+    },
 
     // non associative; the key must be a member, a quoted member, or a
     // prefixed member (a sym, unique sym, or option on a member) -- any
     // other computed key needs parens
-    kw_arg: rule(
-        "binary_op",
-        rule("assign_rev"),
-        rule("kw_arg_op"),
-        alt(rule("member"), rule("quote_prefix"), rule("member_prefix")),
-        rule("assign_rev"),
-        nothing(),
-    ),
-    kw_arg_op: alt(rule("kw")),
-    kw: op("operator", ":"),
+    kw_arg: {
+        def: rule(
+            "binary_op",
+            rule("assign_rev"),
+            rule("kw_arg_op"),
+            alt(rule("member"), rule("quote_prefix"), rule("member_prefix")),
+            rule("assign_rev"),
+            nothing(),
+        ),
+    },
+    kw_arg_op: { def: alt(rule("kw")) },
+    kw: {
+        def: op("operator", ":"),
+    },
 
     // left associative
-    assign_rev: rule(
-        "binary_op",
-        rule("assignment"),
-        rule("assign_rev_op"),
-        rule("assign_rev"),
-        rule("assignment"),
-        nothing(),
-    ),
-    assign_rev_op: alt(rule("arrow")),
-    arrow: op("operator", "->"),
+    assign_rev: {
+        def: rule(
+            "binary_op",
+            rule("assignment"),
+            rule("assign_rev_op"),
+            rule("assign_rev"),
+            rule("assignment"),
+            nothing(),
+        ),
+    },
+    assign_rev_op: { def: alt(rule("arrow")) },
+    arrow: {
+        def: op("operator", "->"),
+    },
 
     // strongly right associative
-    assignment: rule(
-        "binary_op",
-        rule("ternary"),
-        rule("assign_op"),
-        rule("ternary"),
-        ambient("assign_rhs", rule("expr")),
-        nothing(),
-    ),
-    assign_op: alt(
-        rule("old_assign"),
-        rule("aug_assign"),
-        rule("normal_assign"),
-    ),
-    old_assign: op("operator", "<-"),
-    aug_assign: seq(rule("aug_assign_prefix"), ignored(rule("normal_assign"))),
-    normal_assign: op("operator", "="),
-    aug_assign_prefix: alt(
-        rule("logical_op"),
-        rule("bitwise_op"),
-        rule("bitshift_op"),
-        rule("sum_op"),
-        rule("term_op"),
-        rule("factor_op"),
-    ),
+    assignment: {
+        def: rule(
+            "binary_op",
+            rule("ternary"),
+            rule("assign_op"),
+            rule("ternary"),
+            ambient("assign_rhs", rule("expr")),
+            nothing(),
+        ),
+    },
+    assign_op: {
+        def: alt(rule("old_assign"), rule("aug_assign"), rule("normal_assign")),
+    },
+    old_assign: { def: op("operator", "<-") },
+    aug_assign: {
+        def: seq(rule("aug_assign_prefix"), ignored(rule("normal_assign"))),
+    },
+    normal_assign: { def: op("operator", "=") },
+    aug_assign_prefix: {
+        def: alt(
+            rule("logical_op"),
+            rule("bitwise_op"),
+            rule("bitshift_op"),
+            rule("sum_op"),
+            rule("term_op"),
+            rule("factor_op"),
+        ),
+    },
 
     // right associative
-    ternary: alt(
-        ssep(
-            rule("blank"),
+    ternary: {
+        def: alt(
+            ssep(
+                rule("blank"),
+                rule("logical"),
+                op("operator", "?"),
+                cut(),
+                rule("assignment"),
+                cut(),
+                op("operator", ":"),
+                rule("ternary"),
+            ),
             rule("logical"),
-            op("operator", "?"),
-            cut(),
-            rule("assignment"),
-            cut(),
-            op("operator", ":"),
-            rule("ternary"),
         ),
-        rule("logical"),
-    ),
+    },
 
     // left associative
-    logical: rule(
-        "binary_op",
-        rule("comparison"),
-        rule("logical_op"),
-        rule("logical"),
-        rule("comparison"),
-        lookahead(false, rule("assign_op")),
-    ),
-    logical_op: alt(rule("logical_and"), rule("logical_or")),
-    logical_and: alt(op("operator", "&&"), kw("operator", "and")),
-    logical_or: alt(op("operator", "||"), kw("operator", "or")),
+    logical: {
+        def: rule(
+            "binary_op",
+            rule("comparison"),
+            rule("logical_op"),
+            rule("logical"),
+            rule("comparison"),
+            lookahead(false, rule("assign_op")),
+        ),
+    },
+    logical_op: { def: alt(rule("logical_and"), rule("logical_or")) },
+    logical_and: { def: alt(op("operator", "&&"), kw("operator", "and")) },
+    logical_or: {
+        def: alt(op("operator", "||"), kw("operator", "or")),
+    },
 
     // chain associative
-    comparison: alt(
-        joined(
-            seq(
-                ignored(opt(rule("blank"))),
-                rule("comparison_op"),
-                ignored(opt(rule("blank"))),
+    comparison: {
+        def: alt(
+            joined(
+                seq(
+                    ignored(opt(rule("blank"))),
+                    rule("comparison_op"),
+                    ignored(opt(rule("blank"))),
+                ),
+                rule("predicate"),
+                true,
+                false,
             ),
             rule("predicate"),
-            true,
-            false,
         ),
-        rule("predicate"),
-    ),
-    comparison_op: alt(
-        rule("equal"),
-        rule("not_equal"),
-        rule("lte"),
-        rule("gte"),
-        rule("less"),
-        rule("greater"),
-    ),
-    equal: op("operator", "=="),
-    not_equal: op("operator", "!="),
-    lte: op("operator", "<="),
-    gte: op("operator", ">="),
-    less: op("operator", "<"),
-    greater: op("operator", ">"),
+    },
+    comparison_op: {
+        def: alt(
+            rule("equal"),
+            rule("not_equal"),
+            rule("lte"),
+            rule("gte"),
+            rule("less"),
+            rule("greater"),
+        ),
+    },
+    equal: { def: op("operator", "==") },
+    not_equal: { def: op("operator", "!=") },
+    lte: { def: op("operator", "<=") },
+    gte: { def: op("operator", ">=") },
+    less: { def: op("operator", "<") },
+    greater: {
+        def: op("operator", ">"),
+    },
 
     // left associative: x is P is a flipped call, P(x) -- the right
     // side is just a postfix, so the predicate is a callable chain and
     // nothing else can be swallowed into it
-    predicate: rule(
-        "binary_op",
-        rule("containment"),
-        rule("predicate_op"),
-        rule("predicate"),
-        rule("postfix"),
-        lookahead(false, rule("assign_op")),
-    ),
-    predicate_op: alt(rule("normal_predicate"), rule("inverted_predicate")),
-    normal_predicate: kw("operator", "is"),
-    inverted_predicate: ignored(
-        ssep(rule("blank"), kw("operator", "is"), kw("operator", "not")),
-    ),
+    predicate: {
+        def: rule(
+            "binary_op",
+            rule("containment"),
+            rule("predicate_op"),
+            rule("predicate"),
+            rule("postfix"),
+            lookahead(false, rule("assign_op")),
+        ),
+    },
+    predicate_op: {
+        def: alt(rule("normal_predicate"), rule("inverted_predicate")),
+    },
+    normal_predicate: { def: kw("operator", "is") },
+    inverted_predicate: {
+        def: ignored(
+            ssep(rule("blank"), kw("operator", "is"), kw("operator", "not")),
+        ),
+    },
 
     // non associative
-    containment: rule(
-        "binary_op",
-        rule("bitwise"),
-        rule("containment_op"),
-        rule("bitwise"),
-        rule("bitwise"),
-        nothing(),
-    ),
-    containment_op: alt(
-        rule("needle_in_haystack"),
-        rule("haystack_has_needle"),
-    ),
-    needle_in_haystack: alt(
-        op("operator", "<:"),
-        seq(ignored(ambient("guard", nothing())), kw("operator", "in")),
-    ),
-    haystack_has_needle: alt(op("operator", ":>"), kw("operator", "has")),
+    containment: {
+        def: rule(
+            "binary_op",
+            rule("bitwise"),
+            rule("containment_op"),
+            rule("bitwise"),
+            rule("bitwise"),
+            nothing(),
+        ),
+    },
+    containment_op: {
+        def: alt(rule("needle_in_haystack"), rule("haystack_has_needle")),
+    },
+    needle_in_haystack: {
+        def: alt(
+            op("operator", "<:"),
+            seq(ignored(ambient("guard", nothing())), kw("operator", "in")),
+        ),
+    },
+    haystack_has_needle: {
+        def: alt(op("operator", ":>"), kw("operator", "has")),
+    },
 
     // left associative
-    bitwise: rule(
-        "binary_op",
-        rule("bitshift"),
-        rule("bitwise_op"),
-        rule("bitwise"),
-        rule("bitshift"),
-        lookahead(false, rule("assign_op")),
-    ),
-    bitwise_op: alt(
-        rule("bitwise_and"),
-        rule("bitwise_or"),
-        rule("bitwise_xor"),
-    ),
-    bitwise_and: op("operator", "&"),
-    bitwise_or: op("operator", "|"),
-    bitwise_xor: op("operator", "^"),
+    bitwise: {
+        def: rule(
+            "binary_op",
+            rule("bitshift"),
+            rule("bitwise_op"),
+            rule("bitwise"),
+            rule("bitshift"),
+            lookahead(false, rule("assign_op")),
+        ),
+    },
+    bitwise_op: {
+        def: alt(rule("bitwise_and"), rule("bitwise_or"), rule("bitwise_xor")),
+    },
+    bitwise_and: { def: op("operator", "&") },
+    bitwise_or: { def: op("operator", "|") },
+    bitwise_xor: {
+        def: op("operator", "^"),
+    },
 
     // left associative
-    bitshift: rule(
-        "binary_op",
-        rule("sum"),
-        rule("bitshift_op"),
-        rule("bitshift"),
-        rule("sum"),
-        lookahead(false, rule("assign_op")),
-    ),
-    bitshift_op: alt(rule("shift_left"), rule("shift_right")),
-    shift_left: op("operator", "<<"),
-    shift_right: op("operator", ">>"),
+    bitshift: {
+        def: rule(
+            "binary_op",
+            rule("sum"),
+            rule("bitshift_op"),
+            rule("bitshift"),
+            rule("sum"),
+            lookahead(false, rule("assign_op")),
+        ),
+    },
+    bitshift_op: { def: alt(rule("shift_left"), rule("shift_right")) },
+    shift_left: { def: op("operator", "<<") },
+    shift_right: {
+        def: op("operator", ">>"),
+    },
 
     // left associative
-    sum: rule(
-        "binary_op",
-        rule("term"),
-        rule("sum_op"),
-        rule("sum"),
-        rule("term"),
-        lookahead(false, rule("assign_op")),
-    ),
-    sum_op: alt(rule("add"), rule("sub")),
-    add: op("operator", "+"),
-    sub: op("operator", "-"),
+    sum: {
+        def: rule(
+            "binary_op",
+            rule("term"),
+            rule("sum_op"),
+            rule("sum"),
+            rule("term"),
+            lookahead(false, rule("assign_op")),
+        ),
+    },
+    sum_op: { def: alt(rule("add"), rule("sub")) },
+    add: { def: op("operator", "+") },
+    sub: {
+        def: op("operator", "-"),
+    },
 
     // left associative
-    term: rule(
-        "binary_op",
-        rule("factor"),
-        rule("term_op"),
-        rule("term"),
-        rule("factor"),
-        lookahead(false, rule("assign_op")),
-    ),
-    term_op: alt(rule("mul"), rule("div"), rule("mod")),
-    mul: op("operator", "*"),
-    div: op("operator", "/"),
-    mod: op("operator", "%"),
+    term: {
+        def: rule(
+            "binary_op",
+            rule("factor"),
+            rule("term_op"),
+            rule("term"),
+            rule("factor"),
+            lookahead(false, rule("assign_op")),
+        ),
+    },
+    term_op: { def: alt(rule("mul"), rule("div"), rule("mod")) },
+    mul: { def: op("operator", "*") },
+    div: { def: op("operator", "/") },
+    mod: {
+        def: op("operator", "%"),
+    },
 
     // right associative
-    factor: rule(
-        "binary_op",
-        rule("postfix"),
-        rule("factor_op"),
-        rule("postfix"),
-        rule("factor"),
-        lookahead(false, rule("assign_op")),
-    ),
-    factor_op: alt(rule("pow")),
-    pow: op("operator", "**"),
+    factor: {
+        def: rule(
+            "binary_op",
+            rule("postfix"),
+            rule("factor_op"),
+            rule("postfix"),
+            rule("factor"),
+            lookahead(false, rule("assign_op")),
+        ),
+    },
+    factor_op: { def: alt(rule("pow")) },
+    pow: {
+        def: op("operator", "**"),
+    },
 
     // postfix: a call binds to a whole indexing chain, so calls and
     // indexing are one left-associative level entered through here
-    postfix: altFirst(rule("explicit_call"), rule("indexing")),
-
-    explicit_call: ssep(
-        rule("blank"),
-        rule("postfix"),
-        op("punctuation", "("),
-        cut(),
-        rule("explicit_args"),
-        op("punctuation", ")"),
-    ),
-    explicit_args: alt(
-        bind(
-            "guard",
-            false,
-            nothing(),
-            joined(
-                ignored(rule("ws_comma")),
-                alt(rule("expr"), rule("empty_arg")),
+    postfix: { def: altFirst(rule("explicit_call"), rule("indexing")) },
+    explicit_call: {
+        def: ssep(
+            rule("blank"),
+            rule("postfix"),
+            op("punctuation", "("),
+            cut(),
+            rule("explicit_args"),
+            op("punctuation", ")"),
+        ),
+    },
+    explicit_args: {
+        def: alt(
+            bind(
+                "guard",
                 false,
-                true,
-            ),
-        ),
-        seq(), // empty args
-    ), // allow blank arguments
-
-    // left associative
-    indexing: rule(
-        "binary_op",
-        rule("primary"),
-        rule("indexing_op"),
-        rule("postfix"),
-        rule("member"),
-        nothing(),
-    ),
-    indexing_op: alt(rule("dot"), rule("null_dot")),
-    dot: op("operator", "."),
-    null_dot: op("operator", "?."),
-    // what may follow a dot: a static key, an index, or a computed key
-    member: alt(rule("name"), rule("number"), rule("par_exp")),
-
-    // primary: unary operators or atom
-    primary: alt(rule("unary"), rule("atom")),
-    // these are all prefix unary
-    unary: alt(rule("member_prefix"), rule("func_prefix")),
-
-    func_prefix: ssep(
-        rule("blank"),
-        rule("func_prefix_op"),
-        cut(),
-        rule("factor"),
-    ),
-    member_prefix: ssep(
-        rule("blank"),
-        rule("member_prefix_op"),
-        cut(),
-        rule("member"),
-    ),
-    quote_prefix: ssep(rule("blank"), rule("quote"), cut(), rule("member")),
-    func_prefix_op: alt(
-        rule("length"),
-        rule("splat"),
-        rule("splat_kw"),
-        rule("negate"),
-        rule("abs"),
-        rule("not"),
-        rule("bit_not"),
-        rule("quote"),
-        rule("unquote"),
-        rule("unquote_splicing"),
-        rule("special"),
-        rule("lazy"),
-        rule("ref"),
-        rule("deref"),
-    ),
-
-    length: op("operator", "#"),
-    splat: op("operator", "..."),
-    splat_kw: op("operator", "...:"),
-    negate: op("operator", "-"),
-    abs: op("operator", "+"),
-    not: op("operator", "!"),
-    bit_not: op("operator", "~"),
-    quote: op("operator", "`"),
-    unquote: op("operator", "$"),
-    unquote_splicing: op("operator", "$."),
-    special: op("operator", "@"),
-    lazy: op("operator", "^"),
-    ref: op("operator", "&"),
-    deref: op("operator", "*"),
-
-    member_prefix_op: alt(rule("sym"), rule("unique_sym"), rule("option")),
-    sym: op("operator", ":"),
-    unique_sym: op("operator", "::"),
-    option: seq(op("operator", "."), lookahead(false, rule("number"))), // check to fix ".5" from parsing as an option
-
-    // atoms: number, string, regex, boolean, null, collection literal, quasiquote, parenthesized expression, name
-    atom: alt(
-        rule("number"),
-        rule("string"),
-        rule("regex"),
-        rule("boolean"),
-        rule("collection"),
-        rule("quasiquote"),
-        rule("par_exp"),
-        rule("name"),
-        rule("strong_block"),
-    ),
-
-    number: tag("number", alt(rule("hex"), rule("bin"), rule("dec"))),
-    hex: seq(ignored(lit("0x")), cut(), regex(/[a-f0-9]+/i)),
-    bin: seq(ignored(lit("0b")), cut(), regex(/[01]+/i)),
-    dec: regex(/((?!0\d)\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?/i),
-
-    string: alt(rule("r_string"), rule("i_string")),
-
-    r_string: seq(
-        ignored(tag("string", lit("'"))),
-        cut(),
-        rep(false, rule("r_part")),
-        ignored(tag("string", lit("'"))),
-    ),
-    r_part: alt(rule("r_escape"), rule("r_body")),
-    r_escape: tag("escape", regex(/\\./)),
-    r_body: tag("string", regex(/[^'\\]+/)),
-
-    i_string: seq(
-        ignored(tag("string", lit('"'))),
-        cut(),
-        rep(
-            false,
-            alt(
-                tag(
-                    "escape",
-                    seq(ignored(regex(/\\(?!\()/)), cut(), rule("i_escape")),
-                ),
-                rule("i_interpolation"),
-                rule("i_body"),
-            ),
-        ),
-        ignored(tag("string", lit('"'))),
-    ),
-    i_escape: alt(
-        rule("i_known_escape"),
-        rule("i_x_escape"),
-        rule("i_u_escape"),
-        rule("i_U_escape"),
-    ),
-    i_known_escape: regex(/./),
-    i_x_escape: seq(ignored(lit("x")), cut(), regex(/[0-9a-f]{2}/)),
-    i_u_escape: seq(ignored(lit("u")), cut(), regex(/[0-9a-f]{4}/)),
-    i_U_escape: seq(
-        ignored(lit("U")),
-        cut(),
-        ignored(lit("{")),
-        regex(/[0-9a-f]+/),
-        ignored(lit("}")),
-    ),
-    i_interpolation: seq(
-        ignored(tag("escape", lit("\\("))),
-        cut(),
-        bind("guard", false, nothing(), rule("exprs")),
-        ignored(tag("escape", lit(")"))),
-    ),
-    i_body: tag("string", regex(/[^"\\]+/)),
-
-    regex: tag(
-        "regex",
-        seq(
-            ignored(lit("/")),
-            regex(/(\[([^\]]|\\\])+\]|\\.|[^\\/\n])*/),
-            ignored(lit("/")),
-            regex(/[gimsuvy]*/),
-        ),
-    ), // cSpell: ignore gimsuvy
-
-    boolean: seq(
-        ignored(nothing()),
-        alt(rule("boolean_true"), rule("boolean_false")),
-    ),
-    boolean_true: kw("boolean", "true", "True", "TRUE"),
-    boolean_false: kw("boolean", "false", "False", "FALSE"),
-
-    collection: ssep(
-        rule("blank"),
-        op("punctuation", "["),
-        cut(),
-        bind(
-            "guard",
-            false,
-            nothing(),
-            alt(
-                rule("empty_collection"),
+                nothing(),
                 joined(
                     ignored(rule("ws_comma")),
-                    rule("collection_item"),
+                    alt(rule("expr"), rule("empty_arg")),
                     false,
                     true,
                 ),
             ),
+            seq(), // empty args
         ),
-        op("punctuation", "]"),
-    ),
-    ws_comma: seq(rule("blank"), rule("comma"), rule("blank")),
-    empty_collection: alt(rule("empty_list"), rule("empty_map")),
-    empty_list: ignored(nothing()),
-    empty_map: op("operator", ":"),
-    collection_item: alt(rule("collection_shorthand"), rule("expr")),
-    collection_shorthand: ssep(
-        rule("blank"),
-        ignored(rule("quote")),
-        alt(rule("atom"), rule("par_exp")),
-        op("operator", ":"),
-    ),
+    },
 
-    quasiquote: tag(
-        "quoted",
-        ssep(
+    // left associative
+    indexing: {
+        def: rule(
+            "binary_op",
+            rule("primary"),
+            rule("indexing_op"),
+            rule("postfix"),
+            rule("member"),
+            nothing(),
+        ),
+    },
+    indexing_op: { def: alt(rule("dot"), rule("null_dot")) },
+    dot: { def: op("operator", ".") },
+    null_dot: {
+        def: op("operator", "?."),
+    },
+
+    // what may follow a dot: a static key, an index, or a computed key
+    member: {
+        def: alt(rule("name"), rule("number"), rule("par_exp")),
+    },
+
+    // primary: unary operators or atom
+    primary: {
+        def: alt(rule("unary"), rule("atom")),
+    },
+
+    // these are all prefix unary
+    unary: { def: alt(rule("member_prefix"), rule("func_prefix")) },
+    func_prefix: {
+        def: ssep(rule("blank"), rule("func_prefix_op"), cut(), rule("factor")),
+    },
+    member_prefix: {
+        def: ssep(
             rule("blank"),
-            op("punctuation", "{"),
+            rule("member_prefix_op"),
+            cut(),
+            rule("member"),
+        ),
+    },
+    quote_prefix: {
+        def: ssep(rule("blank"), rule("quote"), cut(), rule("member")),
+    },
+    func_prefix_op: {
+        def: alt(
+            rule("length"),
+            rule("splat"),
+            rule("splat_kw"),
+            rule("negate"),
+            rule("abs"),
+            rule("not"),
+            rule("bit_not"),
+            rule("quote"),
+            rule("unquote"),
+            rule("unquote_splicing"),
+            rule("special"),
+            rule("lazy"),
+            rule("ref"),
+            rule("deref"),
+        ),
+    },
+    length: { def: op("operator", "#") },
+    splat: { def: op("operator", "...") },
+    splat_kw: { def: op("operator", "...:") },
+    negate: { def: op("operator", "-") },
+    abs: { def: op("operator", "+") },
+    not: { def: op("operator", "!") },
+    bit_not: { def: op("operator", "~") },
+    quote: { def: op("operator", "`") },
+    unquote: { def: op("operator", "$") },
+    unquote_splicing: { def: op("operator", "$.") },
+    special: { def: op("operator", "@") },
+    lazy: { def: op("operator", "^") },
+    ref: { def: op("operator", "&") },
+    deref: { def: op("operator", "*") },
+    member_prefix_op: {
+        def: alt(rule("sym"), rule("unique_sym"), rule("option")),
+    },
+    sym: { def: op("operator", ":") },
+    unique_sym: { def: op("operator", "::") },
+    option: {
+        def: seq(op("operator", "."), lookahead(false, rule("number"))), // check to fix ".5" from parsing as an option
+    },
+
+    // atoms: number, string, regex, boolean, null, collection literal, quasiquote, parenthesized expression, name
+    atom: {
+        def: alt(
+            rule("number"),
+            rule("string"),
+            rule("regex"),
+            rule("boolean"),
+            rule("collection"),
+            rule("quasiquote"),
+            rule("par_exp"),
+            rule("name"),
+            rule("strong_block"),
+        ),
+    },
+    number: { def: tag("number", alt(rule("hex"), rule("bin"), rule("dec"))) },
+    hex: { def: seq(ignored(lit("0x")), cut(), regex(/[a-f0-9]+/i)) },
+    bin: { def: seq(ignored(lit("0b")), cut(), regex(/[01]+/i)) },
+    dec: { def: regex(/((?!0\d)\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?/i) },
+    string: { def: alt(rule("r_string"), rule("i_string")) },
+    r_string: {
+        def: seq(
+            ignored(tag("string", lit("'"))),
+            cut(),
+            rep(false, rule("r_part")),
+            ignored(tag("string", lit("'"))),
+        ),
+    },
+    r_part: { def: alt(rule("r_escape"), rule("r_body")) },
+    r_escape: { def: tag("escape", regex(/\\./)) },
+    r_body: { def: tag("string", regex(/[^'\\]+/)) },
+    i_string: {
+        def: seq(
+            ignored(tag("string", lit('"'))),
+            cut(),
+            rep(
+                false,
+                alt(
+                    tag(
+                        "escape",
+                        seq(
+                            ignored(regex(/\\(?!\()/)),
+                            cut(),
+                            rule("i_escape"),
+                        ),
+                    ),
+                    rule("i_interpolation"),
+                    rule("i_body"),
+                ),
+            ),
+            ignored(tag("string", lit('"'))),
+        ),
+    },
+    i_escape: {
+        def: alt(
+            rule("i_known_escape"),
+            rule("i_x_escape"),
+            rule("i_u_escape"),
+            rule("i_U_escape"),
+        ),
+    },
+    i_known_escape: { def: regex(/./) },
+    i_x_escape: { def: seq(ignored(lit("x")), cut(), regex(/[0-9a-f]{2}/)) },
+    i_u_escape: { def: seq(ignored(lit("u")), cut(), regex(/[0-9a-f]{4}/)) },
+    i_U_escape: {
+        def: seq(
+            ignored(lit("U")),
+            cut(),
+            ignored(lit("{")),
+            regex(/[0-9a-f]+/),
+            ignored(lit("}")),
+        ),
+    },
+    i_interpolation: {
+        def: seq(
+            ignored(tag("escape", lit("\\("))),
             cut(),
             bind("guard", false, nothing(), rule("exprs")),
-            op("punctuation", "}"),
+            ignored(tag("escape", lit(")"))),
         ),
-    ),
-    par_exp: ssep(
-        rule("blank"),
-        op("punctuation", "("),
-        cut(),
-        bind("guard", false, nothing(), rule("exprs")),
-        op("punctuation", ")"),
-    ),
-    name: tag("name", regex(/[_\p{L}][_\p{L}\p{N}]*/u)),
-};
+    },
+    i_body: { def: tag("string", regex(/[^"\\]+/)) },
+    regex: {
+        def: tag(
+            "regex",
+            seq(
+                ignored(lit("/")),
+                regex(/(\[([^\]]|\\\])+\]|\\.|[^\\/\n])*/),
+                ignored(lit("/")),
+                regex(/[gimsuvy]*/), // cSpell: ignore gimsuvy
+            ),
+        ),
+    },
+    boolean: {
+        def: seq(
+            ignored(nothing()),
+            alt(rule("boolean_true"), rule("boolean_false")),
+        ),
+    },
+    boolean_true: { def: kw("boolean", "true", "True", "TRUE") },
+    boolean_false: { def: kw("boolean", "false", "False", "FALSE") },
+    collection: {
+        def: ssep(
+            rule("blank"),
+            op("punctuation", "["),
+            cut(),
+            bind(
+                "guard",
+                false,
+                nothing(),
+                alt(
+                    rule("empty_collection"),
+                    joined(
+                        ignored(rule("ws_comma")),
+                        rule("collection_item"),
+                        false,
+                        true,
+                    ),
+                ),
+            ),
+            op("punctuation", "]"),
+        ),
+    },
+    ws_comma: { def: seq(rule("blank"), rule("comma"), rule("blank")) },
+    empty_collection: { def: alt(rule("empty_list"), rule("empty_map")) },
+    empty_list: { def: ignored(nothing()) },
+    empty_map: { def: op("operator", ":") },
+    collection_item: { def: alt(rule("collection_shorthand"), rule("expr")) },
+    collection_shorthand: {
+        def: ssep(
+            rule("blank"),
+            ignored(rule("quote")),
+            alt(rule("atom"), rule("par_exp")),
+            op("operator", ":"),
+        ),
+    },
+    quasiquote: {
+        def: tag(
+            "quoted",
+            ssep(
+                rule("blank"),
+                op("punctuation", "{"),
+                cut(),
+                bind("guard", false, nothing(), rule("exprs")),
+                op("punctuation", "}"),
+            ),
+        ),
+    },
+    par_exp: {
+        def: ssep(
+            rule("blank"),
+            op("punctuation", "("),
+            cut(),
+            bind("guard", false, nothing(), rule("exprs")),
+            op("punctuation", ")"),
+        ),
+    },
+    name: {
+        def: tag("name", regex(/[_\p{L}][_\p{L}\p{N}]*/u)),
+    },
+});
 
 /**
  * Every highlight tag name used anywhere in {@link backolonGrammar}, collected
@@ -910,14 +1062,17 @@ export const backolonGrammar: Grammar = {
  * theme).
  */
 export const all_tags = new Set(
-    Object.values(backolonGrammar)
-        .map((x): GrammarCombinator =>
-            Array.isArray(x) ? x[1] : (x as GrammarCombinator),
-        )
+    objectValues(backolonGrammar)
+        .map((x) => x.def)
         .reduce(
             (prev, x) => [
                 ...prev,
-                ...walkCombinator(x, undefined, {
+                ...walkCombinator<
+                    string[],
+                    void,
+                    keyof typeof backolonGrammar,
+                    any
+                >(x, undefined, {
                     leaf: (node) =>
                         opDefs[node.op].hashFields
                             .flatMap((f) =>
