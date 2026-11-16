@@ -36,7 +36,6 @@ import { Callable } from "../obj/monkey";
 import { objectValues } from "../utils";
 
 // TODO: add rocket operator => - what precedence? what does it even do?
-// TODO: add wavydot operator ~. - need to look more closely at https://github.com/tc39/proposal-wavy-dot - does this even make sense in a language that makes async things invisible
 // TODO: tweak indexing operators to be chain-associative, will make evaluation easier
 // TODO: tweak strong blocks to allow do and begin blocks to be passed to a parameter to an implicit call
 // TODO: rework comma system; comma operator one greater than assignment; creates frozen arrays and frozen objects when bare; creates arrays and objects when enclosed in brackets; creates Sets and Maps when ????? new syntax (#10)
