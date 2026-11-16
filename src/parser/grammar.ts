@@ -1,10 +1,12 @@
 import {
+    adopt,
     alt,
     altFirst,
     ambient,
     bind,
     cut,
     defineGrammar,
+    donate,
     if_,
     ignored,
     joined,
@@ -37,7 +39,6 @@ import { objectValues } from "../utils";
 // TODO: add wavydot operator ~. - need to look more closely at https://github.com/tc39/proposal-wavy-dot - does this even make sense in a language that makes async things invisible
 // TODO: tweak indexing operators to be chain-associative, will make evaluation easier
 // TODO: tweak strong blocks to allow do and begin blocks to be passed to a parameter to an implicit call
-// TODO: tweak binary operator cascade to make the top named rule adopt the name of the operator itself (e.g. instead of [binary_op, left, op, right] be [op, left, right]) - will require new combinators/tweaks in Nebula
 // TODO: rework comma system; comma operator one greater than assignment; creates frozen arrays and frozen objects when bare; creates arrays and objects when enclosed in brackets; creates Sets and Maps when ????? new syntax (#10)
 
 /**
@@ -182,7 +183,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("name"),
-            rule("let_assign_op"),
+            donate(rule("let_assign_op")),
             rule("name"),
             rule("expr"),
             nothing(),
@@ -388,13 +389,15 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
     binary_op: {
         params: ["nomatch", "op", "lhs", "rhs", "guard"],
         def: alt(
-            ssep(
-                rule("blank"),
-                param("lhs"),
-                param("op"),
-                ignored(param("guard")),
-                cut(),
-                param("rhs"),
+            adopt(
+                ssep(
+                    rule("blank"),
+                    param("lhs"),
+                    param("op"),
+                    ignored(param("guard")),
+                    cut(),
+                    param("rhs"),
+                ),
             ),
             param("nomatch"),
         ),
@@ -409,7 +412,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             param("operand"),
-            rule("cascade_op"),
+            donate(rule("cascade_op")),
             param("operand"),
             bind(
                 "assign_rhs",
@@ -431,7 +434,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("implicit_call"),
-            rule("pipe_op"),
+            donate(rule("pipe_op")),
             rule("pipe"),
             rule("implicit_call"),
             nothing(),
@@ -528,7 +531,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("assign_rev"),
-            rule("kw_arg_op"),
+            donate(rule("kw_arg_op")),
             alt(rule("member"), rule("quote_prefix"), rule("member_prefix")),
             rule("assign_rev"),
             nothing(),
@@ -544,7 +547,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("assignment"),
-            rule("assign_rev_op"),
+            donate(rule("assign_rev_op")),
             rule("assign_rev"),
             rule("assignment"),
             nothing(),
@@ -560,30 +563,68 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("ternary"),
-            rule("assign_op"),
+            donate(rule("assign_op")),
             rule("ternary"),
             ambient("assign_rhs", rule("expr")),
             nothing(),
         ),
     },
     assign_op: {
-        def: alt(rule("old_assign"), rule("aug_assign"), rule("normal_assign")),
-    },
-    old_assign: { def: op("operator", "<-") },
-    aug_assign: {
-        def: seq(rule("aug_assign_prefix"), ignored(rule("normal_assign"))),
-    },
-    normal_assign: { def: op("operator", "=") },
-    aug_assign_prefix: {
         def: alt(
-            rule("logical_op"),
-            rule("bitwise_op"),
-            rule("bitshift_op"),
-            rule("sum_op"),
-            rule("term_op"),
-            rule("factor_op"),
+            rule("old_assign"),
+            rule("logical_and_assign"),
+            rule("logical_or_assign"),
+            rule("bitwise_and_assign"),
+            rule("bitwise_or_assign"),
+            rule("bitwise_xor_assign"),
+            rule("shift_left_assign"),
+            rule("shift_right_assign"),
+            rule("add_assign"),
+            rule("sub_assign"),
+            rule("mul_assign"),
+            rule("div_assign"),
+            rule("mod_assign"),
+            rule("format_assign"),
+            rule("pow_assign"),
+            rule("normal_assign"),
         ),
     },
+    old_assign: { def: op("operator", "<-") },
+    normal_assign: { def: op("operator", "=") },
+    // an augmented assignment is a base operator followed by =; each one
+    // gets its own rule named after the whole operator (add_assign for +=)
+    // so that binary_op's name adoption keeps which operation it is,
+    // instead of adopting a bare aug_assign and dropping the base operator.
+    // the base operator is ignored inside its own rule, since the rule's
+    // name already says which operation it is
+    logical_and_assign: {
+        def: seq(ignored(rule("logical_and")), ignored(rule("normal_assign"))),
+    },
+    logical_or_assign: {
+        def: seq(ignored(rule("logical_or")), ignored(rule("normal_assign"))),
+    },
+    bitwise_and_assign: {
+        def: seq(ignored(rule("bitwise_and")), ignored(rule("normal_assign"))),
+    },
+    bitwise_or_assign: {
+        def: seq(ignored(rule("bitwise_or")), ignored(rule("normal_assign"))),
+    },
+    bitwise_xor_assign: {
+        def: seq(ignored(rule("bitwise_xor")), ignored(rule("normal_assign"))),
+    },
+    shift_left_assign: {
+        def: seq(ignored(rule("shift_left")), ignored(rule("normal_assign"))),
+    },
+    shift_right_assign: {
+        def: seq(ignored(rule("shift_right")), ignored(rule("normal_assign"))),
+    },
+    add_assign: { def: seq(ignored(rule("add")), ignored(rule("normal_assign"))) },
+    sub_assign: { def: seq(ignored(rule("sub")), ignored(rule("normal_assign"))) },
+    mul_assign: { def: seq(ignored(rule("mul")), ignored(rule("normal_assign"))) },
+    div_assign: { def: seq(ignored(rule("div")), ignored(rule("normal_assign"))) },
+    mod_assign: { def: seq(ignored(rule("mod")), ignored(rule("normal_assign"))) },
+    format_assign: { def: seq(ignored(rule("format")), ignored(rule("normal_assign"))) },
+    pow_assign: { def: seq(ignored(rule("pow")), ignored(rule("normal_assign"))) },
 
     // right associative
     ternary: {
@@ -607,7 +648,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("comparison"),
-            rule("logical_op"),
+            donate(rule("logical_op")),
             rule("logical"),
             rule("comparison"),
             lookahead(false, rule("assign_op")),
@@ -661,7 +702,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("containment"),
-            rule("predicate_op"),
+            donate(rule("predicate_op")),
             rule("predicate"),
             rule("postfix"),
             lookahead(false, rule("assign_op")),
@@ -682,7 +723,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("bitwise"),
-            rule("containment_op"),
+            donate(rule("containment_op")),
             rule("bitwise"),
             rule("bitwise"),
             nothing(),
@@ -706,7 +747,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("bitshift"),
-            rule("bitwise_op"),
+            donate(rule("bitwise_op")),
             rule("bitwise"),
             rule("bitshift"),
             lookahead(false, rule("assign_op")),
@@ -726,7 +767,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("sum"),
-            rule("bitshift_op"),
+            donate(rule("bitshift_op")),
             rule("bitshift"),
             rule("sum"),
             lookahead(false, rule("assign_op")),
@@ -743,7 +784,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("term"),
-            rule("sum_op"),
+            donate(rule("sum_op")),
             rule("sum"),
             rule("term"),
             lookahead(false, rule("assign_op")),
@@ -760,7 +801,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("factor"),
-            rule("term_op"),
+            donate(rule("term_op")),
             rule("term"),
             rule("factor"),
             lookahead(false, rule("assign_op")),
@@ -781,7 +822,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("postfix"),
-            rule("factor_op"),
+            donate(rule("factor_op")),
             rule("postfix"),
             rule("factor"),
             lookahead(false, rule("assign_op")),
@@ -830,7 +871,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: rule(
             "binary_op",
             rule("primary"),
-            rule("indexing_op"),
+            donate(rule("indexing_op")),
             rule("postfix"),
             rule("member"),
             nothing(),

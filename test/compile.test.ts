@@ -1,8 +1,7 @@
 import { CSTNode, describeCombinator, parseToCST } from "@r47onfire/nebula";
 import { condenseCST, syncCompile } from "@r47onfire/nebula/compile";
 import { last } from "lib0/array";
-import { isString } from "lib0/function";
-import { backolonGrammar } from "../src";
+import { backolonGrammar, gensym, Identifier } from "../src";
 
 const SAMPLE_SCRIPT = `[:__add__: 1]`;
 
@@ -151,7 +150,9 @@ a |> b it |> c it;
 xs |+>[init] _ + it;
 
 ## assignment: assignment, transposed_assignment, assign_op, normal_assign, old_assign,
-## aug_assign, aug_assign_prefix
+## add_assign, sub_assign, mul_assign, div_assign, mod_assign, format_assign, pow_assign,
+## shift_left_assign, shift_right_assign, bitwise_and_assign, bitwise_or_assign,
+## bitwise_xor_assign, logical_and_assign, logical_or_assign
 x = 1;
 1 -> x;
 a = b <- 1;
@@ -279,7 +280,8 @@ const rootSection = (
     const descend = (node: CSTNode<any>): CSTNode<any> | null => {
         switch (node.type) {
             case "call":
-            case "binary_op":
+            case "dot":
+            case "null_dot":
             case "comparison": {
                 const head = descend(node.children![0]!);
                 return head === null
@@ -290,17 +292,9 @@ const rootSection = (
             case "number":
             case "par_exp":
                 return {
-                    type: "binary_op",
+                    type: nullHead ? "null_dot" : "dot",
                     span: node.span,
-                    children: [
-                        receiver,
-                        {
-                            type: nullHead ? "null_dot" : "dot",
-                            span: node.span,
-                            children: [],
-                        },
-                        node,
-                    ],
+                    children: [receiver, node],
                 };
             default:
                 return null;
@@ -317,14 +311,10 @@ const cascadePRE =
     (nodes: [CSTNode<any>, CSTNode<any>]) => {
         const [left, right] = nodes;
         let section = right,
-            rest: [CSTNode<any>, CSTNode<any>] | undefined;
-        if (
-            right.type === "binary_op" &&
-            (right.children![1]!.type === "up_dot" ||
-                right.children![1]!.type === "up_dot_null")
-        ) {
+            rest: [string, CSTNode<any>] | undefined;
+        if (right.type === "up_dot" || right.type === "up_dot_null") {
             section = right.children![0]!;
-            rest = [right.children![1]!, right.children![2]!];
+            rest = [right.type, right.children![1]!];
         }
         const temp = left.type === "name" ? undefined : gensym("cascade");
         const receiver: CSTNode<any> =
@@ -351,19 +341,9 @@ const cascadePRE =
         const stmts: CSTNode<any>[] = [rooted];
         if (rest)
             stmts.push({
-                type: "binary_op",
+                type: nullHead ? "up_dot_null" : rest[0],
                 span: right.span,
-                children: [
-                    receiver,
-                    nullHead
-                        ? {
-                              type: "up_dot_null",
-                              span: rest[0].span,
-                              children: [],
-                          }
-                        : rest[0],
-                    rest[1],
-                ],
+                children: [receiver, rest[1]],
             });
         const tbc: [CSTNode<any>, PropertyKey[]][] = stmts.map(
             (stmt, i) => [stmt, [i + 1]] as [CSTNode<any>, PropertyKey[]],
@@ -415,6 +395,111 @@ const dotPRE =
                 [left, [1]],
                 [right, [2]],
             ],
+        };
+    };
+
+// Binary operators: since the grammar's nodes adopted their operator's
+// name, each operator is its own node type, so the old binary_op dispatch
+// is now one table entry per operator, all sharing the one handler; the
+// entry's mapping slot carries that operator's template. An operator that
+// captured a payload (a reduce pipe's initial value) carries it as a
+// middle child, between the operands.
+type BinaryTemplate = [
+    template: any,
+    left: PropertyKey[],
+    right: PropertyKey[],
+    child?: PropertyKey[],
+];
+const binaryOpTemplates: Record<string, BinaryTemplate> = {
+    add: [["add"], [1], [2]],
+    sub: [["sub"], [1], [2]],
+    mul: [["mul"], [1], [2]],
+    div: [["div"], [1], [2]],
+    mod: [["mod"], [1], [2]],
+    pow: [["pow"], [1], [2]],
+    shift_right: [["shr"], [1], [2]],
+    shift_left: [["shl"], [1], [2]],
+    bitwise_xor: [["bitXor"], [1], [2]],
+    bitwise_and: [["bitAnd"], [1], [2]],
+    bitwise_or: [["bitOr"], [1], [2]],
+    logical_and: [["and"], [1], [2]],
+    logical_or: [["or"], [1], [2]],
+    needle_in_haystack: [["in"], [1], [2]],
+    haystack_has_needle: [["in"], [2], [1]],
+    normal_predicate: [[], [1], [0]],
+    inverted_predicate: [
+        ["not", []],
+        [1, 1],
+        [1, 0],
+    ],
+    normal_assign: [["assign"], [1], [2]],
+    old_assign: [["assign", , , true], [1], [2]],
+    arrow: [["assign"], [2], [1]],
+    normal_pipe: [["let", [["it"]]], [1, 0, 1], [2]],
+    map_pipe: [["map", , ["fn", true, ["it"]]], [1], [2, 3]],
+    filter_pipe: [["filter", , ["fn", true, ["it"]]], [1], [2, 3]],
+    reduce_pipe: [
+        ["reduce", , , ["fn", true, ["_", "it"]]],
+        [1],
+        [3, 3],
+        [2],
+    ],
+};
+const binaryOp = (nodes: CSTNode<any>[], entry?: BinaryTemplate) => {
+    const [template, leftPath, rightPath, childPath] = entry!;
+    const left = nodes[0]!;
+    const right = nodes[nodes.length - 1]!;
+    const child = nodes.length > 2 ? nodes[1] : undefined;
+    return {
+        val: structuredClone(template),
+        tbc: [
+            [left, leftPath],
+            [right, rightPath],
+            ...(childPath
+                ? [[child, childPath] as [CSTNode<any>, PropertyKey[]]]
+                : []),
+        ] as [CSTNode<any>, PropertyKey[]][],
+    };
+};
+const binaryOpEntries = Object.fromEntries(
+    Object.entries(binaryOpTemplates).map(([op, entry]) => [
+        op,
+        [binaryOp, entry],
+    ]),
+) as Parameters<typeof syncCompile>[1];
+// an augmented assignment (add_assign for +=) compiles to an assignment
+// whose value is the base operator applied to a placeholder for the
+// target and the right side
+const augAssign =
+    (base: string): Parameters<typeof syncCompile>[1][number][0] =>
+    (
+        nodes: [CSTNode<any>, CSTNode<any>],
+        _table?: any,
+        node?: CSTNode<any>,
+    ) => {
+        const [left, right] = nodes;
+        return {
+            val: ["assign"],
+            tbc: [
+                [left, [1]],
+                [
+                    {
+                        type: base,
+                        span: node!.span,
+                        children: [
+                            {
+                                type: "name",
+                                span: node!.span,
+                                children: [
+                                    { text: "_", span: node!.span },
+                                ],
+                            },
+                            right,
+                        ],
+                    },
+                    [2],
+                ],
+            ] as [CSTNode<any>, PropertyKey[]][],
         };
     };
 
@@ -603,134 +688,26 @@ const handlers: Parameters<typeof syncCompile>[1] = {
         },
     ],
     empty_arg: [() => ({ val: ["empty"] })],
-    binary_op: [
-        (
-            nodes: [CSTNode<any>, CSTNode<any>, CSTNode<any>],
-            table?: Record<
-                string,
-                [
-                    template: any,
-                    left: PropertyKey[],
-                    right: PropertyKey[],
-                    child?: PropertyKey[],
-                ]
-            >,
-        ) => {
-            const left = nodes[0];
-            const right = nodes[2];
-            const op = nodes[1];
-            const child = op.children?.[0];
-            const opName = op.type!;
-            const entry = table![opName];
-            if (!entry)
-                throw new Error("unknown binary operator type " + opName);
-            const [template, leftPath, rightPath, childPath] = entry;
-            if (isString(template)) {
-                return {
-                    val: [left, right, child],
-                    post: template,
-                };
-            }
-            return {
-                val: structuredClone(template),
-                tbc: [
-                    [left, leftPath],
-                    [right, rightPath],
-                    ...(childPath
-                        ? [[child, childPath] as [CSTNode<any>, PropertyKey[]]]
-                        : []),
-                ],
-            };
-        },
-        {
-            add: [["add"], [1], [2]],
-            sub: [["sub"], [1], [2]],
-            mul: [["mul"], [1], [2]],
-            div: [["div"], [1], [2]],
-            mod: [["mod"], [1], [2]],
-            pow: [["pow"], [1], [2]],
-            shift_right: [["shr"], [1], [2]],
-            shift_left: [["shl"], [1], [2]],
-            bitwise_xor: [["bitXor"], [1], [2]],
-            bitwise_and: [["bitAnd"], [1], [2]],
-            bitwise_or: [["bitOr"], [1], [2]],
-            logical_and: [["and"], [1], [2]],
-            logical_or: [["or"], [1], [2]],
-            needle_in_haystack: [["in"], [1], [2]],
-            haystack_has_needle: [["in"], [2], [1]],
-            normal_predicate: [[], [1], [0]],
-            inverted_predicate: [
-                ["not", []],
-                [1, 1],
-                [1, 0],
-            ],
-            normal_assign: [["assign"], [1], [2]],
-            old_assign: [["assign", , , true], [1], [2]],
-            aug_assign: ["aug_assignPRE", [], []],
-            arrow: [["assign"], [2], [1]],
-            kw: ["kwPRE", [], []],
-            dot: ["dotPRE", [], []],
-            null_dot: ["null_dotPRE", [], []],
-            up_dot: ["up_dotPRE", [], []],
-            up_dot_null: ["up_dot_nullPRE", [], []],
-            normal_pipe: [["let", [["it"]]], [1, 0, 1], [2]],
-            map_pipe: [["map", , ["fn", true, ["it"]]], [1], [2, 3]],
-            filter_pipe: [["filter", , ["fn", true, ["it"]]], [1], [2, 3]],
-            reduce_pipe: [
-                ["reduce", , , ["fn", true, ["_", "it"]]],
-                [1],
-                [3, 3],
-                [2],
-            ],
-        } as Record<
-            string,
-            [
-                template: any,
-                left: PropertyKey[],
-                right: PropertyKey[],
-                child?: PropertyKey[],
-            ]
-        >,
-    ],
-    kwPRE: [dotPRE("kw", true)],
-    dotPRE: [dotPRE("index")],
-    null_dotPRE: [dotPRE("index_null")],
-    up_dotPRE: [cascadePRE(false)],
-    up_dot_nullPRE: [cascadePRE(true)],
-    aug_assignPRE: [
-        (nodes: [CSTNode<any>, CSTNode<any>, CSTNode<any>]) => {
-            const left = nodes[0];
-            const right = nodes[1];
-            const op = nodes[2];
-            return {
-                val: ["assign"],
-                tbc: [
-                    [left, [1]],
-                    [
-                        {
-                            type: "binary_op",
-                            span: op.span,
-                            children: [
-                                {
-                                    type: "name",
-                                    span: op.span,
-                                    children: [
-                                        {
-                                            text: "_",
-                                            span: op.span,
-                                        },
-                                    ],
-                                },
-                                op,
-                                right,
-                            ],
-                        },
-                        [2],
-                    ],
-                ],
-            };
-        },
-    ],
+    ...binaryOpEntries,
+    kw: [dotPRE("kw", true)],
+    dot: [dotPRE("index")],
+    null_dot: [dotPRE("index_null")],
+    up_dot: [cascadePRE(false)],
+    up_dot_null: [cascadePRE(true)],
+    logical_and_assign: [augAssign("logical_and")],
+    logical_or_assign: [augAssign("logical_or")],
+    bitwise_and_assign: [augAssign("bitwise_and")],
+    bitwise_or_assign: [augAssign("bitwise_or")],
+    bitwise_xor_assign: [augAssign("bitwise_xor")],
+    shift_left_assign: [augAssign("shift_left")],
+    shift_right_assign: [augAssign("shift_right")],
+    add_assign: [augAssign("add")],
+    sub_assign: [augAssign("sub")],
+    mul_assign: [augAssign("mul")],
+    div_assign: [augAssign("div")],
+    mod_assign: [augAssign("mod")],
+    format_assign: [augAssign("format")],
+    pow_assign: [augAssign("pow")],
     comparison: [
         (nodes: CSTNode<any>[], tab?: Record<string, any>) => {
             const simple = nodes.length < 4;
@@ -888,7 +865,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                     n.children![0]!.type === "splat_kw");
             const isKeyed = (n: CSTNode<any>) =>
                 n.type === "collection_shorthand" ||
-                (n.type === "binary_op" && n.children![1]!.type === "kw") ||
+                (n.type === "kw") ||
                 (n.type === "func_prefix" &&
                     n.children![0]!.type === "splat_kw");
             if (!nodes.some(isKeyed)) {
@@ -920,7 +897,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                 // a key that is not a name becomes a deferred error in the
                 // key slot: it throws only if the collection is evaluated
                 return makeSyntaxErrorNode(
-                    n.children![0]!,
+                    key.children![0]!,
                     "collection key must be a name",
                 ) as any as string;
             };
@@ -942,7 +919,7 @@ const handlers: Parameters<typeof syncCompile>[1] = {
                     tbc2.push([nameNode, [name]]);
                 } else if (isKeyed(n)) {
                     const key = n.children![0]!;
-                    const item = n.children![2]!;
+                    const item = n.children![1]!;
                     if (isStaticKey(key)) {
                         const name = keyText(key);
                         val.push(name, null);
