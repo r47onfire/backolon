@@ -599,9 +599,6 @@ Object.defineProperty(Object.prototype, "__ne__", {
     configurable: true,
 });
 
-Function.prototype.__call__ = function* (
-    this: Function,
-    task: Task,
-) {
+Function.prototype.__call__ = function* (this: Function, task: Task) {
     // TODO: what to do here
 };

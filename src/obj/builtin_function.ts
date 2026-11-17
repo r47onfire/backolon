@@ -33,9 +33,19 @@ export type BuiltinFunc<P extends any[] = unknown[], R = unknown> = (
 export class Builtin<P extends any[] = unknown[], R = unknown> {
     constructor(
         readonly func: BuiltinFunc<P, R>,
-        readonly signature: Signature<P>,
+        readonly signature: Signature,
     ) {}
 }
+
+/**
+ * How a parameter's argument is supplied to it: a "normal" parameter binds the
+ * argument's value; a "lazy" parameter (a macro parameter) binds the argument's
+ * raw form, unevaluated; a "block" parameter binds the argument's form wrapped
+ * as a block -- a callable that evaluates the form in the caller's scope when
+ * invoked. A lazy or block parameter cannot be given an already-computed
+ * value.
+ */
+export type ParamKind = "normal" | "lazy" | "block";
 
 /**
  * One parameter of a {@link Signature}: one field of the call's argument record,
@@ -43,32 +53,44 @@ export class Builtin<P extends any[] = unknown[], R = unknown> {
  */
 export interface SignatureParam {
     name: Identifier;
-    /** A macro parameter: it binds the argument's raw form, unevaluated. */
-    lazy: boolean;
+    kind: ParamKind;
     hasDefault: boolean;
     /**
-     * The form evaluated (in the caller's scope) when no argument is given; for
-     * a lazy parameter the form itself is bound instead. Only meaningful when
-     * {@link SignatureParam.hasDefault} is true.
+     * The form that fills the parameter when no argument is given, processed
+     * the same way an argument would be: evaluated for a normal parameter,
+     * bound as-is for a lazy one, wrapped as a block for a block one. Only
+     * meaningful when {@link SignatureParam.hasDefault} is true.
      */
     defaultForm?: CSTNode<any>;
 }
 
 /**
- * How a callable takes its argument: a call passes a single record, and the
+ * How a callable takes its arguments: a call passes a single record, and the
  * signature says how that record destructures into parameters when the call is
- * bound -- one descriptor per parameter of P, plus an optional rest parameter
- * for whatever is left over. The signature also drives evaluation: when a
- * call's arguments are still raw forms, callValue evaluates each one unless its
- * parameter is lazy.
+ * bound. Positional arguments fill the **head** parameters from the front of
+ * the argument list and the **tail** parameters from the back; whatever is left
+ * between them goes to the positional rest parameter, and keyword arguments
+ * fill parameters by name (the keyword-only **byName** parameters, or a
+ * head/tail parameter not already filled positionally), with whatever is left
+ * over going to the keyword rest parameter.
+ *
+ * The signature also drives evaluation: when a call's arguments are still raw
+ * forms, callValue processes each one according to its parameter's kind.
+ * callValue passes the callee the bound values in the order: head values, the
+ * positional rest collection, tail values, byName values in declaration order,
+ * and the keyword rest record -- omitting whichever rests are not declared.
  */
-export interface Signature<P extends any[] = unknown[]> {
-    params: {
-        [K in keyof P]: SignatureParam;
-    };
-    /** Binds whatever the named params did not consume, or null. */
-    rest: SignatureParam | null;
+export interface Signature {
+    head: SignatureParam[];
+    tail: SignatureParam[];
+    byName: Record<Identifier, SignatureParam>;
+    /** Binds the positional arguments left between head and tail. */
+    posRest?: SignatureParam;
+    /** Binds the keyword arguments no named parameter claimed. */
+    kwRest?: SignatureParam;
+    /** Closure env for creating the dynamic scope for evaluating defaults in. */
+    closureEnv?: Env;
 }
 /** The signature of a callable that takes no arguments at all. */
 
-export const emptySignature: Signature<[]> = { params: [], rest: null };
+export const emptySignature: Signature = { head: [], tail: [], byName: {} };

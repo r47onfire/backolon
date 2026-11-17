@@ -13,6 +13,8 @@
         "imaginarny",
         "jsfuzz",
         "jsmod",
+        "kwarg",
+        "kwargs",
         "linkify",
         "llms",
         "matmul",

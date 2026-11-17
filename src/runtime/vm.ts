@@ -7,14 +7,13 @@ import {
 import { CSTNode, Memo } from "@r47onfire/nebula";
 import { BTypeError, NotImplementedError } from "../errors";
 import { StackTreeNode } from "../errors/compress";
-import { Builtin } from "../obj/builtin_function";
+import { Builtin, emptySignature, Signature } from "../obj/builtin_function";
 import {
     Callable,
     CallableObject,
     isWrapper,
     WrapperClass,
 } from "../obj/protocol";
-import { Signature } from "../obj/builtin_function";
 import { backolonGrammar } from "../parser";
 import { Identifier, objectEntries } from "../utils";
 import { BackolonAuditEvents } from "./audit";
@@ -129,13 +128,19 @@ export class Task {
 }
 
 /**
- * Determine a callable's signature. The outermost layer that declares one wins:
- * a Builtin carries its signature directly, a duck-typed callable is asked
- * through its **signature** (itself called through {@link callValue}), and a
- * layer that declares neither is unwrapped through its `__call__` and the
- * search retries one level down. A callable with no signature anywhere in its
- * chain is an error: a layer that transforms its arguments is responsible for
- * declaring the signature of the result.
+ * Determine a callable's signature: the signature of the callable itself, and
+ * of nothing else. A Builtin carries its signature directly; a duck-typed
+ * callable is asked through its `__signature__` (itself called through
+ * {@link callValue}); anything else with no signature is an error.
+ *
+ * The lookup deliberately does not unwrap `__call__` layers looking for a
+ * signature to borrow: a callable's declared signature is its calling contract,
+ * and it is the contract of the exact value the caller named. If that value's
+ * `__call__` leads to a callable whose own parameters disagree with the
+ * declared signature, the value is simply misdeclared -- the call proceeds
+ * under the declared contract, and the implementation receives whatever that
+ * produces. A layer that forwards to another callable and wants to be called
+ * must declare the resulting signature itself.
  */
 export function* getSignature<P extends any[]>(
     task: Task,
@@ -144,35 +149,78 @@ export function* getSignature<P extends any[]>(
     handlers: LinkedList<TryCatchHandler>,
     wrappers: LinkedList<WrapperClass>,
     handler: Callable<P, any>,
-): TaskGen<Signature<P>> {
-    let current: unknown = handler;
-    while (true) {
-        if (current instanceof Builtin) return current.signature;
-        if (
-            current !== null &&
-            (typeof current === "object" || typeof current === "function")
-        ) {
-            const sig = (current as CallableObject<P, any>).__signature__;
-            if (sig !== undefined) {
-                return yield* callValue(
-                    task,
-                    env,
-                    traceback,
-                    handlers,
-                    wrappers,
-                    sig,
-                    [],
-                    true,
-                );
-            }
-            const call = (current as CallableObject<P, any>).__call__;
-            if (call !== undefined) {
-                current = call;
-                continue;
-            }
+): TaskGen<Signature> {
+    if (handler instanceof Builtin) return handler.signature;
+    if (
+        handler !== null &&
+        (typeof handler === "object" || typeof handler === "function")
+    ) {
+        const sig = (handler as CallableObject<P, any>).__signature__;
+        if (sig !== undefined) {
+            return yield* callValue(
+                task,
+                env,
+                traceback,
+                handlers,
+                wrappers,
+                sig,
+                [],
+                true,
+            );
         }
-        throw new BTypeError("backolon.call.no_signature", handler);
     }
+    throw new BTypeError("backolon.call.no_signature", handler);
+}
+
+// TODO: make this allow one optional parameter, a Record or Map, which injects variables
+// into the env
+/**
+ * Wrap one or more unevaluated forms as a block: a callable that evaluates them
+ * in order, in the environment they were written in, and returns the last one's
+ * value.
+ */
+const makeBlock = (forms: CSTNode<any>[], closureEnv: Env): Builtin<[], any> =>
+    new Builtin<[], any>(function* (
+        task,
+        _callerEnv,
+        traceback,
+        handlers,
+        wrappers,
+    ) {
+        let result: any = null;
+        for (const form of forms) {
+            result = yield* task.eval(
+                form,
+                closureEnv,
+                traceback,
+                handlers,
+                wrappers,
+            );
+        }
+        return result;
+    }, emptySignature);
+
+/**
+ * Bind a call's given arguments against the callee's signature and return the
+ * bound values in signature order. Given arguments are processed one by one
+ * according to their parameter's kind; defaults fill whatever is left.
+ *
+ * @see {@link Signature}
+ */
+function* bindArguments(
+    task: Task,
+    env: Env,
+    traceback: LinkedList<StackTreeNode>,
+    handlers: LinkedList<TryCatchHandler>,
+    wrappers: LinkedList<WrapperClass>,
+    sig: Signature,
+    args: any[],
+    kwargEntries: [Identifier, any][],
+    computed: boolean,
+    callee: unknown,
+): TaskGen<any[]> {
+    // TODO: args and kwargs can be mixed positional/keyword, and should be evaluated
+    // in order if they are to be evaluated at all
 }
 
 export function callValue<P extends any[], R>(
@@ -181,9 +229,10 @@ export function callValue<P extends any[], R>(
     traceback: LinkedList<StackTreeNode>,
     handlers: LinkedList<TryCatchHandler>,
     wrappers: LinkedList<WrapperClass>,
-    handler: Callable<P, R> | undefined,
+    callee: Callable<P, R> | undefined,
     args: P,
     computed?: false,
+    kwargs?: Record<Identifier, any> | null,
 ): TaskGen<R>;
 export function callValue<P extends any[], R>(
     task: Task,
@@ -191,9 +240,10 @@ export function callValue<P extends any[], R>(
     traceback: LinkedList<StackTreeNode>,
     handlers: LinkedList<TryCatchHandler>,
     wrappers: LinkedList<WrapperClass>,
-    handler: Callable<P, R> | undefined,
+    callee: Callable<P, R> | undefined,
     args: P,
     computed: true,
+    kwargs?: Record<Identifier, any> | null,
 ): TaskGen<R>;
 export function* callValue<P extends any[], R>(
     task: Task,
@@ -204,44 +254,36 @@ export function* callValue<P extends any[], R>(
     callee: Callable<P, R> | undefined,
     args: P,
     computed?: boolean,
+    kwargs?: Record<Identifier, any> | null,
 ): TaskGen<R> {
     if (callee === undefined) {
         // in practice: a grammar node type with no run handler yet
         throw new NotImplementedError("backolon.call.no_handler");
     }
-    let finalArgs: any[] = args;
-    if (!computed) {
-        // The args are still raw forms, so the callee's signature
-        // decides what happens to each one: a lazy parameter binds
-        // the form itself, any other parameter binds the form's
-        // value, evaluated here in the caller's context. (Binding
-        // the resulting values into the callee's scope, defaults
-        // included, is the callee's business.)
-        const sig = yield* getSignature(
-            task,
-            env,
-            traceback,
-            handlers,
-            wrappers,
-            callee,
-        );
-        const params = sig.params as unknown as (typeof sig.rest)[];
-        finalArgs = [];
-        for (let i = 0; i < args.length; i++) {
-            const param = i < params.length ? params[i] : sig.rest;
-            finalArgs.push(
-                param?.lazy
-                    ? args[i]
-                    : yield* task.eval(
-                          args[i],
-                          env,
-                          traceback,
-                          handlers,
-                          wrappers,
-                      ),
-            );
-        }
-    }
+    // The callee's signature governs the call: the given arguments are
+    // bound against it (evaluated, passed raw, or wrapped as blocks,
+    // per parameter kind; defaults filled; rests collected), and the
+    // callee receives the bound values in signature order.
+    const sig = yield* getSignature(
+        task,
+        env,
+        traceback,
+        handlers,
+        wrappers,
+        callee,
+    );
+    const finalArgs: any[] = yield* bindArguments(
+        task,
+        env,
+        traceback,
+        handlers,
+        wrappers,
+        sig,
+        args,
+        kwargs ? objectEntries(kwargs) : [],
+        computed ?? false,
+        callee,
+    );
     // Flatten the __call__ chain to the Builtin at the bottom, and
     // call its Javascript implementation. A raw function joins in through
     // its __call__ getter, which manufactures its Builtin. Stepping from
@@ -251,6 +293,7 @@ export function* callValue<P extends any[], R>(
     let receiver: unknown = undefined;
     while (true) {
         if (current instanceof Builtin) {
+            // TODO: move this to be a Builtin method
             const result: unknown = Reflect.apply(current.func, receiver, [
                 task,
                 env,
