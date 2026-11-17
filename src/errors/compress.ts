@@ -1,4 +1,9 @@
-import { javaHash, rotate32 } from "@r47onfire/game-math";
+import {
+    javaHash,
+    LinkedList,
+    LinkedList_push,
+    rotate32,
+} from "@r47onfire/game-math";
 import { locationsEqual, Span } from "@r47onfire/nebula";
 import { Identifier } from "../utils";
 
@@ -26,6 +31,13 @@ export type StackTreeNode = Readonly<
           hash: number;
       }
 >;
+
+export const tbAdd = (
+    name: Identifier | undefined,
+    location: Span | undefined,
+    kind: StackEntryKind,
+    traceback: LinkedList<StackTreeNode>,
+) => LinkedList_push(traceback, createStackLeafNode(name, location, kind));
 
 /**
  * Creates a leaf stack tree node for a single call frame. The node's hash is
