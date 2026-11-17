@@ -4,6 +4,19 @@ import { abs, max } from "lib0/math";
 import { BTypeError, BValueError } from "../errors/classes";
 import { Task, TaskGen } from "../runtime";
 
+export type CallableOrDirectFunc<P extends any[] = unknown[], R = unknown> =
+    | ((
+          task: Task,
+          /* TODO: more context parameters here... */
+          ...args: P
+      ) => TaskGen<R>)
+    | Callable<P, R>;
+
+export interface Callable<P extends any[] = unknown[], R = unknown> {
+    __call__: CallableOrDirectFunc<P, R>;
+    __signature__: CallableOrDirectFunc<[], Signature<P>>;
+}
+
 export interface Mathable {
     __add__(task: Task, other: any): TaskGen<any>;
     __sub__(task: Task, other: any): TaskGen<any>;
@@ -33,11 +46,6 @@ export interface Comparable {
     __gte__?(task: Task, other: any): TaskGen<boolean>;
     __eq__?(task: Task, other: any): TaskGen<boolean>;
     __ne__?(task: Task, other: any): TaskGen<boolean>;
-}
-
-export interface Callable {
-    __call__(task: Task, arg: CSTNode<any>): TaskGen<any>;
-    __signature__(task: Task): TaskGen<Signature>;
 }
 
 declare global {
