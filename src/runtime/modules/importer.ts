@@ -47,7 +47,13 @@ export class Importer {
             let m = task.vm.getModule(resolved);
             if (m) {
                 if (asMain) {
-                    throw new CircularImportError("backolon.import.main_cycle");
+                    return yield* handleError(
+                        task,
+                        env,
+                        traceback,
+                        handlers,
+                        new CircularImportError("backolon.import.circular"),
+                    );
                 }
                 if (m.parent) {
                     let m2: Module | null | boolean = parent,
@@ -56,9 +62,15 @@ export class Importer {
                         culprits.push(m2);
                         m2 = m2.parent;
                     }
-                    throw new CircularImportError(
-                        "backolon.import.circular",
-                        culprits,
+                    return yield* handleError(
+                        task,
+                        env,
+                        traceback,
+                        handlers,
+                        new CircularImportError(
+                            "backolon.import.circular",
+                            culprits,
+                        ),
                     );
                 }
                 return m;
