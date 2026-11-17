@@ -54,8 +54,16 @@ export type Identifier = string | symbol;
 export const isIdentifier = (x: unknown): x is Identifier =>
     isString(x) || typeof x === "symbol";
 
+/**
+ * Like `Object.entries(x)` but includes own symbol properties as well (it uses
+ * `Reflect.ownKeys()`)
+ */
 export const objectEntries = <T>(x: Record<Identifier, T>): [Identifier, T][] =>
     Reflect.ownKeys(x).map((k) => [k, x[k]!]);
 
+/**
+ * Like `Object.values(x)` but includes values of own symbol properties as well
+ * (it uses `Reflect.ownKeys()`)
+ */
 export const objectValues = <T>(x: Record<Identifier, T>): T[] =>
     Reflect.ownKeys(x).map((k) => x[k]!);

@@ -5,22 +5,16 @@ import {
 } from "@r47onfire/game-math";
 import { CSTNode, Memo } from "@r47onfire/nebula";
 import { StackTreeNode } from "../errors/compress";
+import { Callable } from "../obj/protocol";
 import { backolonGrammar } from "../parser";
+import { Identifier, objectEntries } from "../utils";
 import { BackolonAuditEvents } from "./audit";
 import { Env } from "./env";
 import { Importer } from "./modules/importer";
 import { Module } from "./modules/module";
 import { TryCatchHandler } from "./trycatch";
-import { Identifier, objectEntries } from "../utils";
-import { Callable } from "../obj/monkey";
 
-export type FormFunc = (
-    task: Task,
-    node: CSTNode<any>,
-    env: Env,
-    traceback: LinkedList<StackTreeNode>,
-    handlers: LinkedList<TryCatchHandler>,
-) => TaskGen<any>;
+export type FormFunc = (task: Task, node: CSTNode<any>) => TaskGen<any>;
 
 export type TaskGen<T> = Generator<PromiseLike<unknown>, T, any>;
 

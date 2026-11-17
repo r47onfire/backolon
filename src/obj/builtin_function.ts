@@ -1,4 +1,4 @@
-import { Callable } from "../../obj/monkey";
+import { Callable } from "./protocol";
 
 export class Builtin<
     P extends any[] = unknown[],

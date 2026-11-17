@@ -32,7 +32,7 @@ import {
     walkCombinator,
     yes,
 } from "@r47onfire/nebula";
-import { Callable } from "../obj/monkey";
+import { Callable } from "../obj/protocol";
 import { objectValues } from "../utils";
 
 // TODO: add rocket operator => - what precedence? what does it even do?

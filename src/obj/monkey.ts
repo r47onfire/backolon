@@ -3,50 +3,14 @@ import { isArray } from "lib0/array";
 import { abs, max } from "lib0/math";
 import { BTypeError, BValueError } from "../errors/classes";
 import { Task, TaskGen } from "../runtime";
-
-export type CallableOrDirectFunc<P extends any[] = unknown[], R = unknown> =
-    | ((
-          task: Task,
-          /* TODO: more context parameters here... */
-          ...args: P
-      ) => TaskGen<R>)
-    | Callable<P, R>;
-
-export interface Callable<P extends any[] = unknown[], R = unknown> {
-    __call__: CallableOrDirectFunc<P, R>;
-    __signature__: CallableOrDirectFunc<[], Signature<P>>;
-}
-
-export interface Mathable {
-    __add__(task: Task, other: any): TaskGen<any>;
-    __sub__(task: Task, other: any): TaskGen<any>;
-    __mul__(task: Task, other: any): TaskGen<any>;
-    __div__(task: Task, other: any): TaskGen<any>;
-    __matmul__?(task: Task, other: any): TaskGen<any>;
-    __rmatmul__?(task: Task, other: any): TaskGen<any>;
-}
-export interface Negateable {
-    __neg__(task: Task): TaskGen<any>;
-}
-export interface Absable {
-    __abs__(task: Task): TaskGen<any>;
-}
-
-export interface ReflectedMathable extends Mathable {
-    __radd__(task: Task, other: any): TaskGen<any>;
-    __rsub__(task: Task, other: any): TaskGen<any>;
-    __rmul__(task: Task, other: any): TaskGen<any>;
-    __rdiv__(task: Task, other: any): TaskGen<any>;
-}
-
-export interface Comparable {
-    __lt__?(task: Task, other: any): TaskGen<boolean>;
-    __gt__?(task: Task, other: any): TaskGen<boolean>;
-    __lte__?(task: Task, other: any): TaskGen<boolean>;
-    __gte__?(task: Task, other: any): TaskGen<boolean>;
-    __eq__?(task: Task, other: any): TaskGen<boolean>;
-    __ne__?(task: Task, other: any): TaskGen<boolean>;
-}
+import {
+    Absable,
+    Callable,
+    CallableOrDirectFunc,
+    Comparable,
+    Negateable,
+    ReflectedMathable,
+} from "./protocol";
 
 declare global {
     interface Number
@@ -56,9 +20,9 @@ declare global {
     /** Bool is treated as an int subclass */
     interface Boolean extends Number {}
     interface String extends Comparable {
-        __add__(task: Task, other: any): TaskGen<string>;
-        __mul__(task: Task, other: any): TaskGen<string>;
-        __rmul__(task: Task, other: any): TaskGen<string>;
+        __add__: CallableOrDirectFunc<[other: any], string>;
+        __mul__: CallableOrDirectFunc<[other: any], string>;
+        __rmul__: CallableOrDirectFunc<[other: any], string>;
     }
     interface Array<T> {
         __add__(task: Task, other: any): TaskGen<any[]>;
