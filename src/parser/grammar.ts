@@ -37,7 +37,6 @@ import { objectValues } from "../utils";
 
 // TODO: add rocket operator => - what precedence? what does it even do?
 // TODO: tweak strong blocks to allow do and begin blocks to be passed to a parameter to an implicit call
-// TODO: rework comma system; comma operator one greater than assignment; creates frozen arrays and frozen objects when bare; creates arrays and objects when enclosed in brackets; creates Sets and Maps when ????? new syntax (#10)
 
 /**
  * The Backolon grammar.
@@ -48,7 +47,6 @@ import { objectValues } from "../utils";
  * - `cascade`
  * - `pipe`
  * - `implicit_call`
- * - `kw_arg`
  * - `assign_rev`
  * - `assignment`
  * - `ternary`
@@ -182,7 +180,10 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
             "binary_op",
             rule("name"),
             donate(rule("let_assign_op")),
-            rule("name"),
+            alt(
+                rule("name"),
+                seq(lookahead(false, rule("name")), rule("expr")),
+            ),
             rule("expr"),
             nothing(),
         ),
@@ -486,59 +487,71 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         ),
     },
 
-    // the shared node type for both call forms: implicit_call and
-    // explicit_call delegate here so their CST nodes just say "call"
+    // the shared node types for both call forms -
+    // implicit_call/implicit_args and explicit_call/explicit_args
+    // delegate here so their CST nodes just say "call" and "args"
     call: {
+        params: ["form"],
+        def: param("form"),
+    },
+    args: {
         params: ["form"],
         def: param("form"),
     },
 
     // right associative
-    // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try kw_arg
+    // implicit call is speculative since it's implicit, so if the arguments can't be parsed for any reason, give up and try assign_rev
     implicit_call: {
         def: rule(
             "call",
             alt(
                 ssep(
                     rule("blank_sameline"),
-                    rule("kw_arg"),
+                    rule("assign_rev"),
                     try_(nonempty(rule("implicit_args"))),
                 ),
-                rule("kw_arg"),
+                rule("assign_rev"),
             ),
         ),
     },
     implicit_args: {
         params: ["first", "rest"],
-        def: seq(
-            // can't use joined() here since the first and second are different + there are lookahead assertions!
-            ignored(ambient("guard", nothing())),
-            lookahead(false, rule("strong_block")),
-            param(
-                "first",
-                altFirst(
-                    rule("block_expr"),
-                    rule("cascade", rule("implicit_call")),
-                ),
-            ),
-            rep(
-                false,
-                seq(
-                    ignored(
-                        seq(
-                            opt(rule("blank_sameline")),
-                            rule("comma"),
-                            opt(rule("blank_sameline")),
-                        ),
+        def: rule(
+            "args",
+            seq(
+                // can't use joined() here since the first and second are different + there are lookahead assertions!
+                ignored(ambient("guard", nothing())),
+                lookahead(false, rule("strong_block")),
+                param(
+                    "first",
+                    altFirst(
+                        rule("block_expr"),
+                        rule("kw_arg"),
+                        rule("splat_arg"),
+                        rule("cascade", rule("implicit_call")),
                     ),
-                    lookahead(false, rule("strong_block")),
-                    ignored(ambient("guard", nothing())),
-                    param(
-                        "rest",
-                        altFirst(
-                            rule("block_expr"),
-                            rule("cascade", rule("implicit_call")),
-                            rule("empty_arg"),
+                ),
+                rep(
+                    false,
+                    seq(
+                        ignored(
+                            seq(
+                                opt(rule("blank_sameline")),
+                                rule("comma"),
+                                opt(rule("blank_sameline")),
+                            ),
+                        ),
+                        lookahead(false, rule("strong_block")),
+                        ignored(ambient("guard", nothing())),
+                        param(
+                            "rest",
+                            altFirst(
+                                rule("block_expr"),
+                                rule("kw_arg"),
+                                rule("splat_arg"),
+                                rule("cascade", rule("implicit_call")),
+                                rule("empty_arg"),
+                            ),
                         ),
                     ),
                 ),
@@ -549,23 +562,38 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: seq(nothing(), lookahead(true, rule("comma"))), // only between commas
     },
 
-    // non associative; the key must be a member, a quoted member, or a
-    // prefixed member (a sym, unique sym, or option on a member) -- any
-    // other computed key needs parens
+    // only valid as a direct argument to a call or collection
     kw_arg: {
-        def: rule(
-            "binary_op",
-            rule("assign_rev"),
-            donate(rule("kw_arg_op")),
-            alt(rule("member"), rule("quote_prefix"), rule("member_prefix")),
-            rule("assign_rev"),
-            nothing(),
+        def: adopt(
+            ssep(
+                rule("blank"),
+                alt(
+                    rule("member"),
+                    rule("quote_prefix"),
+                    rule("member_prefix"),
+                ),
+                donate(rule("kw_arg_op")),
+                rule("assign_rev"),
+            ),
         ),
     },
     kw_arg_op: { def: alt(rule("kw")) },
     kw: {
         def: op("operator", ":"),
     },
+    // only valid as a direct argument to a call or collection
+    splat_arg: {
+        def: adopt(
+            ssep(
+                rule("blank"),
+                donate(alt(rule("splat"), rule("splat_kw"))),
+                cut(),
+                rule("factor"),
+            ),
+        ),
+    },
+    splat: { def: op("operator", "...") },
+    splat_kw: { def: op("operator", "...:") },
 
     // left associative
     assign_rev: {
@@ -889,19 +917,27 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         ),
     },
     explicit_args: {
-        def: alt(
-            bind(
-                "guard",
-                false,
-                nothing(),
-                joined(
-                    ignored(rule("ws_comma")),
-                    alt(rule("expr"), rule("empty_arg")),
+        def: rule(
+            "args",
+            alt(
+                bind(
+                    "guard",
                     false,
-                    true,
+                    nothing(),
+                    joined(
+                        ignored(rule("ws_comma")),
+                        altFirst(
+                            rule("kw_arg"),
+                            rule("splat_arg"),
+                            rule("expr"),
+                            rule("empty_arg"),
+                        ),
+                        false,
+                        true,
+                    ),
                 ),
+                seq(), // empty args
             ),
-            seq(), // empty args
         ),
     },
 
@@ -984,8 +1020,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
     func_prefix_op: {
         def: alt(
             rule("length"),
-            rule("splat"),
-            rule("splat_kw"),
+            rule("rich_collection"),
             rule("negate"),
             rule("abs"),
             rule("not"),
@@ -1000,8 +1035,7 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         ),
     },
     length: { def: op("operator", "#") },
-    splat: { def: op("operator", "...") },
-    splat_kw: { def: op("operator", "...:") },
+    rich_collection: { def: op("operator", "%") },
     negate: { def: op("operator", "-") },
     abs: { def: op("operator", "+") },
     not: { def: op("operator", "!") },
@@ -1148,7 +1182,14 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
     empty_collection: { def: alt(rule("empty_list"), rule("empty_map")) },
     empty_list: { def: ignored(nothing()) },
     empty_map: { def: op("operator", ":") },
-    collection_item: { def: alt(rule("collection_shorthand"), rule("expr")) },
+    collection_item: {
+        def: altFirst(
+            rule("kw_arg"),
+            rule("collection_shorthand"),
+            rule("splat_arg"),
+            rule("expr"),
+        ),
+    },
     collection_shorthand: {
         def: ssep(
             rule("blank"),

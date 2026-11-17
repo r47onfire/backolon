@@ -72,7 +72,7 @@ Number.prototype.__add__ = function* (
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
-        if (Number.isInteger(this)) {
+        if (Number.isInteger(Number(this))) {
             return BigInt(this) + other;
         }
         return this + Number(other);
@@ -93,7 +93,7 @@ Number.prototype.__sub__ = function* (
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
-        if (Number.isInteger(this)) {
+        if (Number.isInteger(Number(this))) {
             return BigInt(this) - other;
         }
         return this - Number(other);
@@ -111,7 +111,7 @@ Number.prototype.__rsub__ = function* (
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
-        if (Number.isInteger(this)) {
+        if (Number.isInteger(Number(this))) {
             return other - BigInt(this);
         }
         return Number(other) - this;
@@ -129,7 +129,7 @@ Number.prototype.__mul__ = function* (
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
-        if (Number.isInteger(this)) {
+        if (Number.isInteger(Number(this))) {
             return BigInt(this) * other;
         }
         return this * Number(other);
@@ -150,7 +150,7 @@ Number.prototype.__div__ = function* (
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
-        if (Number.isInteger(this)) {
+        if (Number.isInteger(Number(this))) {
             if (other === 0n) {
                 throw new BValueError(
                     "backolon.math.undefined.div_zero.bigint",
@@ -174,7 +174,7 @@ Number.prototype.__rdiv__ = function* (
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
-        if (Number.isInteger(this)) {
+        if (Number.isInteger(Number(this))) {
             if (this === 0) {
                 throw new BValueError(
                     "backolon.math.undefined.div_zero.bigint",
@@ -198,6 +198,8 @@ Number.prototype.__neg__ = function* (this: number, task: Task) {
 Number.prototype.__abs__ = function* (this: number, task: Task) {
     return abs(this);
 };
+
+// Ah, if only Javascript had preprocessor macros.
 
 Number.prototype.__lt__ = function* (this: number, task: Task, other: unknown) {
     // booleans compare as 0/1: bool is an int subclass
@@ -243,10 +245,10 @@ Number.prototype.__gte__ = function* (
 Number.prototype.__eq__ = function* (this: number, task: Task, other: unknown) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number") {
-        return this === other;
+        return Number(this) === other;
     }
     if (typeof other === "bigint") {
-        return Number.isInteger(this) && BigInt(this) === other;
+        return Number.isInteger(Number(this)) && BigInt(this) === other;
     }
     return false;
 };
