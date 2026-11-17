@@ -225,11 +225,13 @@ const TESTS: Record<string, [string, ASTNode | "BAD"][]> = {
         [`let(loop) ##[[ inner comment ##]] x = a in ## comment\n    foo loop\nend`, ["exprs", ["let", ["let_loop_block", ["name", "loop"], ["let_block", ["let_bindings", ["normal_assign", ["name", "x"], ["name", "a"]]], ["body_exprs", ["exprs", ["call", ["name", "foo"], ["args", ["name", "loop"]]]]]]]]]],
         [`(let x = a in\n    foo loop)`, ["exprs", ["par_exp", ["exprs", ["let", ["let_block", ["let_bindings", ["normal_assign", ["name", "x"], ["name", "a"]]], ["body_exprs", ["exprs", ["call", ["name", "foo"], ["args", ["name", "loop"]]]]]]]]]]],
         [`let x = a, y = b in x y\nfoo a`, ["exprs", ["let", ["let_block", ["let_bindings", ["normal_assign", ["name", "x"], ["name", "a"]], ["normal_assign", ["name", "y"], ["name", "b"]]], ["body_exprs", ["call", ["name", "x"], ["args", ["name", "y"]]]]]], ["call", ["name", "foo"], ["args", ["name", "a"]]]]],
-        // destructuring
+        // destructuring: a binding target may be any expression
+        // that cannot start with a name
         [`let [x, y] = z`, ["exprs", ["let", ["simple_let", ["let_bindings", ["normal_assign", ["collection", ["name", "x"], ["name", "y"]], ["name", "z"]]]]]]],
-        // a binding target must be a bare name: the par_exp binding
-        // cannot even start, and the recovery consumes the header tail
-        [`let x = z, (y) = x in y end`, "BAD"],
+        [`let %[x, y] = z`, ["exprs", ["let", ["simple_let", ["let_bindings", ["normal_assign", ["rich_collection", ["collection", ["name", "x"], ["name", "y"]]], ["name", "z"]]]]]]],
+        [`let [a: x, b: y] = m`, ["exprs", ["let", ["simple_let", ["let_bindings", ["normal_assign", ["collection", ["kw", ["name", "a"], ["name", "x"]], ["kw", ["name", "b"], ["name", "y"]]], ["name", "m"]]]]]]],
+        [`let (y) = x`, ["exprs", ["let", ["simple_let", ["let_bindings", ["normal_assign", ["par_exp", ["exprs", ["name", "y"]]], ["name", "x"]]]]]]],
+        [`let x = z, (y) = x in y end`, ["exprs", ["let", ["let_block", ["let_bindings", ["normal_assign", ["name", "x"], ["name", "z"]], ["normal_assign", ["par_exp", ["exprs", ["name", "y"]]], ["name", "x"]]], ["body_exprs", ["name", "y"]]]]]],
         // only = can bind: += leaves an error node, -> stops the parse
         [`let x += 3 in x end`, "BAD"],
         [`let x -> 3 in x end`, "BAD"],

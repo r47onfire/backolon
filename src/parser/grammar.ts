@@ -182,7 +182,11 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
             donate(rule("let_assign_op")),
             altFirst(
                 rule("name"),
-                rule("expr"),
+                // a destructuring pattern: any expression that cannot
+                // start with a name.
+                // One level up from assignment so it can't inadvertently
+                // steal the = away from let.
+                rule("ternary"),
             ),
             rule("expr"),
             nothing(),
@@ -204,7 +208,6 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
         def: ssep(
             rule("blank"),
             op("punctuation", "("),
-            cut(),
             rule("name"),
             op("punctuation", ")"),
             rule("let_block"),
