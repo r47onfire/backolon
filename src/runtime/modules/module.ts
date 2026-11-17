@@ -15,14 +15,13 @@ export class Module extends Env {
      */
     parent: Module | null;
     constructor(
+        builtins: Env[],
         public id: URL,
         parent: Module | null,
     ) {
-        super();
+        super(builtins);
         this.parent = parent;
-        this.addConst("__module__", this);
-        this.addConst("__name__", id);
+        this.addUnshadowableFast("__module__", this);
+        this.addUnshadowableFast("__name__", id);
     }
-    /** The module's result value, once it has finished evaluating. */
-    result: any;
 }

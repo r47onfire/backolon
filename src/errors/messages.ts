@@ -35,6 +35,8 @@ export type BackolonErrorMessage =
     | "backolon.call.missing_argument"
     | "backolon.call.too_many_arguments"
     | "backolon.call.unexpected_keyword"
+    | "backolon.block.not_a_mapping"
+    | "backolon.eval.unknown_cst_type"
     | "backolon.import.main_cycle"
     | "backolon.import.circular"
     | "backolon.import.unresolvable"

@@ -2,25 +2,19 @@ import {
     EventDispatcher,
     insertionSort,
     LinkedList,
-    LinkedList_toArray,
 } from "@r47onfire/game-math";
 import { CSTNode, Memo } from "@r47onfire/nebula";
-import { BTypeError, NotImplementedError } from "../errors";
+import { BTypeError } from "../errors";
 import { StackTreeNode } from "../errors/compress";
-import { Builtin, emptySignature, Signature } from "../obj/builtin_function";
-import {
-    Callable,
-    CallableObject,
-    isWrapper,
-    WrapperClass,
-} from "../obj/protocol";
+import { Builtin, Signature } from "../obj/builtin_function";
+import { Callable, isWrapper, WrapperClass } from "../obj/protocol";
 import { backolonGrammar } from "../parser";
-import { Identifier, objectEntries } from "../utils";
 import { BackolonAuditEvents } from "./audit";
+import { callValue } from "./call";
 import { Env } from "./env";
 import { Importer } from "./modules/importer";
 import { Module } from "./modules/module";
-import { TryCatchHandler } from "./trycatch";
+import { handleError, TryCatchHandler } from "./trycatch";
 
 /**
  * The standardized call shape for grammar entries: a form handler is a Callable
@@ -29,7 +23,7 @@ import { TryCatchHandler } from "./trycatch";
  * shared context parameters of the call itself (see {@link BuiltinFunc} in
  * obj/protocol).
  */
-export type FormFunc = Callable<[form: CSTNode<any>], any>;
+export type FormFunc = Callable<Signature<["node"]>, any>;
 
 export type TaskGen<T> = Generator<PromiseLike<unknown>, T, any>;
 
@@ -38,6 +32,7 @@ export type TaskGen<T> = Generator<PromiseLike<unknown>, T, any>;
  * cache, and the current grammar (if any).
  */
 export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
+    builtins: Module;
     constructor(public importer: Importer) {
         super();
     }
@@ -45,8 +40,12 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
     getModule(resolved: URL) {
         return this.modules[resolved.href];
     }
-    createModule(name: URL, parent: Module | null) {
-        return (this.modules[name.href] = new Module(name, parent));
+    createAndCacheModule(name: URL, parent: Module | null) {
+        return (this.modules[name.href] = new Module(
+            [this.builtins],
+            name,
+            parent,
+        ));
     }
     /** List of tasks, sorted by priority. */
     tasks: Task[] = [];
@@ -54,7 +53,7 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
         id: string,
         priority: number,
         form: CSTNode<any>,
-        context: Record<Identifier, any>,
+        env: Env,
         exclusive = false,
     ): Task {
         if (exclusive) {
@@ -62,11 +61,7 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
             if (t2) return t2;
         }
         const t = new Task(this, id, priority);
-        const env = new Env(
-            [this.builtinsEnv],
-            new Map(objectEntries(context)),
-        );
-        t.gen = t.eval(form, env, null, null, null);
+        t.gen = t.eval(form, env, null, null, []);
         this.tasks.push(t);
         insertionSort(this.tasks, (t1, t2) => t2.priority - t1.priority);
         return t;
@@ -96,29 +91,36 @@ export class Task {
         env: Env,
         traceback: LinkedList<StackTreeNode>,
         handlers: LinkedList<TryCatchHandler>,
-        wrappers: LinkedList<WrapperClass>,
+        wrappers: WrapperClass[],
     ): TaskGen<any> {
+        const rule = this.grammar[form.type];
+        if (!rule || !rule.run) {
+            return yield* handleError(
+                this,
+                env,
+                traceback,
+                handlers,
+                new BTypeError("backolon.eval.unknown_cst_type", form),
+            );
+        }
         let x = yield* callValue(
             this,
             env,
             traceback,
             handlers,
-            wrappers,
-            this.grammar[form.type]?.run,
+            rule.run,
+            rule,
             [form],
             true,
         );
-        while (
-            isWrapper(x) &&
-            !LinkedList_toArray(wrappers).some((cls) => x instanceof cls)
-        ) {
+        while (isWrapper(x) && !wrappers.some((cls) => x instanceof cls)) {
             x = yield* callValue(
                 this,
                 env,
                 traceback,
                 handlers,
-                wrappers,
                 x.__unwrap__,
+                x,
                 [],
                 true,
             );
@@ -142,188 +144,24 @@ export class Task {
  * produces. A layer that forwards to another callable and wants to be called
  * must declare the resulting signature itself.
  */
-export function* getSignature<P extends any[]>(
+export function* getSignature<P extends Signature>(
     task: Task,
     env: Env,
     traceback: LinkedList<StackTreeNode>,
     handlers: LinkedList<TryCatchHandler>,
-    wrappers: LinkedList<WrapperClass>,
-    handler: Callable<P, any>,
-): TaskGen<Signature> {
-    if (handler instanceof Builtin) return handler.signature;
-    if (
-        handler !== null &&
-        (typeof handler === "object" || typeof handler === "function")
-    ) {
-        const sig = (handler as CallableObject<P, any>).__signature__;
-        if (sig !== undefined) {
-            return yield* callValue(
-                task,
-                env,
-                traceback,
-                handlers,
-                wrappers,
-                sig,
-                [],
-                true,
-            );
-        }
+    callee: Callable<P, any>,
+): TaskGen<P> {
+    if (callee instanceof Builtin) return callee.signature;
+    if (typeof callee?.__signature__ !== "undefined") {
+        return yield* callValue(
+            task,
+            env,
+            traceback,
+            handlers,
+            callee.__signature__,
+            callee,
+            [],
+        );
     }
-    throw new BTypeError("backolon.call.no_signature", handler);
-}
-
-// TODO: make this allow one optional parameter, a Record or Map, which injects variables
-// into the env
-/**
- * Wrap one or more unevaluated forms as a block: a callable that evaluates them
- * in order, in the environment they were written in, and returns the last one's
- * value.
- */
-const makeBlock = (forms: CSTNode<any>[], closureEnv: Env): Builtin<[], any> =>
-    new Builtin<[], any>(function* (
-        task,
-        _callerEnv,
-        traceback,
-        handlers,
-        wrappers,
-    ) {
-        let result: any = null;
-        for (const form of forms) {
-            result = yield* task.eval(
-                form,
-                closureEnv,
-                traceback,
-                handlers,
-                wrappers,
-            );
-        }
-        return result;
-    }, emptySignature);
-
-/**
- * Bind a call's given arguments against the callee's signature and return the
- * bound values in signature order. Given arguments are processed one by one
- * according to their parameter's kind; defaults fill whatever is left.
- *
- * @see {@link Signature}
- */
-function* bindArguments(
-    task: Task,
-    env: Env,
-    traceback: LinkedList<StackTreeNode>,
-    handlers: LinkedList<TryCatchHandler>,
-    wrappers: LinkedList<WrapperClass>,
-    sig: Signature,
-    args: any[],
-    kwargEntries: [Identifier, any][],
-    computed: boolean,
-    callee: unknown,
-): TaskGen<any[]> {
-    // TODO: args and kwargs can be mixed positional/keyword, and should be evaluated
-    // in order if they are to be evaluated at all
-}
-
-export function callValue<P extends any[], R>(
-    task: Task,
-    env: Env,
-    traceback: LinkedList<StackTreeNode>,
-    handlers: LinkedList<TryCatchHandler>,
-    wrappers: LinkedList<WrapperClass>,
-    callee: Callable<P, R> | undefined,
-    args: P,
-    computed?: false,
-    kwargs?: Record<Identifier, any> | null,
-): TaskGen<R>;
-export function callValue<P extends any[], R>(
-    task: Task,
-    env: Env,
-    traceback: LinkedList<StackTreeNode>,
-    handlers: LinkedList<TryCatchHandler>,
-    wrappers: LinkedList<WrapperClass>,
-    callee: Callable<P, R> | undefined,
-    args: P,
-    computed: true,
-    kwargs?: Record<Identifier, any> | null,
-): TaskGen<R>;
-export function* callValue<P extends any[], R>(
-    task: Task,
-    env: Env,
-    traceback: LinkedList<StackTreeNode>,
-    handlers: LinkedList<TryCatchHandler>,
-    wrappers: LinkedList<WrapperClass>,
-    callee: Callable<P, R> | undefined,
-    args: P,
-    computed?: boolean,
-    kwargs?: Record<Identifier, any> | null,
-): TaskGen<R> {
-    if (callee === undefined) {
-        // in practice: a grammar node type with no run handler yet
-        throw new NotImplementedError("backolon.call.no_handler");
-    }
-    // The callee's signature governs the call: the given arguments are
-    // bound against it (evaluated, passed raw, or wrapped as blocks,
-    // per parameter kind; defaults filled; rests collected), and the
-    // callee receives the bound values in signature order.
-    const sig = yield* getSignature(
-        task,
-        env,
-        traceback,
-        handlers,
-        wrappers,
-        callee,
-    );
-    const finalArgs: any[] = yield* bindArguments(
-        task,
-        env,
-        traceback,
-        handlers,
-        wrappers,
-        sig,
-        args,
-        kwargs ? objectEntries(kwargs) : [],
-        computed ?? false,
-        callee,
-    );
-    // Flatten the __call__ chain to the Builtin at the bottom, and
-    // call its Javascript implementation. A raw function joins in through
-    // its __call__ getter, which manufactures its Builtin. Stepping from
-    // an object to its __call__ keeps the object as the receiver, so a
-    // __call__ that is a plain method still sees its object as `this`.
-    let current: unknown = callee;
-    let receiver: unknown = undefined;
-    while (true) {
-        if (current instanceof Builtin) {
-            // TODO: move this to be a Builtin method
-            const result: unknown = Reflect.apply(current.func, receiver, [
-                task,
-                env,
-                traceback,
-                handlers,
-                wrappers,
-                ...finalArgs,
-            ]);
-            if (
-                result !== null &&
-                (typeof result === "object" || typeof result === "function")
-            ) {
-                if (typeof (result as PromiseLike<unknown>).then === "function")
-                    return yield result as PromiseLike<unknown>;
-                if (typeof (result as TaskGen<R>).next === "function")
-                    return yield* result as TaskGen<R>;
-            }
-            return result as R;
-        }
-        if (
-            current !== null &&
-            (typeof current === "object" || typeof current === "function")
-        ) {
-            const call = (current as CallableObject<P, R>).__call__;
-            if (call !== undefined) {
-                if (typeof current !== "function") receiver = current;
-                current = call;
-                continue;
-            }
-        }
-        throw new BTypeError("backolon.call.not_callable", callee);
-    }
+    throw new BTypeError("backolon.call.no_signature", callee);
 }

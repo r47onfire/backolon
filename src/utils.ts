@@ -17,6 +17,10 @@ export type _TupleOf<
     R extends unknown[],
 > = R["length"] extends N ? R : _TupleOf<T, N, [T, ...R]>;
 
+export type AnyTuple<T extends readonly unknown[], E> = {
+    [I in keyof T]: E;
+};
+
 /** `T` with all `readonly` modifiers removed. */
 export type Writable<T> = { -readonly [P in keyof T]: T[P] };
 

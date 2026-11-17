@@ -1,6 +1,10 @@
 import { Importer } from "./importer";
 import { Module } from "./module";
-import { BackolonVM, TaskGen } from "../vm";
+import { BackolonVM, Task, TaskGen } from "../vm";
+import { LinkedList } from "@r47onfire/game-math";
+import { Env } from "..";
+import { StackTreeNode } from "../../errors";
+import { TryCatchHandler } from "../trycatch";
 
 /**
  * Object whose job it is to download or open the file and then load its
@@ -8,9 +12,9 @@ import { BackolonVM, TaskGen } from "../vm";
  */
 export abstract class Loader {
     /**
-     * Returns undefined if this loader can't load the URL. Returns itself or
-     * another loader that will load the module via its {@link load}
-     * implementation.
+     * Returns itself or another loader that will load the module via its
+     * {@link load} implementation, or undefined if this loader doesn't know how
+     * to load this URL.
      */
     abstract match(url: URL): Loader | undefined;
     /**
@@ -18,9 +22,11 @@ export abstract class Loader {
      * given {@link Module}. Should push opcodes to do so.
      */
     abstract load(
-        vm: BackolonVM,
-        url: URL,
+        task: Task,
         module: Module,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        url: URL,
         importer: Importer,
     ): TaskGen<void>;
 }
@@ -30,11 +36,18 @@ export class JavascriptModuleLoader extends Loader {
     match(url: URL): Loader | undefined {
         if (url.pathname.endsWith(".js")) return this;
     }
-    *load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
+    *load(
+        task: Task,
+        module: Module,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        url: URL,
+        importer: Importer,
+    ) {
         yield* (yield* importer.getImport(url)).setup(
             module,
             url.searchParams,
-            vm,
+            task.vm,
         );
     }
 }
@@ -71,7 +84,14 @@ export class BackolonSourceModuleLoader extends Loader {
     match(url: URL): Loader | undefined {
         if (url.pathname.endsWith(".bk")) return this;
     }
-    *load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
+    *load(
+        task: Task,
+        module: Module,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        url: URL,
+        importer: Importer,
+    ) {
         const text = yield* importer.getText(url);
         throw new Error("text");
     }

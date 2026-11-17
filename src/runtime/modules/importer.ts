@@ -8,7 +8,11 @@ import {
 } from "./loader";
 import { Module } from "./module";
 import { Resolver } from "./resolver";
-import { BackolonVM, TaskGen } from "../vm";
+import { BackolonVM, Task, TaskGen } from "../vm";
+import { LinkedList } from "@r47onfire/game-math";
+import { Env } from "..";
+import { StackTreeNode } from "../../errors";
+import { handleError, TryCatchHandler } from "../trycatch";
 
 /**
  * Coordinates the whole module-loading pipeline: a {@link Resolver} expands an
@@ -31,13 +35,16 @@ export class Importer {
      * URL and leave the {@link Module} on the stack.
      */
     *loadModule(
-        vm: BackolonVM,
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
         parent: Module | null,
         path: URL,
         asMain: boolean,
     ): TaskGen<Module> {
         for (let resolved of this.resolver.resolve(path)) {
-            let m = vm.getModule(resolved);
+            let m = task.vm.getModule(resolved);
             if (m) {
                 if (asMain) {
                     throw new CircularImportError("backolon.import.main_cycle");
@@ -60,16 +67,29 @@ export class Importer {
                 for (let loader of this.loaders) {
                     const g = loader.match(resolved);
                     if (g) {
-                        m = vm.createModule(resolved, parent);
-                        m.addConst("__main__", asMain);
-                        yield* g.load(vm, resolved, m, this);
+                        m = task.vm.createAndCacheModule(resolved, parent);
+                        m.addUnshadowableFast("__main__", asMain);
+                        yield* g.load(
+                            task,
+                            m,
+                            traceback,
+                            handlers,
+                            resolved,
+                            this,
+                        );
                         m.parent = null;
                         return m;
                     }
                 }
             }
         }
-        throw new ModuleNotFoundError("backolon.import.not_found", path);
+        return (yield* handleError(
+            task,
+            env,
+            traceback,
+            handlers,
+            new ModuleNotFoundError("backolon.import.not_found", path),
+        )) as Module;
     }
     /**
      * Dispatches a fetch operation to the first finder that

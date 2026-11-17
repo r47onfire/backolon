@@ -1,15 +1,11 @@
 import { isArray } from "lib0/array";
 import { abs, max } from "lib0/math";
 import { BTypeError, BValueError } from "../errors/classes";
-import { Task, TaskGen } from "../runtime";
-import {
-    Builtin,
-    BuiltinFunc,
-    emptySignature,
-    Signature,
-} from "./builtin_function";
+import { Task } from "../runtime";
+import { Signature } from "./builtin_function";
 import {
     Absable,
+    Callable,
     CallableObject,
     Comparable,
     Negateable,
@@ -24,21 +20,24 @@ declare global {
     /** Bool is treated as an int subclass */
     interface Boolean extends Number {}
     interface String extends Comparable {
-        __add__: BuiltinFunc<[other: any], string>;
-        __mul__: BuiltinFunc<[other: any], string>;
-        __rmul__: BuiltinFunc<[other: any], string>;
+        __add__: Callable<Signature<["other"], never, [], never>, string>;
+        __mul__: Callable<Signature<["other"], never, [], never>, string>;
+        __rmul__: Callable<Signature<["other"], never, [], never>, string>;
     }
     interface Array<T> {
-        __add__: BuiltinFunc<[other: any], any[]>;
-        __mul__: BuiltinFunc<[other: any], any[]>;
-        __rmul__: BuiltinFunc<[other: any], any[]>;
-        __eq__: BuiltinFunc<[other: any], boolean>;
-        __ne__: BuiltinFunc<[other: any], boolean>;
+        __add__: Callable<Signature<["other"], never, [], never>, any[]>;
+        __mul__: Callable<Signature<["other"], never, [], never>, any[]>;
+        __rmul__: Callable<Signature<["other"], never, [], never>, any[]>;
+        __eq__: Callable<Signature<["other"], never, [], never>, boolean>;
+        __ne__: Callable<Signature<["other"], never, [], never>, boolean>;
     }
     // object implements only the default identity __eq__/__ne__
     interface Object extends Comparable {}
 
-    interface Function extends CallableObject<unknown[], unknown> {}
+    interface Function extends CallableObject<
+        Signature<[], "arguments", [], never>,
+        unknown
+    > {}
 }
 
 Number.prototype.__add__ = function* (
@@ -227,13 +226,6 @@ Number.prototype.__eq__ = function* (this: number, task: Task, other: unknown) {
         return Number.isInteger(Number(this)) && BigInt(this) === other;
     }
     return false;
-};
-
-Number.prototype.__ne__ = function* (this: number, task: Task, other: unknown) {
-    return !(yield* Reflect.apply(Number.prototype.__eq__!, this, [
-        task,
-        other,
-    ]));
 };
 
 BigInt.prototype.__add__ = function* (
@@ -428,13 +420,6 @@ BigInt.prototype.__eq__ = function* (this: bigint, task: Task, other: unknown) {
     return false;
 };
 
-BigInt.prototype.__ne__ = function* (this: bigint, task: Task, other: unknown) {
-    return !(yield* Reflect.apply(BigInt.prototype.__eq__!, this, [
-        task,
-        other,
-    ]));
-};
-
 // booleans are 0/1 in numeric contexts (bool is an int subclass), so
 // every numeric method delegates to Number's with the value converted
 Object.setPrototypeOf(Boolean.prototype, Number.prototype);
@@ -519,13 +504,6 @@ String.prototype.__gte__ = function* (
 
 String.prototype.__eq__ = function* (this: string, task: Task, other: unknown) {
     return typeof other === "string" && this === other;
-};
-
-String.prototype.__ne__ = function* (this: string, task: Task, other: unknown) {
-    return !(yield* Reflect.apply(String.prototype.__eq__!, this, [
-        task,
-        other,
-    ]));
 };
 
 Array.prototype.__add__ = function* (

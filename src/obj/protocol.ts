@@ -5,7 +5,7 @@ import { TryCatchHandler } from "../runtime/trycatch";
 import {
     Builtin,
     BuiltinFunc,
-    emptySignature,
+    NO_ARGS_SIG,
     Signature,
 } from "./builtin_function";
 
@@ -14,12 +14,12 @@ export type WrapperClass = abstract new (...args: any[]) => Wrapper;
 
 /**
  * A duck-typed callable: its `__call__` is another Callable, and its
- * **signature** says how a call to it is bound. Layers wrap layers until a
+ * `__signature__` says how a call to it is bound. Layers wrap layers until a
  * {@link Builtin} bottoms the chain out.
  */
-export interface CallableObject<P extends any[] = unknown[], R = unknown> {
+export interface CallableObject<P extends Signature, R = unknown> {
     __call__: Callable<P, R>;
-    __signature__: Callable<[], Signature<P>>;
+    __signature__: Callable<Signature<[], never, [], never>, P>;
 }
 
 /**
@@ -29,7 +29,7 @@ export interface CallableObject<P extends any[] = unknown[], R = unknown> {
  * through its `__call__` property, a getter on Function.prototype that
  * manufactures a Builtin for it.
  */
-export type Callable<P extends any[] = unknown[], R = unknown> =
+export type Callable<P extends Signature<any> = Signature<never>, R = unknown> =
     CallableObject<P, R> | Builtin<P, R>;
 
 /**
@@ -46,9 +46,9 @@ export abstract class Wrapper {
      * another Callable after super().
      */
     readonly __unwrap__ = new Builtin(
-        (task, env, traceback, handlers, wrappers) =>
-            this.unwrap(task, env, traceback, handlers, wrappers),
-        emptySignature,
+        (task, env, traceback, handlers) =>
+            this.unwrap(task, env, traceback, handlers),
+        NO_ARGS_SIG,
     );
     constructor() {}
     protected abstract unwrap(
@@ -56,7 +56,6 @@ export abstract class Wrapper {
         env: Env,
         traceback: LinkedList<StackTreeNode>,
         handlers: LinkedList<TryCatchHandler>,
-        wrappers: LinkedList<WrapperClass>,
     ): TaskGen<any>;
 }
 
@@ -75,32 +74,32 @@ export const isWrapper = (x: unknown): x is Wrapper =>
 // it reaches the call protocol through its function's __call__
 // getter like any other raw function.
 export interface Mathable {
-    __add__: BuiltinFunc<[other: any], any>;
-    __sub__: BuiltinFunc<[other: any], any>;
-    __mul__: BuiltinFunc<[other: any], any>;
-    __div__: BuiltinFunc<[other: any], any>;
-    __matmul__?: BuiltinFunc<[other: any], any>;
-    __rmatmul__?: BuiltinFunc<[other: any], any>;
+    __add__: Callable<Signature<["other"], never, [], never>, any>;
+    __sub__: Callable<Signature<["other"], never, [], never>, any>;
+    __mul__: Callable<Signature<["other"], never, [], never>, any>;
+    __div__: Callable<Signature<["other"], never, [], never>, any>;
+    __matmul__?: Callable<Signature<["other"], never, [], never>, any>;
+    __rmatmul__?: Callable<Signature<["other"], never, [], never>, any>;
 }
 export interface Negateable {
-    __neg__: BuiltinFunc<[], any>;
+    __neg__: BuiltinFunc<typeof NO_ARGS_SIG, any>;
 }
 export interface Absable {
-    __abs__: BuiltinFunc<[], any>;
+    __abs__: BuiltinFunc<typeof NO_ARGS_SIG, any>;
 }
 
 export interface ReflectedMathable extends Mathable {
-    __radd__: BuiltinFunc<[other: any], any>;
-    __rsub__: BuiltinFunc<[other: any], any>;
-    __rmul__: BuiltinFunc<[other: any], any>;
-    __rdiv__: BuiltinFunc<[other: any], any>;
+    __radd__: Callable<Signature<["other"], never, [], never>, any>;
+    __rsub__: Callable<Signature<["other"], never, [], never>, any>;
+    __rmul__: Callable<Signature<["other"], never, [], never>, any>;
+    __rdiv__: Callable<Signature<["other"], never, [], never>, any>;
 }
 
 export interface Comparable {
-    __lt__?: BuiltinFunc<[other: any], boolean>;
-    __gt__?: BuiltinFunc<[other: any], boolean>;
-    __lte__?: BuiltinFunc<[other: any], boolean>;
-    __gte__?: BuiltinFunc<[other: any], boolean>;
-    __eq__?: BuiltinFunc<[other: any], boolean>;
-    __ne__?: BuiltinFunc<[other: any], boolean>;
+    __lt__?: Callable<Signature<["other"], never, [], never>, boolean>;
+    __gt__?: Callable<Signature<["other"], never, [], never>, boolean>;
+    __lte__?: Callable<Signature<["other"], never, [], never>, boolean>;
+    __gte__?: Callable<Signature<["other"], never, [], never>, boolean>;
+    __eq__?: Callable<Signature<["other"], never, [], never>, boolean>;
+    __ne__?: Callable<Signature<["other"], never, [], never>, boolean>;
 }

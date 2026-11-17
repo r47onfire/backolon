@@ -1,6 +1,11 @@
-import { RemovableSet } from "@r47onfire/game-math";
+import { LinkedList, RemovableSet } from "@r47onfire/game-math";
 import { BNameError, BTypeError } from "../errors/classes";
+import { StackTreeNode } from "../errors/compress";
 import { Identifier } from "../utils";
+import { handleError, TryCatchHandler } from "./trycatch";
+import { Task, TaskGen } from "./vm";
+import { Callable, NO_ARGS_SIG } from "../obj";
+import { callValue } from "./call";
 
 /**
  * Key-value store for managing an environment, with inheritance from parent
@@ -22,7 +27,10 @@ export class Env {
      * handlers run (in the environment where the variable lives) whenever the
      * variable is assigned.
      */
-    readonly watchers = new Map<Identifier, RemovableSet<unknown>>();
+    readonly watchers = new Map<
+        Identifier,
+        RemovableSet<Callable<typeof NO_ARGS_SIG, void>>
+    >();
     constructor(
         /** Parent environments searched after this one, in order */
         readonly parents: readonly Env[] = [],
@@ -46,7 +54,7 @@ export class Env {
      * assigned in this environment (reactive `always`-style watchers). Returns
      * a handle that removes the watcher when called.
      */
-    watch(name: Identifier, handler: unknown) {
+    watch(name: Identifier, handler: Callable<typeof NO_ARGS_SIG, void>) {
         return this.watchers
             .getOrInsertComputed(name, () => new RemovableSet())
             .push(handler);
@@ -58,22 +66,49 @@ export class Env {
         return [e.bindings.get(name), true];
     }
     /**
-     * Defines the value in this scope. Note: bailing on trying to reassign a
+     * Defines the value in this scope. Note: bailing on trying to redefine a
      * constant is not checked here. Only {@link unshadowables} is checked
      * here.
      */
-    add(name: Identifier, value: any) {
+    *add(
+        name: Identifier,
+        value: any,
+        task: Task,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+    ) {
         const exist = this.find(name);
         if (exist && exist.unshadowables.has(name))
-            throw new BTypeError("backolon.variable.unshadowable", name);
+            return yield* handleError(
+                task,
+                this,
+                traceback,
+                handlers,
+                new BTypeError("backolon.variable.unshadowable", name),
+            );
+        this.addFast(name, value);
+    }
+    /** Like {@link add}, but doesn't do any error checking at all. */
+    addFast(name: Identifier, value: any) {
         this.bindings.set(name, value);
     }
     /**
      * Defines the constant in this scope (always succeeds). Note: bailing on
      * trying to reassign a constant is not checked here.
      */
-    addConst(name: Identifier, value: any) {
-        this.add(name, value);
+    *addConst(
+        name: Identifier,
+        value: any,
+        task: Task,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+    ) {
+        yield* this.add(name, value, task, traceback, handlers);
+        this.constants.add(name);
+    }
+    /** Like {@link addConst}, but doesn't do any error checking at all. */
+    addConstFast(name: Identifier, value: any) {
+        this.addFast(name, value);
         this.constants.add(name);
     }
     /**
@@ -81,23 +116,67 @@ export class Env {
      * succeeds). Note: Note: bailing on trying to reassign a constant is not
      * checked here.
      */
-    addUnshadowableConst(name: Identifier, value: any) {
-        this.addConst(name, value);
+    *addUnshadowableConst(
+        name: Identifier,
+        value: any,
+        task: Task,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+    ) {
+        yield* this.addConst(name, value, task, traceback, handlers);
         this.unshadowables.add(name);
     }
     /**
-     * Finds the scope in which this value is defined, and sets it there.
-     * Returns the env it was just set in if it was set, false if it's a
-     * constant and can't be changed, or undefined if it wasn't defined
-     * anywhere.
+     * Like {@link addUnshadowableConst}, but doesn't do any error checking at
+     * all.
      */
-    set(name: Identifier, value: any) {
+    addUnshadowableFast(name: Identifier, value: any) {
+        this.addConstFast(name, value);
+        this.unshadowables.add(name);
+    }
+    /**
+     * Finds the scope in which this value is defined, and sets it there. If
+     * there are watchers defined for the value, it runs those too.
+     */
+    *set(
+        name: Identifier,
+        value: any,
+        task: Task,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+    ) {
         const res = this.find(name);
-        if (!res) throw new BNameError("backolon.variable.nonexistent", name);
+        if (!res)
+            return yield* handleError(
+                task,
+                this,
+                traceback,
+                handlers,
+                new BNameError("backolon.variable.nonexistent", name),
+            );
         if (res.constants.has(name))
-            throw new BTypeError("backolon.variable.readonly", name);
+            return yield* handleError(
+                task,
+                this,
+                traceback,
+                handlers,
+                new BTypeError("backolon.variable.readonly", name),
+            );
         res.bindings.set(name, value);
-        // TODO: run watchers
+        const w = this.watchers.get(name);
+        if (w) {
+            for (let watcher of w) {
+                yield* callValue(
+                    task,
+                    this,
+                    traceback,
+                    handlers,
+                    watcher,
+                    undefined,
+                    [],
+                );
+            }
+        }
     }
 }
 
