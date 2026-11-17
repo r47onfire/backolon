@@ -180,9 +180,9 @@ export const backolonGrammar = defineGrammar<{ run?: Callable }>({
             "binary_op",
             rule("name"),
             donate(rule("let_assign_op")),
-            alt(
+            altFirst(
                 rule("name"),
-                seq(lookahead(false, rule("name")), rule("expr")),
+                rule("expr"),
             ),
             rule("expr"),
             nothing(),
