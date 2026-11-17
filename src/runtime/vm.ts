@@ -163,5 +163,11 @@ export function* getSignature<P extends Signature>(
             [],
         );
     }
-    throw new BTypeError("backolon.call.no_signature", callee);
+    return (yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.call.no_signature", callee),
+    )) as P;
 }

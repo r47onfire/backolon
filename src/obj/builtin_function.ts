@@ -83,8 +83,7 @@ export type ParamKind = "normal" | "lazy" | "block";
  * One parameter of a {@link Signature}: one field of the call's argument record,
  * destructured into the callee's scope when the call is bound.
  */
-export interface SignatureParam<T extends Identifier> {
-    name: T;
+export interface SignatureParam {
     kind: ParamKind;
     /** True if the parameter is optional */
     opt?: boolean;
@@ -126,7 +125,7 @@ export interface Signature<
     K extends Identifier = Identifier,
 > {
     /** Lookup table mapping name to actual parameter metadata. */
-    byName: { [N in H[number] | P | T[number] | K]: SignatureParam<N> };
+    byName: Record<H[number] | P | T[number] | K, SignatureParam>;
     /** The parameters anchored to the start of the call site. */
     head: H;
     /** Binds the positional arguments left between head and tail. */
@@ -143,9 +142,9 @@ export type SignatureToParameters<T extends Signature> =
     T extends Signature<infer H, infer P, infer T, infer K>
         ? [
               ...AnyTuple<H, unknown>,
-              ...(P extends never ? [] : [unknown]),
+              ...([P] extends [never] ? [] : [unknown[]]),
               ...AnyTuple<T, unknown>,
-              ...(K extends never ? [] : [Record<K, unknown>]),
+              ...([K] extends [never] ? [] : [Record<K, unknown>]),
           ]
         : never;
 
@@ -154,4 +153,25 @@ export const NO_ARGS_SIG: Signature<[], never, [], never> = {
     head: [],
     tail: [],
     byName: {},
+};
+
+/**
+ * The signature of a binary operator: one positional parameter, `arg` (the
+ * other side is passed as the `this` value).
+ */
+export const ONE_ARG_SIG: Signature<["arg"], never, [], never> = {
+    head: ["arg"],
+    tail: [],
+    byName: { arg: { kind: "normal" } },
+};
+
+/**
+ * The signature of a raw function, called through its `__call__`: every
+ * argument is collected into the `arguments` positional rest parameter.
+ */
+export const ARGUMENTS_SIG: Signature<[], "arguments", [], never> = {
+    head: [],
+    tail: [],
+    posRest: "arguments",
+    byName: { arguments: { kind: "normal" } },
 };

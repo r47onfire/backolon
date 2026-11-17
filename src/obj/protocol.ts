@@ -4,8 +4,8 @@ import { Env, Task, TaskGen } from "../runtime";
 import { TryCatchHandler } from "../runtime/trycatch";
 import {
     Builtin,
-    BuiltinFunc,
     NO_ARGS_SIG,
+    ONE_ARG_SIG,
     Signature,
 } from "./builtin_function";
 
@@ -69,37 +69,35 @@ export const isWrapper = (x: unknown): x is Wrapper =>
     (typeof x === "object" || typeof x === "function") &&
     "__unwrap__" in x;
 
-// The operator protocols below are the raw host implementations:
-// a dunder is a builtin function, not yet wrapped in a Builtin, and
-// it reaches the call protocol through its function's __call__
-// getter like any other raw function.
+// The operator protocols below: a dunder is a Builtin, called through
+// callValue like any other Callable.
 export interface Mathable {
-    __add__: Callable<Signature<["other"], never, [], never>, any>;
-    __sub__: Callable<Signature<["other"], never, [], never>, any>;
-    __mul__: Callable<Signature<["other"], never, [], never>, any>;
-    __div__: Callable<Signature<["other"], never, [], never>, any>;
-    __matmul__?: Callable<Signature<["other"], never, [], never>, any>;
-    __rmatmul__?: Callable<Signature<["other"], never, [], never>, any>;
+    __add__: Callable<typeof ONE_ARG_SIG, any>;
+    __sub__: Callable<typeof ONE_ARG_SIG, any>;
+    __mul__: Callable<typeof ONE_ARG_SIG, any>;
+    __div__: Callable<typeof ONE_ARG_SIG, any>;
+    __matmul__?: Callable<typeof ONE_ARG_SIG, any>;
+    __rmatmul__?: Callable<typeof ONE_ARG_SIG, any>;
 }
 export interface Negateable {
-    __neg__: BuiltinFunc<typeof NO_ARGS_SIG, any>;
+    __neg__: Callable<typeof NO_ARGS_SIG, any>;
 }
 export interface Absable {
-    __abs__: BuiltinFunc<typeof NO_ARGS_SIG, any>;
+    __abs__: Callable<typeof NO_ARGS_SIG, any>;
 }
 
 export interface ReflectedMathable extends Mathable {
-    __radd__: Callable<Signature<["other"], never, [], never>, any>;
-    __rsub__: Callable<Signature<["other"], never, [], never>, any>;
-    __rmul__: Callable<Signature<["other"], never, [], never>, any>;
-    __rdiv__: Callable<Signature<["other"], never, [], never>, any>;
+    __radd__: Callable<typeof ONE_ARG_SIG, any>;
+    __rsub__: Callable<typeof ONE_ARG_SIG, any>;
+    __rmul__: Callable<typeof ONE_ARG_SIG, any>;
+    __rdiv__: Callable<typeof ONE_ARG_SIG, any>;
 }
 
 export interface Comparable {
-    __lt__?: Callable<Signature<["other"], never, [], never>, boolean>;
-    __gt__?: Callable<Signature<["other"], never, [], never>, boolean>;
-    __lte__?: Callable<Signature<["other"], never, [], never>, boolean>;
-    __gte__?: Callable<Signature<["other"], never, [], never>, boolean>;
-    __eq__?: Callable<Signature<["other"], never, [], never>, boolean>;
-    __ne__?: Callable<Signature<["other"], never, [], never>, boolean>;
+    __lt__?: Callable<typeof ONE_ARG_SIG, boolean>;
+    __gt__?: Callable<typeof ONE_ARG_SIG, boolean>;
+    __lte__?: Callable<typeof ONE_ARG_SIG, boolean>;
+    __gte__?: Callable<typeof ONE_ARG_SIG, boolean>;
+    __eq__?: Callable<typeof ONE_ARG_SIG, boolean>;
+    __ne__?: Callable<typeof ONE_ARG_SIG, boolean>;
 }

@@ -1,8 +1,14 @@
 import { isArray } from "lib0/array";
 import { abs, max } from "lib0/math";
-import { BTypeError, BValueError } from "../errors/classes";
-import { Task } from "../runtime";
-import { Signature } from "./builtin_function";
+import { BTypeError, BValueError, DivideByZeroError } from "../errors/classes";
+import { callValue } from "../runtime";
+import { handleError } from "../runtime/trycatch";
+import {
+    ARGUMENTS_SIG,
+    Builtin,
+    NO_ARGS_SIG,
+    ONE_ARG_SIG,
+} from "./builtin_function";
 import {
     Absable,
     Callable,
@@ -20,30 +26,30 @@ declare global {
     /** Bool is treated as an int subclass */
     interface Boolean extends Number {}
     interface String extends Comparable {
-        __add__: Callable<Signature<["other"], never, [], never>, string>;
-        __mul__: Callable<Signature<["other"], never, [], never>, string>;
-        __rmul__: Callable<Signature<["other"], never, [], never>, string>;
+        __add__: Callable<typeof ONE_ARG_SIG, string>;
+        __mul__: Callable<typeof ONE_ARG_SIG, string>;
+        __rmul__: Callable<typeof ONE_ARG_SIG, string>;
     }
     interface Array<T> {
-        __add__: Callable<Signature<["other"], never, [], never>, any[]>;
-        __mul__: Callable<Signature<["other"], never, [], never>, any[]>;
-        __rmul__: Callable<Signature<["other"], never, [], never>, any[]>;
-        __eq__: Callable<Signature<["other"], never, [], never>, boolean>;
-        __ne__: Callable<Signature<["other"], never, [], never>, boolean>;
+        __add__: Callable<typeof ONE_ARG_SIG, any[]>;
+        __mul__: Callable<typeof ONE_ARG_SIG, any[]>;
+        __rmul__: Callable<typeof ONE_ARG_SIG, any[]>;
+        __eq__: Callable<typeof ONE_ARG_SIG, boolean>;
+        __ne__: Callable<typeof ONE_ARG_SIG, boolean>;
     }
     // object implements only the default identity __eq__/__ne__
     interface Object extends Comparable {}
 
-    interface Function extends CallableObject<
-        Signature<[], "arguments", [], never>,
-        unknown
-    > {}
+    interface Function extends CallableObject<typeof ARGUMENTS_SIG, unknown> {}
 }
 
-Number.prototype.__add__ = function* (
+Number.prototype.__add__ = new Builtin(function* (
     this: number,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
@@ -55,16 +61,25 @@ Number.prototype.__add__ = function* (
     if (typeof other === "number") {
         return this + other;
     }
-    throw new BTypeError("backolon.math.wrongtype.add.number", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.add.number", other),
+    );
+}, ONE_ARG_SIG);
 
 // addition is commutative, conversions included
 Number.prototype.__radd__ = Number.prototype.__add__;
 
-Number.prototype.__sub__ = function* (
+Number.prototype.__sub__ = new Builtin(function* (
     this: number,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
@@ -76,13 +91,22 @@ Number.prototype.__sub__ = function* (
     if (typeof other === "number") {
         return this - other;
     }
-    throw new BTypeError("backolon.math.wrongtype.sub.number", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.sub.number", other),
+    );
+}, ONE_ARG_SIG);
 
-Number.prototype.__rsub__ = function* (
+Number.prototype.__rsub__ = new Builtin(function* (
     this: number,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
@@ -94,13 +118,22 @@ Number.prototype.__rsub__ = function* (
     if (typeof other === "number") {
         return other - this;
     }
-    throw new BTypeError("backolon.math.wrongtype.sub.number", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.sub.number", other),
+    );
+}, ONE_ARG_SIG);
 
-Number.prototype.__mul__ = function* (
+Number.prototype.__mul__ = new Builtin(function* (
     this: number,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
@@ -112,24 +145,39 @@ Number.prototype.__mul__ = function* (
     if (typeof other === "number") {
         return this * other;
     }
-    throw new BTypeError("backolon.math.wrongtype.mul.number", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.mul.number", other),
+    );
+}, ONE_ARG_SIG);
 
 // multiplication is commutative, conversions included
 Number.prototype.__rmul__ = Number.prototype.__mul__;
 
-Number.prototype.__div__ = function* (
+Number.prototype.__div__ = new Builtin(function* (
     this: number,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
         if (Number.isInteger(Number(this))) {
             if (other === 0n) {
-                throw new BValueError(
-                    "backolon.math.undefined.div_zero.bigint",
-                    other,
+                return yield* handleError(
+                    task,
+                    env,
+                    traceback,
+                    handlers,
+                    new DivideByZeroError(
+                        "backolon.math.undefined.div_zero.bigint",
+                        other,
+                    ),
                 );
             }
             return BigInt(this) / other;
@@ -139,21 +187,36 @@ Number.prototype.__div__ = function* (
     if (typeof other === "number") {
         return this / other;
     }
-    throw new BTypeError("backolon.math.wrongtype.div.number", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.div.number", other),
+    );
+}, ONE_ARG_SIG);
 
-Number.prototype.__rdiv__ = function* (
+Number.prototype.__rdiv__ = new Builtin(function* (
     this: number,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "bigint") {
         if (Number.isInteger(Number(this))) {
             if (this === 0) {
-                throw new BValueError(
-                    "backolon.math.undefined.div_zero.bigint",
-                    this,
+                return yield* handleError(
+                    task,
+                    env,
+                    traceback,
+                    handlers,
+                    new DivideByZeroError(
+                        "backolon.math.undefined.div_zero.bigint",
+                        this,
+                    ),
                 );
             }
             return other / BigInt(this);
@@ -163,61 +226,130 @@ Number.prototype.__rdiv__ = function* (
     if (typeof other === "number") {
         return other / this;
     }
-    throw new BTypeError("backolon.math.wrongtype.div.number", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.div.number", other),
+    );
+}, ONE_ARG_SIG);
 
-Number.prototype.__neg__ = function* (this: number, task: Task) {
+Number.prototype.__neg__ = new Builtin(function* (
+    this: number,
+    task,
+    env,
+    traceback,
+    handlers,
+) {
     return -this;
-};
+}, NO_ARGS_SIG);
 
-Number.prototype.__abs__ = function* (this: number, task: Task) {
+Number.prototype.__abs__ = new Builtin(function* (
+    this: number,
+    task,
+    env,
+    traceback,
+    handlers,
+) {
     return abs(this);
-};
+}, NO_ARGS_SIG);
 
 // Ah, if only Javascript had preprocessor macros.
 
-Number.prototype.__lt__ = function* (this: number, task: Task, other: unknown) {
+Number.prototype.__lt__ = new Builtin(function* (
+    this: number,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
+) {
     // booleans compare as 0/1: bool is an int subclass
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
         return this < other;
     }
-    throw new BTypeError("backolon.compare.number.lt", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.number.lt", other),
+    );
+}, ONE_ARG_SIG);
 
-Number.prototype.__gt__ = function* (this: number, task: Task, other: unknown) {
+Number.prototype.__gt__ = new Builtin(function* (
+    this: number,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
+) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
         return this > other;
     }
-    throw new BTypeError("backolon.compare.number.gt", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.number.gt", other),
+    );
+}, ONE_ARG_SIG);
 
-Number.prototype.__lte__ = function* (
+Number.prototype.__lte__ = new Builtin(function* (
     this: number,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
         return this <= other;
     }
-    throw new BTypeError("backolon.compare.number.lte", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.number.lte", other),
+    );
+}, ONE_ARG_SIG);
 
-Number.prototype.__gte__ = function* (
+Number.prototype.__gte__ = new Builtin(function* (
     this: number,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
         return this >= other;
     }
-    throw new BTypeError("backolon.compare.number.gte", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.number.gte", other),
+    );
+}, ONE_ARG_SIG);
 
-Number.prototype.__eq__ = function* (this: number, task: Task, other: unknown) {
+Number.prototype.__eq__ = new Builtin(function* (
+    this: number,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
+) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number") {
         return Number(this) === other;
@@ -226,12 +358,15 @@ Number.prototype.__eq__ = function* (this: number, task: Task, other: unknown) {
         return Number.isInteger(Number(this)) && BigInt(this) === other;
     }
     return false;
-};
+}, ONE_ARG_SIG);
 
-BigInt.prototype.__add__ = function* (
+BigInt.prototype.__add__ = new Builtin(function* (
     this: bigint,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "bigint") {
         return this + other;
@@ -242,16 +377,25 @@ BigInt.prototype.__add__ = function* (
         }
         return Number(this) + other;
     }
-    throw new BTypeError("backolon.math.wrongtype.add.bigint", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.add.bigint", other),
+    );
+}, ONE_ARG_SIG);
 
 // addition is commutative, conversions included
 BigInt.prototype.__radd__ = BigInt.prototype.__add__;
 
-BigInt.prototype.__sub__ = function* (
+BigInt.prototype.__sub__ = new Builtin(function* (
     this: bigint,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "bigint") {
         return this - other;
@@ -262,13 +406,22 @@ BigInt.prototype.__sub__ = function* (
         }
         return Number(this) - other;
     }
-    throw new BTypeError("backolon.math.wrongtype.sub.bigint", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.sub.bigint", other),
+    );
+}, ONE_ARG_SIG);
 
-BigInt.prototype.__rsub__ = function* (
+BigInt.prototype.__rsub__ = new Builtin(function* (
     this: bigint,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "bigint") {
         return other - this;
@@ -279,13 +432,22 @@ BigInt.prototype.__rsub__ = function* (
         }
         return other - Number(this);
     }
-    throw new BTypeError("backolon.math.wrongtype.sub.bigint", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.sub.bigint", other),
+    );
+}, ONE_ARG_SIG);
 
-BigInt.prototype.__mul__ = function* (
+BigInt.prototype.__mul__ = new Builtin(function* (
     this: bigint,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "bigint") {
         return this * other;
@@ -296,22 +458,37 @@ BigInt.prototype.__mul__ = function* (
         }
         return Number(this) * other;
     }
-    throw new BTypeError("backolon.math.wrongtype.mul.bigint", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.mul.bigint", other),
+    );
+}, ONE_ARG_SIG);
 
 // multiplication is commutative, conversions included
 BigInt.prototype.__rmul__ = BigInt.prototype.__mul__;
 
-BigInt.prototype.__div__ = function* (
+BigInt.prototype.__div__ = new Builtin(function* (
     this: bigint,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "bigint") {
         if (other === 0n) {
-            throw new BValueError(
-                "backolon.math.undefined.div_zero.bigint",
-                other,
+            return yield* handleError(
+                task,
+                env,
+                traceback,
+                handlers,
+                new BValueError(
+                    "backolon.math.undefined.div_zero.bigint",
+                    other,
+                ),
             );
         }
         return this / other;
@@ -319,28 +496,49 @@ BigInt.prototype.__div__ = function* (
     if (typeof other === "number") {
         if (Number.isInteger(other)) {
             if (other === 0) {
-                throw new BValueError(
-                    "backolon.math.undefined.div_zero.bigint",
-                    other,
+                return yield* handleError(
+                    task,
+                    env,
+                    traceback,
+                    handlers,
+                    new BValueError(
+                        "backolon.math.undefined.div_zero.bigint",
+                        other,
+                    ),
                 );
             }
             return this / BigInt(other);
         }
         return Number(this) / other;
     }
-    throw new BTypeError("backolon.math.wrongtype.div.bigint", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.div.bigint", other),
+    );
+}, ONE_ARG_SIG);
 
-BigInt.prototype.__rdiv__ = function* (
+BigInt.prototype.__rdiv__ = new Builtin(function* (
     this: bigint,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "bigint") {
         if (this === 0n) {
-            throw new BValueError(
-                "backolon.math.undefined.div_zero.bigint",
-                this,
+            return yield* handleError(
+                task,
+                env,
+                traceback,
+                handlers,
+                new BValueError(
+                    "backolon.math.undefined.div_zero.bigint",
+                    this,
+                ),
             );
         }
         return other / this;
@@ -348,68 +546,143 @@ BigInt.prototype.__rdiv__ = function* (
     if (typeof other === "number") {
         if (Number.isInteger(other)) {
             if (this === 0n) {
-                throw new BValueError(
-                    "backolon.math.undefined.div_zero.bigint",
-                    this,
+                return yield* handleError(
+                    task,
+                    env,
+                    traceback,
+                    handlers,
+                    new BValueError(
+                        "backolon.math.undefined.div_zero.bigint",
+                        this,
+                    ),
                 );
             }
             return BigInt(other) / this;
         }
         return other / Number(this);
     }
-    throw new BTypeError("backolon.math.wrongtype.div.bigint", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.wrongtype.div.bigint", other),
+    );
+}, ONE_ARG_SIG);
 
-BigInt.prototype.__neg__ = function* (this: bigint, task: Task) {
+BigInt.prototype.__neg__ = new Builtin(function* (
+    this: bigint,
+    task,
+    env,
+    traceback,
+    handlers,
+) {
     return -this;
-};
+}, NO_ARGS_SIG);
 
-BigInt.prototype.__abs__ = function* (this: bigint, task: Task) {
+BigInt.prototype.__abs__ = new Builtin(function* (
+    this: bigint,
+    task,
+    env,
+    traceback,
+    handlers,
+) {
     return this < 0n ? -this : this;
-};
+}, NO_ARGS_SIG);
 
-BigInt.prototype.__lt__ = function* (this: bigint, task: Task, other: unknown) {
+BigInt.prototype.__lt__ = new Builtin(function* (
+    this: bigint,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
+) {
     // booleans compare as 0/1: bool is an int subclass
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
         return this < other;
     }
-    throw new BTypeError("backolon.compare.bigint.lt", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.bigint.lt", other),
+    );
+}, ONE_ARG_SIG);
 
-BigInt.prototype.__gt__ = function* (this: bigint, task: Task, other: unknown) {
+BigInt.prototype.__gt__ = new Builtin(function* (
+    this: bigint,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
+) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
         return this > other;
     }
-    throw new BTypeError("backolon.compare.bigint.gt", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.bigint.gt", other),
+    );
+}, ONE_ARG_SIG);
 
-BigInt.prototype.__lte__ = function* (
+BigInt.prototype.__lte__ = new Builtin(function* (
     this: bigint,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
         return this <= other;
     }
-    throw new BTypeError("backolon.compare.bigint.lte", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.bigint.lte", other),
+    );
+}, ONE_ARG_SIG);
 
-BigInt.prototype.__gte__ = function* (
+BigInt.prototype.__gte__ = new Builtin(function* (
     this: bigint,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "boolean") other = Number(other);
     if (typeof other === "number" || typeof other === "bigint") {
         return this >= other;
     }
-    throw new BTypeError("backolon.compare.bigint.gte", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.bigint.gte", other),
+    );
+}, ONE_ARG_SIG);
 
-BigInt.prototype.__eq__ = function* (this: bigint, task: Task, other: unknown) {
+BigInt.prototype.__eq__ = new Builtin(function* (
+    this: bigint,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
+) {
     if (typeof other === "boolean") return this === BigInt(other);
     if (typeof other === "bigint") {
         return this === other;
@@ -418,22 +691,31 @@ BigInt.prototype.__eq__ = function* (this: bigint, task: Task, other: unknown) {
         return Number.isInteger(other) && this === BigInt(other);
     }
     return false;
-};
+}, ONE_ARG_SIG);
 
 // booleans are 0/1 in numeric contexts (bool is an int subclass), so
 // every numeric method delegates to Number's with the value converted
 Object.setPrototypeOf(Boolean.prototype, Number.prototype);
 
-String.prototype.__add__ = function* (
+String.prototype.__add__ = new Builtin(function* (
     this: string,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "string") {
         return this + other;
     }
-    throw new BTypeError("backolon.math.string.add", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.string.add", other),
+    );
+}, ONE_ARG_SIG);
 
 // the repetition count for __mul__ on sequences: a nonnegative integer
 // (a negative count repeats zero times), as a JS number
@@ -451,76 +733,148 @@ const repeatCount = (other: unknown): number | undefined => {
     return undefined;
 };
 
-String.prototype.__mul__ = function* (
+String.prototype.__mul__ = new Builtin(function* (
     this: string,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     const count = repeatCount(other);
     if (count !== undefined) {
         return this.repeat(count);
     }
-    throw new BTypeError("backolon.math.string.mul", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.string.mul", other),
+    );
+}, ONE_ARG_SIG);
 
 // the count is the other operand either way around
 String.prototype.__rmul__ = String.prototype.__mul__;
 
-String.prototype.__lt__ = function* (this: string, task: Task, other: unknown) {
+String.prototype.__lt__ = new Builtin(function* (
+    this: string,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
+) {
     if (typeof other === "string") {
         return this < other;
     }
-    throw new BTypeError("backolon.compare.string.lt", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.string.lt", other),
+    );
+}, ONE_ARG_SIG);
 
-String.prototype.__gt__ = function* (this: string, task: Task, other: unknown) {
+String.prototype.__gt__ = new Builtin(function* (
+    this: string,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
+) {
     if (typeof other === "string") {
         return this > other;
     }
-    throw new BTypeError("backolon.compare.string.gt", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.string.gt", other),
+    );
+}, ONE_ARG_SIG);
 
-String.prototype.__lte__ = function* (
+String.prototype.__lte__ = new Builtin(function* (
     this: string,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "string") {
         return this <= other;
     }
-    throw new BTypeError("backolon.compare.string.lte", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.string.lte", other),
+    );
+}, ONE_ARG_SIG);
 
-String.prototype.__gte__ = function* (
+String.prototype.__gte__ = new Builtin(function* (
     this: string,
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (typeof other === "string") {
         return this >= other;
     }
-    throw new BTypeError("backolon.compare.string.gte", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.compare.string.gte", other),
+    );
+}, ONE_ARG_SIG);
 
-String.prototype.__eq__ = function* (this: string, task: Task, other: unknown) {
+String.prototype.__eq__ = new Builtin(function* (
+    this: string,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
+) {
     return typeof other === "string" && this === other;
-};
+}, ONE_ARG_SIG);
 
-Array.prototype.__add__ = function* (
+Array.prototype.__add__ = new Builtin(function* (
     this: unknown[],
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (isArray(other)) {
         return [...this, ...other];
     }
-    throw new BTypeError("backolon.math.array.add", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.array.add", other),
+    );
+}, ONE_ARG_SIG);
 
-Array.prototype.__mul__ = function* (
+Array.prototype.__mul__ = new Builtin(function* (
     this: unknown[],
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     const count = repeatCount(other);
     if (count !== undefined) {
@@ -528,16 +882,25 @@ Array.prototype.__mul__ = function* (
         for (let n = 0; n < count; n++) out.push(...this);
         return out;
     }
-    throw new BTypeError("backolon.math.array.mul", other);
-};
+    return yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.math.array.mul", other),
+    );
+}, ONE_ARG_SIG);
 
 // the count is the other operand either way around
 Array.prototype.__rmul__ = Array.prototype.__mul__;
 
-Array.prototype.__eq__ = function* (
+Array.prototype.__eq__ = new Builtin(function* (
     this: unknown[],
-    task: Task,
-    other: unknown,
+    task,
+    env,
+    traceback,
+    handlers,
+    other,
 ) {
     if (!isArray(other) || other.length !== this.length) {
         return false;
@@ -546,37 +909,72 @@ Array.prototype.__eq__ = function* (
         const a = this[n] as Comparable;
         const b: unknown = other[n];
         const eq =
-            typeof a?.__eq__ === "function"
-                ? yield* a.__eq__(task, b)
+            a?.__eq__ !== undefined
+                ? yield* callValue(
+                      task,
+                      env,
+                      traceback,
+                      handlers,
+                      a.__eq__,
+                      a,
+                      [b],
+                      true,
+                  )
                 : a === b;
         if (!eq) return false;
     }
     return true;
-};
+}, ONE_ARG_SIG);
 
 // the default equality every value inherits: identity. these two are
 // non-enumerable (unlike the assignments above) because an enumerable
 // property on Object.prototype would leak into every for-in loop in the
 // host
 Object.defineProperty(Object.prototype, "__eq__", {
-    value: function* (this: unknown, task: Task, other: unknown) {
+    value: new Builtin(function* (
+        this: unknown,
+        task,
+        env,
+        traceback,
+        handlers,
+        other,
+    ) {
         return this === other;
-    },
+    }, ONE_ARG_SIG),
     writable: true,
     configurable: true,
 });
 
+// By default, if an object defined __eq__ but not __ne__ it ends up here.
 Object.defineProperty(Object.prototype, "__ne__", {
-    value: function* (this: unknown, task: Task, other: unknown) {
-        return !(yield* Reflect.apply(Object.prototype.__eq__!, this, [
+    value: new Builtin(function* (
+        this: any,
+        task,
+        env,
+        traceback,
+        handlers,
+        other,
+    ) {
+        return !(yield* callValue(
             task,
-            other,
-        ]));
-    },
+            env,
+            traceback,
+            handlers,
+            this.__eq__,
+            this,
+            [other],
+            true,
+        ));
+    }, ONE_ARG_SIG),
     writable: true,
     configurable: true,
 });
 
-Function.prototype.__call__ = function* (this: Function, task: Task) {
+Function.prototype.__call__ = new Builtin(function* (this: Function, task) {
     // TODO: what to do here
-};
+}, ARGUMENTS_SIG);
+
+Function.prototype.__signature__ = new Builtin(
+    () => ARGUMENTS_SIG,
+    NO_ARGS_SIG,
+);

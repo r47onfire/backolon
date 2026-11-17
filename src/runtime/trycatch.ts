@@ -17,7 +17,7 @@ export function* handleError(
     traceback: LinkedList<StackTreeNode>,
     handlers: LinkedList<TryCatchHandler>,
     error: BaseBackolonError,
-): TaskGen<unknown> {
+): TaskGen<any> {
     error.traceback ??= traceback;
 
     for (let n = handlers; n; n = n.next) {

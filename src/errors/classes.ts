@@ -64,3 +64,12 @@ export class ImportError extends BackolonError {}
 export class ModuleNotFoundError extends ImportError {}
 /** The module tried to (directly or indirectly) import itself. */
 export class CircularImportError extends ImportError {}
+
+/** Error regarding mathematical operations */
+export class MathError extends BValueError {}
+/**
+ * Doing something that would produce an indeterminate form, including division
+ * by zero, but also including things such as trying to invert a singular
+ * matrix.
+ */
+export class DivideByZeroError extends MathError {}

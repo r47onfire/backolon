@@ -10,8 +10,9 @@ import { Task, TaskGen, getSignature } from "./vm";
 import { handleError } from "./trycatch";
 
 export const BLOCK_SIG: Signature<[], "injected", [], never> = {
-    byName: { injected: { name: "injected", kind: "normal" } },
+    byName: { injected: { kind: "normal" } },
     head: [],
+    posRest: "injected",
     tail: [],
 };
 
@@ -42,7 +43,9 @@ export const makeBlock = (
                             newscope.set(key, value);
                         break;
                     } else if (typeof item === "object" && item !== null) {
-                        const e = objectEntries(item);
+                        const e = objectEntries(
+                            item as Record<Identifier, any>,
+                        );
                         for (let j = 0; j < e.length; j++)
                             newscope.set(e[j]![0], e[j]![1]);
                         break;
@@ -144,15 +147,9 @@ export function* callValue<P extends Signature, R>(
         )) as R;
     }
     const sig = yield* getSignature(task, env, traceback, handlers, f!);
-    const finalArgs: any[] = yield* doargs(
-        task,
-        env,
-        traceback,
-        handlers,
-        sig,
-        args,
-        computed ?? false,
-    );
+    const finalArgs: any[] = computed
+        ? yield* doargs(task, env, traceback, handlers, sig, args, true)
+        : yield* doargs(task, env, traceback, handlers, sig, args, false);
     // Flatten the __call__ chain to the Builtin at the bottom, and
     // call its Javascript implementation. A raw function joins in through
     // its __call__ getter, which manufactures its Builtin. Stepping from
