@@ -1,12 +1,16 @@
-import { CSTNode } from "@r47onfire/nebula";
 import { isArray } from "lib0/array";
 import { abs, max } from "lib0/math";
 import { BTypeError, BValueError } from "../errors/classes";
 import { Task, TaskGen } from "../runtime";
 import {
+    Builtin,
+    BuiltinFunc,
+    emptySignature,
+    Signature,
+} from "./builtin_function";
+import {
     Absable,
-    Callable,
-    CallableOrDirectFunc,
+    CallableObject,
     Comparable,
     Negateable,
     ReflectedMathable,
@@ -20,21 +24,21 @@ declare global {
     /** Bool is treated as an int subclass */
     interface Boolean extends Number {}
     interface String extends Comparable {
-        __add__: CallableOrDirectFunc<[other: any], string>;
-        __mul__: CallableOrDirectFunc<[other: any], string>;
-        __rmul__: CallableOrDirectFunc<[other: any], string>;
+        __add__: BuiltinFunc<[other: any], string>;
+        __mul__: BuiltinFunc<[other: any], string>;
+        __rmul__: BuiltinFunc<[other: any], string>;
     }
     interface Array<T> {
-        __add__(task: Task, other: any): TaskGen<any[]>;
-        __mul__(task: Task, other: any): TaskGen<any[]>;
-        __rmul__(task: Task, other: any): TaskGen<any[]>;
-        __eq__(task: Task, other: any): TaskGen<boolean>;
-        __ne__(task: Task, other: any): TaskGen<boolean>;
+        __add__: BuiltinFunc<[other: any], any[]>;
+        __mul__: BuiltinFunc<[other: any], any[]>;
+        __rmul__: BuiltinFunc<[other: any], any[]>;
+        __eq__: BuiltinFunc<[other: any], boolean>;
+        __ne__: BuiltinFunc<[other: any], boolean>;
     }
     // object implements only the default identity __eq__/__ne__
     interface Object extends Comparable {}
 
-    interface Function extends Callable {}
+    interface Function extends CallableObject<unknown[], unknown> {}
 }
 
 Number.prototype.__add__ = function* (
@@ -598,7 +602,6 @@ Object.defineProperty(Object.prototype, "__ne__", {
 Function.prototype.__call__ = function* (
     this: Function,
     task: Task,
-    arg: CSTNode<any>,
 ) {
     // TODO: what to do here
 };

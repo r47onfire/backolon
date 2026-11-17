@@ -5,6 +5,7 @@
         "callcc",
         "defop",
         "defun",
+        "destructures",
         "dunders",
         "EPANIC",
         "ESYNTAX",

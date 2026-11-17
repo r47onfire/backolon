@@ -32,7 +32,7 @@ import {
     walkCombinator,
     yes,
 } from "@r47onfire/nebula";
-import { Callable } from "../obj/protocol";
+import type { FormFunc } from "../runtime/vm";
 import { objectValues } from "../utils";
 
 // TODO: add rocket operator => - what precedence? what does it even do?
@@ -67,7 +67,7 @@ import { objectValues } from "../utils";
  * on `assign_op` -- so `a += b` is not misread as a binary `+` followed by a
  * prefix `=` assignment -- and then cuts to commit the level.
  */
-export const backolonGrammar = defineGrammar<{ run?: Callable }>({
+export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
     blank: { def: ignored(rep(false, alt(regex(/\s*/), rule("comment")))) },
     blank_required: { def: ignored(nonempty(rule("blank"))) },
     blank_sameline: { def: ignored(sameline(rule("blank_required"))) },
