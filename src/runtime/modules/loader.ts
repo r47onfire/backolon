@@ -23,6 +23,7 @@ export abstract class Loader {
      */
     abstract load(
         task: Task,
+        env: Env,
         module: Module,
         traceback: LinkedList<StackTreeNode>,
         handlers: LinkedList<TryCatchHandler>,
@@ -38,17 +39,20 @@ export class JavascriptModuleLoader extends Loader {
     }
     *load(
         task: Task,
+        env: Env,
         module: Module,
         traceback: LinkedList<StackTreeNode>,
         handlers: LinkedList<TryCatchHandler>,
         url: URL,
         importer: Importer,
     ) {
-        yield* (yield* importer.getImport(url)).setup(
-            module,
-            url.searchParams,
-            task.vm,
-        );
+        yield* (yield* importer.getImport(
+            task,
+            env,
+            traceback,
+            handlers,
+            url,
+        )).setup(module, url.searchParams, task.vm);
     }
 }
 
@@ -86,13 +90,20 @@ export class BackolonSourceModuleLoader extends Loader {
     }
     *load(
         task: Task,
+        env: Env,
         module: Module,
         traceback: LinkedList<StackTreeNode>,
         handlers: LinkedList<TryCatchHandler>,
         url: URL,
         importer: Importer,
     ) {
-        const text = yield* importer.getText(url);
+        const text = yield* importer.getText(
+            task,
+            env,
+            traceback,
+            handlers,
+            url,
+        );
         throw new Error("text");
     }
 }

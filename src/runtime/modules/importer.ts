@@ -1,4 +1,9 @@
-import { CircularImportError, ModuleNotFoundError } from "../../errors/classes";
+import { LinkedList } from "@r47onfire/game-math";
+import { Env } from "..";
+import { StackTreeNode } from "../../errors";
+import { CircularImportError, ImportError, ModuleNotFoundError } from "../../errors/classes";
+import { handleError, TryCatchHandler } from "../trycatch";
+import { Task, TaskGen } from "../vm";
 import { Finder } from "./finder";
 import { JSModule, JSONModule, JSONSourceMap } from "./jsmod";
 import {
@@ -8,11 +13,6 @@ import {
 } from "./loader";
 import { Module } from "./module";
 import { Resolver } from "./resolver";
-import { BackolonVM, Task, TaskGen } from "../vm";
-import { LinkedList } from "@r47onfire/game-math";
-import { Env } from "..";
-import { StackTreeNode } from "../../errors";
-import { handleError, TryCatchHandler } from "../trycatch";
 
 /**
  * Coordinates the whole module-loading pipeline: a {@link Resolver} expands an
@@ -75,7 +75,16 @@ export class Importer {
                 }
                 return m;
             }
-            if (yield* this.#get(resolved, "stat")) {
+            if (
+                yield* this.#get(
+                    task,
+                    env,
+                    traceback,
+                    handlers,
+                    resolved,
+                    "stat",
+                )
+            ) {
                 for (let loader of this.loaders) {
                     const g = loader.match(resolved);
                     if (g) {
@@ -83,6 +92,7 @@ export class Importer {
                         m.addUnshadowableFast("__main__", asMain);
                         yield* g.load(
                             task,
+                            env,
                             m,
                             traceback,
                             handlers,
@@ -105,35 +115,96 @@ export class Importer {
     }
     /**
      * Dispatches a fetch operation to the first finder that
-     * {@link Finder.match matches} `path`. Throws if no finder does.
+     * {@link Finder.match matches} `path`. If no finder does, the
+     * ModuleNotFoundError goes through {@link handleError}: a handler that
+     * resumes supplies the value the fetch would have produced.
      */
-    #get<T extends "getBytes" | "getText" | "getJSON" | "getImport" | "stat">(
+    *#get<T extends "getBytes" | "getText" | "getJSON" | "getImport" | "stat">(
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
         path: URL,
         method: T,
-    ): ReturnType<Finder[T]> {
+    ): TaskGen<any> {
         for (let finder of this.finders) {
             const f = finder.match(path);
-            if (f) return f[method](path) as any;
+            if (f) return yield* f[method](path) as any;
         }
-        throw new ModuleNotFoundError(
-            "backolon.import.unresolvable",
-            path.href,
-        );
+        return yield* handleError(
+            task,
+            env,
+            traceback,
+            handlers,
+            new ImportError("backolon.import.unresolvable", path.href),
+        ) as any;
     }
     /** The raw bytes of the file at `path`, via the matching finder. */
-    *getBytes(path: URL): TaskGen<Uint8Array> {
-        return yield* this.#get(path, "getBytes");
+    *getBytes(
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        path: URL,
+    ): TaskGen<Uint8Array> {
+        return yield* this.#get(
+            task,
+            env,
+            traceback,
+            handlers,
+            path,
+            "getBytes",
+        );
     }
     /** The file at `path` as text, via the matching finder. */
-    *getText(path: URL): TaskGen<string> {
-        return yield* this.#get(path, "getText");
+    *getText(
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        path: URL,
+    ): TaskGen<string> {
+        return yield* this.#get(
+            task,
+            env,
+            traceback,
+            handlers,
+            path,
+            "getText",
+        );
     }
     /** The file at `path`, parsed as JSON, via the matching finder. */
-    *getJSON(path: URL): TaskGen<JSONModule | JSONSourceMap> {
-        return yield* this.#get(path, "getJSON");
+    *getJSON(
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        path: URL,
+    ): TaskGen<JSONModule | JSONSourceMap> {
+        return yield* this.#get(
+            task,
+            env,
+            traceback,
+            handlers,
+            path,
+            "getJSON",
+        );
     }
     /** The file at `path`, imported as a JS module, via the matching finder. */
-    *getImport(path: URL): TaskGen<JSModule> {
-        return yield* this.#get(path, "getImport");
+    *getImport(
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        path: URL,
+    ): TaskGen<JSModule> {
+        return yield* this.#get(
+            task,
+            env,
+            traceback,
+            handlers,
+            path,
+            "getImport",
+        );
     }
 }
