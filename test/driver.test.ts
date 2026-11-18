@@ -20,7 +20,7 @@ const addGenTask = (
 ): Task => {
     const task = new Task(vm, id, priority);
     task.gen = gen;
-    vm.tasks.push(task);
+    vm.#tasks.push(task);
     return task;
 };
 
@@ -173,7 +173,7 @@ describe("the task driver", () => {
         );
         await vm.waitForAll();
         await vm.waitForAll();
-        expect(vm.tasks[0]!.result).toBe(1);
+        expect(vm.#tasks[0]!.result).toBe(1);
     });
 });
 

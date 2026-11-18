@@ -49,7 +49,7 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
         ));
     }
     /** List of tasks, sorted by priority. */
-    tasks: Task[] = [];
+    #tasks: Task[] = [];
     addTask(
         id: string,
         priority: number,
@@ -58,13 +58,13 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
         exclusive = false,
     ): Task {
         if (exclusive) {
-            const t2 = this.tasks.find((t) => t.id === id);
+            const t2 = this.#tasks.find((t) => t.id === id);
             if (t2) return t2;
         }
         const t = new Task(this, id, priority);
         t.gen = t.eval(form, env, null, null, []);
-        this.tasks.push(t);
-        insertionSort(this.tasks, (t1, t2) => t2.priority - t1.priority);
+        this.#tasks.push(t);
+        insertionSort(this.#tasks, (t1, t2) => t2.priority - t1.priority);
         return t;
     }
     /**
@@ -106,10 +106,10 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
      */
     runAll(): boolean {
         let top: number | undefined = undefined, working = false;
-        for (let i = 0; i < this.tasks.length; i++) {
-            const task = this.tasks[i]!;
+        for (let i = 0; i < this.#tasks.length; i++) {
+            const task = this.#tasks[i]!;
             if (task.done) {
-                this.tasks.splice(i--, 1);
+                this.#tasks.splice(i--, 1);
                 continue;
             }
             if (!task.isRunnable()) continue;
