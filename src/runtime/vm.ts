@@ -126,6 +126,11 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
         }
         return working;
     }
+    /**
+     * Calls `await Promise.resolve()` at least twice, in order to force
+     * recently-resolved promises to run their handlers and start up a suspended
+     * task.
+     */
     async waitForAll(): Promise<void> {
         // Force at least 2 loops so that fast promises can
         // flush in between loops
