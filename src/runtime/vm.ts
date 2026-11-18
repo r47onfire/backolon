@@ -127,15 +127,15 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
         return working;
     }
     /**
-     * Calls `await new Promise(r => setImmediate(r))` at least twice, in order to force
-     * recently-resolved promises to run their handlers and start up a suspended
-     * task.
+     * Calls `await new Promise(r => setImmediate(r))` at least twice, in order
+     * to force recently-resolved promises to run their handlers and start up a
+     * suspended task.
      */
     async waitForAll(): Promise<void> {
         // Force at least 2 loops so that fast promises can
         // flush in between loops
         for (let i = 0; i < 2; i++) {
-            await new Promise(r => setImmediate(r));
+            await new Promise((r) => setImmediate(r));
             if (this.runAll()) i = 0;
         }
     }

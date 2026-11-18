@@ -39,7 +39,7 @@ export class Env {
     ) {}
     /** Returns the Env in which the given variable is defined. */
     find(name: Identifier): Env | undefined {
-        if (Reflect.has(this.bindings, name)) {
+        if (this.bindings.has(name)) {
             return this;
         }
         const p = this.parents,

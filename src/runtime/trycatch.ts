@@ -1,7 +1,8 @@
 import { LinkedList } from "@r47onfire/game-math";
 import { BaseBackolonError, StackTreeNode } from "../errors";
 import { Builtin } from "../obj/builtin_function";
-import { BLOCK_SIG, callValue } from "./call";
+import { BLOCK_SIG } from "./block";
+import { callValue } from "./call";
 import { Env } from "./env";
 import { Task, TaskGen } from "./vm";
 
