@@ -1,7 +1,11 @@
 import { LinkedList } from "@r47onfire/game-math";
 import { Env } from "..";
 import { StackTreeNode } from "../../errors";
-import { CircularImportError, ImportError, ModuleNotFoundError } from "../../errors/classes";
+import {
+    CircularImportError,
+    ImportError,
+    ModuleNotFoundError,
+} from "../../errors/classes";
 import { handleError, TryCatchHandler } from "../trycatch";
 import { Task, TaskGen } from "../vm";
 import { Finder } from "./finder";
@@ -129,7 +133,14 @@ export class Importer {
     ): TaskGen<any> {
         for (let finder of this.finders) {
             const f = finder.match(path);
-            if (f) return yield* f[method](path) as any;
+            if (f)
+                return yield* f[method](
+                    task,
+                    env,
+                    traceback,
+                    handlers,
+                    path,
+                ) as any;
         }
         return yield* handleError(
             task,

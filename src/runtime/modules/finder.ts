@@ -1,5 +1,9 @@
+import { LinkedList } from "@r47onfire/game-math";
 import { parse } from "lib0/json";
-import { TaskGen } from "../vm";
+import { StackTreeNode } from "../../errors";
+import { Env } from "../env";
+import { TryCatchHandler } from "../trycatch";
+import { Task, TaskGen } from "../vm";
 import type { Importer } from "./importer";
 import { JSModule, JSONModule, JSONSourceMap } from "./jsmod";
 
@@ -20,31 +24,60 @@ export abstract class Finder {
      */
     abstract match(url: URL): Finder | undefined;
     /** Whether a file exists at `url`. */
-    abstract stat(url: URL): TaskGen<boolean>;
+    abstract stat(
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        url: URL,
+    ): TaskGen<boolean>;
     /**
      * The raw bytes of the file at `path`. The base implementation just throws;
      * finders override the fetch methods for the URLs they serve.
      */
-    *getBytes(path: URL): TaskGen<Uint8Array> {
+    *getBytes(
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        path: URL,
+    ): TaskGen<Uint8Array> {
         throw new Error("getBytes() not implemented");
     }
     /** The file at `path`, decoded as UTF-8 text. */
-    *getText(path: URL): TaskGen<string> {
-        return defaultDecoder.decode(yield* this.getBytes(path));
+    *getText(
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        path: URL,
+    ): TaskGen<string> {
+        return defaultDecoder.decode(
+            yield* this.getBytes(task, env, traceback, handlers, path),
+        );
     }
     /** The file at `path`, parsed as JSON. */
-    *getJSON(path: URL): TaskGen<JSONModule | JSONSourceMap> {
-        return parse(yield* this.getText(path));
+    *getJSON(
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        path: URL,
+    ): TaskGen<JSONModule | JSONSourceMap> {
+        return parse(yield* this.getText(task, env, traceback, handlers, path));
     }
     /**
-     * The file at `path`, imported as a Javascript module. Implemented by
-     * getting the source using {@link getText} and importing it through a
-     * `data:` URL, so the file will not be able to import other modules unless
-     * this hook is overridden.
+     * The file at `path`, imported as a Javascript module. By default, this
+     * `import()`s the given URL directly, without going through other methods,
+     * and relies on the Javascript engine's ability to find and load the file.
      */
-    *getImport(path: URL): TaskGen<JSModule> {
-        return yield import(
-            `data:text/javascript;charset=utf-8,${encodeURIComponent(yield* this.getText(path))}`
-        );
+    *getImport(
+        task: Task,
+        env: Env,
+        traceback: LinkedList<StackTreeNode>,
+        handlers: LinkedList<TryCatchHandler>,
+        path: URL,
+    ): TaskGen<JSModule> {
+        return yield import(path.href);
     }
 }

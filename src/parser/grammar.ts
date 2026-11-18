@@ -1,3 +1,5 @@
+// TODO: this is a massive file and will only get longer. Is there any way to split it up???
+
 import {
     adopt,
     alt,

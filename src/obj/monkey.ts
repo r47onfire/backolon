@@ -970,8 +970,9 @@ Object.defineProperty(Object.prototype, "__ne__", {
     configurable: true,
 });
 
-Function.prototype.__call__ = new Builtin(function* (this: Function, task) {
-    // TODO: what to do here
+Function.prototype.__call__ = new Builtin(function* (this: Function, task, env, traceback, handlers, args) {
+    task.vm.emit("call_js_function", [this, args]);
+    return this(...args);
 }, ARGUMENTS_SIG);
 
 Function.prototype.__signature__ = new Builtin(

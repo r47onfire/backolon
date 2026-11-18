@@ -4,13 +4,13 @@ import { BackolonVM, Finder, Importer, IndexResolver, Module } from "../src";
 type VFS = Record<string, string>;
 
 class TestFinder extends Finder {
-    match() {
+    match(url: URL) {
         return this;
     }
-    *stat(path: URL) {
+    *stat(task: any, env: any, traceback: any, handlers: any, path: URL) {
         return this.vfs[path.href] !== undefined;
     }
-    *getText(path: URL) {
+    *getText(task: any, env: any, traceback: any, handlers: any, path: URL) {
         return this.vfs[path.href]!;
     }
     vfs: VFS = {};
