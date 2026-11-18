@@ -102,10 +102,12 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
     /**
      * Step the highest-priority tasks that are not waiting on a promise. Does
      * not actually return any result for a task.
-     * @returns true if any work was done.
+     *
+     * @returns True if any work was done.
      */
     runAll(): boolean {
-        let top: number | undefined = undefined, working = false;
+        let top: number | undefined = undefined,
+            working = false;
         for (let i = 0; i < this.#tasks.length; i++) {
             const task = this.#tasks[i]!;
             if (task.done) {
@@ -116,8 +118,8 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
             if (top === undefined) top = task.priority;
             else if (task.priority < top) break;
             try {
-                task.step();
                 working = true;
+                task.step();
             } catch {
                 // already reported through the task's `error` event
             }
@@ -125,9 +127,11 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
         return working;
     }
     async waitForAll(): Promise<void> {
-        for (;;) {
-            if (!this.runAll()) return;
+        // Force at least 2 loops so that fast promises can
+        // flush in between loops
+        for (let i = 0; i < 2; i++) {
             await Promise.resolve();
+            if (this.runAll()) i = 0;
         }
     }
 }

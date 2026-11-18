@@ -11,31 +11,22 @@ import {
 
 const makeVM = () => new BackolonVM(new Importer(new IndexResolver(), []));
 
-/** A task with a hand-written generator, pushed in priority order. */
+/** A task with a hand-written generator */
 const addGenTask = (
     vm: BackolonVM,
     id: string,
     priority: number,
     gen: TaskGen<any>,
 ): Task => {
-    const task = new Task(vm, id, priority);
+    const task = vm.addTask(
+        id,
+        priority,
+        new CSTNode<any>({ begin: 0, end: 0 } as any, "dummy"),
+        new Env(),
+    );
     task.gen = gen;
-    vm.#tasks.push(task);
     return task;
 };
-
-const deferred = <T>() => {
-    let resolve!: (value: T) => void;
-    let reject!: (error: any) => void;
-    const promise = new Promise<T>((res, rej) => {
-        resolve = res;
-        reject = rej;
-    });
-    return { promise, resolve, reject };
-};
-
-/** Let every queued microtask (promise settlements included) run. */
-const tick = () => new Promise((r) => setImmediate(r));
 
 describe("the task driver", () => {
     test("a yielded promise's resolution is fed into the next next() call", async () => {
@@ -112,8 +103,7 @@ describe("the task driver", () => {
             "good",
             1,
             (function* () {
-                const value = yield Promise.resolve(7);
-                return value;
+                return yield Promise.resolve(7);
             })(),
         );
         const badErrors: any[] = [];
@@ -126,8 +116,8 @@ describe("the task driver", () => {
 
     test("a task parked on a slow promise does not block lower-priority tasks", async () => {
         const vm = makeVM();
-        const slow = deferred<string>();
-        const fast = deferred<string>();
+        const slow = Promise.withResolvers<string>();
+        const fast = Promise.withResolvers<string>();
         const high = addGenTask(
             vm,
             "high",
@@ -163,7 +153,7 @@ describe("the task driver", () => {
     test("waitForAll with no tasks resolves, and is a no-op once all are done", async () => {
         const vm = makeVM();
         await vm.waitForAll();
-        addGenTask(
+        const task = addGenTask(
             vm,
             "t",
             0,
@@ -173,14 +163,13 @@ describe("the task driver", () => {
         );
         await vm.waitForAll();
         await vm.waitForAll();
-        expect(vm.#tasks[0]!.result).toBe(1);
+        expect(task.result).toBe(1);
     });
 });
 
 describe("call/callAsync", () => {
     // Forms whose type the grammar does not know fail inside Task.eval
-    // before any call is made; the success paths ride on callValue and so
-    // light up once doargs is implemented.
+    // before any call is made.
     const unknownForm = new CSTNode<any>({ begin: 0, end: 0 } as any, "nope");
 
     test("call() propagates an evaluation error synchronously", () => {
