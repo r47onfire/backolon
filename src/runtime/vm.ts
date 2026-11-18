@@ -14,6 +14,7 @@ import { callValue } from "./call";
 import { Env } from "./env";
 import { Importer } from "./modules/importer";
 import { Module } from "./modules/module";
+import { TaskEvents } from "./taskEvents";
 import { handleError, TryCatchHandler } from "./trycatch";
 
 /**
@@ -25,7 +26,7 @@ import { handleError, TryCatchHandler } from "./trycatch";
  */
 export type FormFunc = Callable<Signature<["node"]>, any>;
 
-export type TaskGen<T> = Generator<PromiseLike<unknown>, T, any>;
+export type TaskGen<T> = Generator<PromiseLike<any>, T, any>;
 
 /**
  * The Backolon thread dispatcher: on top of the base VM it keeps the module
@@ -66,9 +67,16 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
         insertionSort(this.tasks, (t1, t2) => t2.priority - t1.priority);
         return t;
     }
+    runAll() {
+        let priority: number;
+        for (let i = 0; i < this.tasks.length; i++) {
+            const task = this.tasks[i];
+            // TODO: how to get the previous value
+        }
+    }
 }
 
-export class Task {
+export class Task extends EventDispatcher<TaskEvents> {
     grammar = backolonGrammar;
     memo: Memo<any> = {};
     gen!: TaskGen<any>;
@@ -76,7 +84,9 @@ export class Task {
         readonly vm: BackolonVM,
         readonly id: string,
         readonly priority: number,
-    ) {}
+    ) {
+        super();
+    }
     /**
      * Evaluate a form: call its grammar entry's run handler through
      * {@link callValue}, then unwrap the result on the way out. A value
