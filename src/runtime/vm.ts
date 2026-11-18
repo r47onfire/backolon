@@ -4,7 +4,7 @@ import {
     LinkedList,
 } from "@r47onfire/game-math";
 import { CSTNode, Memo } from "@r47onfire/nebula";
-import { BTypeError } from "../errors";
+import { BaseBackolonError, BTypeError } from "../errors";
 import { StackTreeNode } from "../errors/compress";
 import { Builtin, Signature } from "../obj/builtin_function";
 import { Callable, isWrapper, WrapperClass } from "../obj/protocol";
@@ -67,13 +67,75 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
         insertionSort(this.tasks, (t1, t2) => t2.priority - t1.priority);
         return t;
     }
-    runAll() {
-        let priority: number;
+    /**
+     * Evaluate a form to completion on an ad-hoc task and return its value,
+     * synchronously. The evaluation must not yield a promise: if it does, it
+     * has gone async, and this throws -- use {@link callAsync} for evaluations
+     * that may await host operations.
+     */
+    call(form: CSTNode<any>, env: Env): any {
+        const task = this.#callTask(form, env);
+        task.step();
+        if (!task.done) {
+            throw new Error("call() task didn't finish");
+        }
+        return task.result;
+    }
+    /**
+     * Evaluate a form to completion on an ad-hoc task, awaiting each promise it
+     * yields as it settles, and return a promise for its value.
+     */
+    async callAsync(form: CSTNode<any>, env: Env): Promise<any> {
+        const task = this.#callTask(form, env);
+        while (!task.done) {
+            if (task.isRunnable()) task.step();
+            else await task.awaiting;
+        }
+        return task.result;
+    }
+    /** A throwaway task evaluating one form, for {@link call}/{@link callAsync}. */
+    #callTask(form: CSTNode<any>, env: Env): Task {
+        const task = new Task(this, "call", 0);
+        task.gen = task.eval(form, env, null, null, []);
+        return task;
+    }
+    /**
+     * Step the highest-priority tasks that are not waiting on a promise. Does
+     * not actually return any result for a task.
+     * @returns true if any work was done.
+     */
+    runAll(): boolean {
+        let top: number | undefined = undefined, working = false;
         for (let i = 0; i < this.tasks.length; i++) {
-            const task = this.tasks[i];
-            // TODO: how to get the previous value
+            const task = this.tasks[i]!;
+            if (task.done) {
+                this.tasks.splice(i--, 1);
+                continue;
+            }
+            if (!task.isRunnable()) continue;
+            if (top === undefined) top = task.priority;
+            else if (task.priority < top) break;
+            try {
+                task.step();
+                working = true;
+            } catch {
+                // already reported through the task's `error` event
+            }
+        }
+        return working;
+    }
+    async waitForAll(): Promise<void> {
+        for (;;) {
+            if (!this.runAll()) return;
+            await Promise.resolve();
         }
     }
+}
+
+const enum ResumeStatus {
+    NOT_WAITING,
+    SUCCESS_VALUE,
+    ERROR_VALUE,
 }
 
 export class Task extends EventDispatcher<TaskEvents> {
@@ -86,6 +148,77 @@ export class Task extends EventDispatcher<TaskEvents> {
         readonly priority: number,
     ) {
         super();
+    }
+    /** Whether the task's generator has returned or thrown. */
+    done = false;
+    /** The task's return value, once it has finished. */
+    result: any = undefined;
+    /**
+     * The settlement of the promise the task last yielded, waiting to be
+     * delivered into the generator at its next step: a fulfillment becomes the
+     * yield expression's value, a rejection is thrown in at the yield point.
+     * Boxed either way, so a promise that settles with `undefined` still counts
+     * as settled.
+     */
+    #resumeValue: any;
+    #resumeStatus = ResumeStatus.NOT_WAITING;
+    /**
+     * Resolves once the promise the task is currently parked on has settled;
+     * `undefined` while the task is not parked (which only occurs if you're
+     * driving the task manually).
+     */
+    awaiting: Promise<void> | undefined = undefined;
+    /** Whether the task can be stepped right now: not finished, not parked. */
+    isRunnable(): boolean {
+        return !this.done && this.awaiting === undefined;
+    }
+    /**
+     * Advance the task by one step: resume its generator, delivering the
+     * settlement of the promise it last yielded (see {@link #resume}), and run
+     * it until it yields its next promise or finishes. Finishing records
+     * {@link result} and emits the task's `finish` event with the return value;
+     * an error escaping the generator emits `error` and is rethrown. Does
+     * nothing if the task is done or still parked on a promise.
+     */
+    step(): void {
+        if (!this.isRunnable()) return;
+        const value = this.#resumeValue;
+        const status = this.#resumeStatus;
+        this.#resumeValue = undefined;
+        this.#resumeStatus = ResumeStatus.NOT_WAITING;
+        let outcome: IteratorResult<PromiseLike<any>, any>;
+        try {
+            outcome =
+                status === ResumeStatus.ERROR_VALUE
+                    ? this.gen.throw(value)
+                    : this.gen.next(value);
+        } catch (e) {
+            this.done = true;
+            this.emit("error", e as BaseBackolonError);
+            throw e;
+        }
+        if (outcome.done) {
+            this.done = true;
+            this.result = outcome.value;
+            this.emit("finish", outcome.value);
+        } else {
+            this.#park(outcome.value);
+        }
+    }
+    /** Park the task on a yielded promise until it settles. */
+    #park(promise: PromiseLike<any>): void {
+        this.awaiting = Promise.resolve(promise).then(
+            (value) => {
+                this.#resumeValue = value;
+                this.#resumeStatus = ResumeStatus.SUCCESS_VALUE;
+                this.awaiting = undefined;
+            },
+            (error) => {
+                this.#resumeValue = error;
+                this.#resumeStatus = ResumeStatus.ERROR_VALUE;
+                this.awaiting = undefined;
+            },
+        );
     }
     /**
      * Evaluate a form: call its grammar entry's run handler through
