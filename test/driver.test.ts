@@ -1,4 +1,4 @@
-import { CSTNode } from "@r47onfire/nebula";
+import { CSTNode, Span } from "@r47onfire/nebula";
 import { describe, expect, test } from "bun:test";
 import {
     BackolonVM,
@@ -11,6 +11,9 @@ import {
 
 const makeVM = () => new BackolonVM(new Importer(new IndexResolver(), []));
 
+/** A complete span for hand-built forms: frames hash the span's file. */
+const stubSpan = new Span(new URL("test:"), 0, 0, 0, 0, 0, 0);
+
 /** A task with a hand-written generator */
 const addGenTask = (
     vm: BackolonVM,
@@ -21,7 +24,7 @@ const addGenTask = (
     const task = vm.addTask(
         id,
         priority,
-        new CSTNode<any>({ begin: 0, end: 0 } as any, "dummy"),
+        new CSTNode<any>(stubSpan, "dummy"),
         new Env(),
     );
     task.gen = gen;
@@ -170,7 +173,7 @@ describe("the task driver", () => {
 describe("call/callAsync", () => {
     // Forms whose type the grammar does not know fail inside Task.eval
     // before any call is made.
-    const unknownForm = new CSTNode<any>({ begin: 0, end: 0 } as any, "nope");
+    const unknownForm = new CSTNode<any>(stubSpan, "nope");
 
     test("call() propagates an evaluation error synchronously", () => {
         const vm = makeVM();

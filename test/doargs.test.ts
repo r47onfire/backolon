@@ -391,21 +391,39 @@ describe("errors", () => {
             "backolon.call.too_many_arguments",
         );
     });
+    describe("tracebacks", () => {
+        test("binding errors' tracebacks blame the parameter", () => {
+            let caught: unknown;
+            try {
+                callForms(sig([["a", N]]), argsOf("f(a: 1, a: 2)"));
+            } catch (e) {
+                caught = e;
+            }
+            expect(caught).toBeInstanceOf(BTypeError);
+            const frame = (caught as BTypeError).traceback?.value;
+            if (frame?.leaf) {
+                expect(frame.kind).toBe(StackEntryKind.PARAMETER);
+                expect(frame.name).toBe("a");
+                // the blamed span is the duplicate argument's value
+                expect(frame.location.file.href).toBe("test:");
+                expect(frame.location.begin).toBe(11);
+                expect(frame.location.end).toBe(12);
+            } else {
+                expect.unreachable();
+            }
+        });
 
-    test("binding errors carry a parameter frame on the traceback", () => {
-        let caught: unknown;
-        try {
-            callForms(sig([["a", N]]), argsOf("f()"));
-        } catch (e) {
-            caught = e;
-        }
-        expect(caught).toBeInstanceOf(BTypeError);
-        const frame = (caught as BTypeError).traceback?.value;
-        if (frame?.leaf) {
-            expect(frame.kind).toBe(StackEntryKind.PARAMETER);
-            expect(frame.name).toBe("a");
-        } else {
-            expect.unreachable();
-        }
+        test("no argument to blame adds no frame", () => {
+            // a missing argument has no form, hence no span, hence no frame:
+            // the error keeps the traceback it was raised with (here, none)
+            let caught: unknown;
+            try {
+                callForms(sig([["a", N]]), argsOf("f()"));
+            } catch (e) {
+                caught = e;
+            }
+            expect(caught).toBeInstanceOf(BTypeError);
+            expect((caught as BTypeError).traceback).toBeNull();
+        });
     });
 });
