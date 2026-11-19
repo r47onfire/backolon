@@ -26,7 +26,7 @@ export type StackTreeNode = Readonly<
     | {
           leaf: true;
           name: Identifier | undefined;
-          location: Span | undefined;
+          location: Span;
           kind: StackEntryKind;
           hash: number;
       }
@@ -34,7 +34,7 @@ export type StackTreeNode = Readonly<
 
 export const tbAdd = (
     name: Identifier | undefined,
-    location: Span | undefined,
+    location: Span,
     kind: StackEntryKind,
     traceback: LinkedList<StackTreeNode>,
 ) => LinkedList_push(traceback, createStackLeafNode(name, location, kind));
@@ -46,7 +46,7 @@ export const tbAdd = (
  */
 export const createStackLeafNode = (
     name: Identifier | undefined,
-    location: Span | undefined,
+    location: Span,
     kind: StackEntryKind,
 ): StackTreeNode => {
     return {
@@ -56,11 +56,9 @@ export const createStackLeafNode = (
         kind,
         hash:
             javaHash(String(name)) ^
-            (location
-                ? rotate32(javaHash(location.file.href), 11) ^
-                  rotate32(location.begin, 23) ^
-                  rotate32(location.end, 11)
-                : 0xdeadbeef) ^
+            rotate32(javaHash(location.file.href), 11) ^
+            rotate32(location.begin, 23) ^
+            rotate32(location.end, 11) ^
             rotate32(kind, 21),
     };
 };

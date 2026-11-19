@@ -252,9 +252,7 @@ export class Task extends EventDispatcher<TaskEvents> {
                 env,
                 tbAdd(
                     form.type ?? undefined,
-                    // a synthetic form's span may not carry a file; the
-                    // frame hash cannot be computed from one of those
-                    form.span?.file !== undefined ? form.span : undefined,
+                    form.span,
                     StackEntryKind.SYNTAX,
                     traceback,
                 ),
