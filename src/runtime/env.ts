@@ -1,11 +1,11 @@
-import { LinkedList, RemovableSet } from "@r47onfire/game-math";
+import { type LinkedList, RemovableSet } from "@r47onfire/game-math";
 import { BNameError, BTypeError } from "../errors/classes";
-import { StackTreeNode } from "../errors/compress";
-import { Identifier } from "../utils";
-import { handleError, TryCatchHandler } from "./trycatch";
-import { Task, TaskGen } from "./vm";
-import { Callable, NO_ARGS_SIG } from "../obj";
+import type { StackTreeNode } from "../errors/compress";
+import type { Identifier } from "../utils";
+import { type Callable, type NO_ARGS_SIG } from "../obj";
 import { callValue } from "./call";
+import { type TryCatchHandler, handleError } from "./trycatch";
+import type { Task, TaskGen } from "./vm";
 
 /**
  * Key-value store for managing an environment, with inheritance from parent

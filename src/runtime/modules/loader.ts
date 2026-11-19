@@ -1,8 +1,8 @@
-import { Importer } from "./importer";
-import { Module } from "./module";
-import { BackolonVM, Task, TaskGen } from "../vm";
+import type { Importer } from "./importer";
+import type { Module } from "./module";
+import type { BackolonVM, Task, TaskGen } from "../vm";
 import { LinkedList } from "@r47onfire/game-math";
-import { Env } from "..";
+import type { Env } from "../env";
 import { StackTreeNode } from "../../errors";
 import { TryCatchHandler } from "../trycatch";
 

@@ -1,7 +1,7 @@
 import { isArray } from "lib0/array";
 import { abs, max } from "lib0/math";
 import { BTypeError, BValueError, DivideByZeroError } from "../errors/classes";
-import { callValue } from "../runtime";
+import { callValue } from "../runtime/call";
 import { handleError } from "../runtime/trycatch";
 import {
     ARGUMENTS_SIG,

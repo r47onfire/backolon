@@ -1,10 +1,10 @@
-import { LinkedList } from "@r47onfire/game-math";
-import { BaseBackolonError, StackTreeNode } from "../errors";
-import { Builtin } from "../obj/builtin_function";
-import { BLOCK_SIG } from "./block";
+import type { LinkedList } from "@r47onfire/game-math";
+import type { BaseBackolonError, StackTreeNode } from "../errors";
+import type { Builtin } from "../obj/builtin_function";
+import type { BLOCK_SIG } from "./block";
 import { callValue } from "./call";
-import { Env } from "./env";
-import { Task, TaskGen } from "./vm";
+import type { Env } from "./env";
+import type { Task, TaskGen } from "./vm";
 
 export interface TryCatchHandler {
     /** Used for `instanceof` testing to run the handler. */

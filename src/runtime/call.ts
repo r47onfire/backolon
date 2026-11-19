@@ -1,12 +1,17 @@
-import { LinkedList } from "@r47onfire/game-math";
-import { CSTNode } from "@r47onfire/nebula";
+import type { LinkedList } from "@r47onfire/game-math";
+import type { CSTNode } from "@r47onfire/nebula";
 import { undefinedToNull } from "lib0/conditions";
-import { BTypeError, NotImplementedError, StackTreeNode } from "../errors";
-import { Builtin, Callable, CallableObject, Signature } from "../obj";
+import { BTypeError, NotImplementedError, type StackTreeNode } from "../errors";
+import {
+    Builtin,
+    type Callable,
+    type CallableObject,
+    type Signature,
+} from "../obj";
 import { doargs } from "./doargs";
-import { Env } from "./env";
-import { TryCatchHandler, handleError } from "./trycatch";
-import { Task, TaskGen, getSignature } from "./vm";
+import type { Env } from "./env";
+import { type TryCatchHandler, handleError } from "./trycatch";
+import type { Task, TaskGen } from "./vm";
 
 export function callValue<P extends Signature, R>(
     task: Task,
@@ -90,4 +95,47 @@ export function* callValue<P extends Signature, R>(
             new BTypeError("backolon.call.not_callable", f),
         )) as R;
     }
+}
+
+/**
+ * Determine a callable's signature: the signature of the callable itself, and
+ * of nothing else. A Builtin carries its signature directly; a duck-typed
+ * callable is asked through its `__signature__` (itself called through
+ * {@link callValue}); anything else with no signature is an error.
+ *
+ * The lookup deliberately does not unwrap `__call__` layers looking for a
+ * signature to borrow: a callable's declared signature is its calling contract,
+ * and it is the contract of the exact value the caller named. If that value's
+ * `__call__` leads to a callable whose own parameters disagree with the
+ * declared signature, the value is simply misdeclared -- the call proceeds
+ * under the declared contract, and the implementation receives whatever that
+ * produces. A layer that forwards to another callable and wants to be called
+ * must declare the resulting signature itself.
+ */
+export function* getSignature<P extends Signature>(
+    task: Task,
+    env: Env,
+    traceback: LinkedList<StackTreeNode>,
+    handlers: LinkedList<TryCatchHandler>,
+    callee: Callable<P, any>,
+): TaskGen<P> {
+    if (callee instanceof Builtin) return callee.signature;
+    if (typeof callee?.__signature__ !== "undefined") {
+        return yield* callValue(
+            task,
+            env,
+            traceback,
+            handlers,
+            callee.__signature__,
+            callee,
+            [],
+        );
+    }
+    return (yield* handleError(
+        task,
+        env,
+        traceback,
+        handlers,
+        new BTypeError("backolon.call.no_signature", callee),
+    )) as P;
 }

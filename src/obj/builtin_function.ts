@@ -1,7 +1,7 @@
 import { LinkedList } from "@r47onfire/game-math";
 import { CSTNode } from "@r47onfire/nebula";
 import { StackTreeNode } from "../errors";
-import { Env, Task, TaskGen } from "../runtime";
+import type { Env, Task, TaskGen } from "../runtime";
 import { TryCatchHandler } from "../runtime/trycatch";
 import { AnyTuple, Identifier, Tuple } from "../utils";
 

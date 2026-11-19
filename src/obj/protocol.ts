@@ -1,6 +1,6 @@
 import { LinkedList } from "@r47onfire/game-math";
 import { StackTreeNode } from "../errors/compress";
-import { Env, Task, TaskGen } from "../runtime";
+import type { Env, Task, TaskGen } from "../runtime";
 import { TryCatchHandler } from "../runtime/trycatch";
 import {
     Builtin,

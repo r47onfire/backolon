@@ -1,12 +1,13 @@
-import { LinkedList } from "@r47onfire/game-math";
-import { CSTNode } from "@r47onfire/nebula";
-import { Env } from ".";
-import { StackTreeNode, BTypeError } from "../errors";
-import { Signature, SignatureParam } from "../obj";
-import { Identifier, objectEntries } from "../utils";
+import type { LinkedList } from "@r47onfire/game-math";
+import { CSTNode, Span } from "@r47onfire/nebula";
+import { BTypeError, type StackTreeNode } from "../errors";
+import { StackEntryKind, tbAdd } from "../errors/compress";
+import type { Signature, SignatureParam } from "../obj";
+import { type Identifier, objectEntries } from "../utils";
 import { makeBlock } from "./block";
-import { TryCatchHandler, handleError } from "./trycatch";
-import { Task, TaskGen } from "./vm";
+import { Env } from "./env";
+import { type TryCatchHandler, handleError } from "./trycatch";
+import type { Task, TaskGen } from "./vm";
 
 /**
  * Bind a call's given arguments against the callee's signature and return the
@@ -100,6 +101,9 @@ export function* doargs<P extends Signature>(
     const isParam = (name: Identifier) =>
         name !== posRest && name !== kwRest && Reflect.has(byName, name);
 
+    const tbParam = (name: Identifier | undefined, location: Span) =>
+        tbAdd(name, location, StackEntryKind.PARAMETER, traceback);
+
     // ---- static pass: decide where everything goes before evaluating
     // anything, so a binding error is raised without side effects.
     // Keyword arguments claim their parameters first, wherever they appear:
@@ -113,7 +117,7 @@ export function* doargs<P extends Signature>(
                 return yield* handleError(
                     task,
                     env,
-                    traceback,
+                    tbParam(name, g.form.span),
                     handlers,
                     new BTypeError("backolon.call.duplicate_argument", name),
                 );
@@ -124,7 +128,7 @@ export function* doargs<P extends Signature>(
             return yield* handleError(
                 task,
                 env,
-                traceback,
+                tbParam(name, g.form.span),
                 handlers,
                 new BTypeError("backolon.call.unknown_keyword", name),
             );
@@ -169,18 +173,20 @@ export function* doargs<P extends Signature>(
     for (let i = 0; i <= bi; i++)
         if (back[i]!.dest === undefined) back[i]!.dest = null;
     for (let i = 0; i < middle.length; i++) middle[i]!.dest = null;
-    if (
-        firstSplat < 0 &&
-        posRest === undefined &&
-        given.some((g) => g.dest === null)
-    )
-        return yield* handleError(
-            task,
-            env,
-            traceback,
-            handlers,
-            new BTypeError("backolon.call.too_many_arguments", args),
-        );
+    if (firstSplat < 0 && posRest === undefined) {
+        const firstTooMany = given.find((g) => g.dest === null);
+        if (firstTooMany) {
+            return yield* handleError(
+                task,
+                env,
+                firstTooMany.form
+                    ? tbParam(undefined, firstTooMany.form.span)
+                    : traceback,
+                handlers,
+                new BTypeError("backolon.call.too_many_arguments", args),
+            );
+        }
+    }
 
     // A computed value can never fill a lazy or block parameter; with a
     // computed call every destination is already known, so this is static.
@@ -266,7 +272,7 @@ export function* doargs<P extends Signature>(
                 return yield* handleError(
                     task,
                     env,
-                    traceback,
+                    tbParam(undefined, g.form.span),
                     handlers,
                     new BTypeError("backolon.call.splat.not_iterable", value),
                 );
@@ -289,7 +295,7 @@ export function* doargs<P extends Signature>(
                 return yield* handleError(
                     task,
                     env,
-                    traceback,
+                    tbParam(undefined, g.form.span),
                     handlers,
                     new BTypeError(
                         "backolon.call.kw_splat.not_a_mapping",
@@ -303,7 +309,7 @@ export function* doargs<P extends Signature>(
                         return yield* handleError(
                             task,
                             env,
-                            traceback,
+                            tbParam(key, g.form.span),
                             handlers,
                             new BTypeError(
                                 "backolon.call.duplicate_argument",
@@ -314,7 +320,7 @@ export function* doargs<P extends Signature>(
                         return yield* handleError(
                             task,
                             env,
-                            traceback,
+                            tbParam(key, g.form.span),
                             handlers,
                             new BTypeError(
                                 "backolon.call.kw_splat.lazy_computed",
@@ -328,7 +334,7 @@ export function* doargs<P extends Signature>(
                     return yield* handleError(
                         task,
                         env,
-                        traceback,
+                        tbParam(key, g.form.span),
                         handlers,
                         new BTypeError("backolon.call.unknown_keyword", key),
                     );
@@ -386,6 +392,7 @@ export function* doargs<P extends Signature>(
             return yield* handleError(
                 task,
                 env,
+                // TODO: point to the missing hole if it was given as explicitly missing
                 traceback,
                 handlers,
                 new BTypeError("backolon.call.missing_argument", name),

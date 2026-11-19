@@ -1,13 +1,17 @@
-import { CSTNode, nothing } from "@r47onfire/nebula";
+import { CSTNode, nothing, parseToCST } from "@r47onfire/nebula";
+import { condenseCST } from "@r47onfire/nebula/compile";
 import { describe, expect, test } from "bun:test";
 import {
+    backolonGrammar,
     BackolonVM,
+    BTypeError,
     Builtin,
     Env,
     Importer,
     IndexResolver,
     Signature,
     SignatureParam,
+    StackEntryKind,
     Task,
     TaskGen,
 } from "../src";
@@ -20,23 +24,33 @@ const drive = (gen: TaskGen<any>): any => {
     return step.value;
 };
 
-const span = { begin: 0, end: 0 } as any;
-const leaf = (text: string) =>
-    new CSTNode<any>(span, null as any, [], false, null, text);
-const node = (
-    type: string,
-    children: CSTNode<any>[] = [],
-    text: string | null = null,
-) => new CSTNode<any>(span, type, children, false, null, text);
-const num = (n: number) => node("num", [], String(n));
-const track = (label: string) => node("track", [], label);
-const kw = (name: string, value: CSTNode<any>) =>
-    node("kw", [node("name", [leaf(name)]), value]);
-const splat = (inner: CSTNode<any>) => node("splat", [inner]);
-const splatKw = (inner: CSTNode<any>) => node("splat_kw", [inner]);
-const arr = (...items: CSTNode<any>[]) => node("arr", items);
-const obj = (...items: CSTNode<any>[]) => node("obj", items);
-const emptyArg = () => node("empty_arg");
+const parseProgram = (src: string): CSTNode<any> =>
+    condenseCST(
+        parseToCST(
+            src,
+            new URL("test:"),
+            0,
+            "toplevel_exprs",
+            backolonGrammar,
+            "exprs",
+        ),
+    );
+
+/** The argument forms of a call written as source, e.g. "f(1, b: 2)" */
+const argsOf = (src: string): CSTNode<any>[] => {
+    const call = parseProgram(src).children[0]!;
+    return [...call.children.find((c) => c.type === "args")!.children];
+};
+
+/** A single expression form written as source, e.g. "9" */
+const exprOf = (src: string): CSTNode<any> => parseProgram(src).children[0]!;
+
+/** The text of a node's innermost trailing leaf (a name, a number) */
+const leafText = (n: CSTNode<any>): string => {
+    while (n.children && n.children.length > 0)
+        n = n.children[n.children.length - 1]!;
+    return n.text!;
+};
 
 const FORM_SIG: Signature<["node"], never, [], never> = {
     head: ["node"],
@@ -44,28 +58,34 @@ const FORM_SIG: Signature<["node"], never, [], never> = {
     byName: { node: { kind: "normal" } },
 };
 
-/** A test grammar whose forms evaluate without the real grammar's handlers. */
+/**
+ * A test grammar whose forms evaluate without the real grammar's handlers:
+ * numbers evaluate to their value, names record their evaluation (in `order`)
+ * and evaluate to their own text, and a collection evaluates to an array, or to
+ * an object when its items are keyword pairs.
+ */
 const makeGrammar = (order: string[]) =>
     ({
-        num: {
+        number: {
             def: nothing(),
             run: new Builtin(
                 ((_t: any, _e: any, _tb: any, _h: any, n: CSTNode<any>) =>
-                    Number(n.text)) as any,
+                    Number(leafText(n))) as any,
                 FORM_SIG,
             ),
         },
-        track: {
+        name: {
             def: nothing(),
             run: new Builtin(
                 ((_t: any, _e: any, _tb: any, _h: any, n: CSTNode<any>) => {
-                    order.push(n.text!);
-                    return n.text;
+                    const text = leafText(n);
+                    order.push(text);
+                    return text;
                 }) as any,
                 FORM_SIG,
             ),
         },
-        arr: {
+        collection: {
             def: nothing(),
             run: new Builtin(
                 function* (
@@ -75,28 +95,21 @@ const makeGrammar = (order: string[]) =>
                     h: any,
                     n: CSTNode<any>,
                 ) {
+                    if (n.children.some((c) => c.type === "kw")) {
+                        const out: Record<string, any> = {};
+                        for (const k of n.children)
+                            out[leafText(k.children[0]!)] = yield* task.eval(
+                                k.children[1]!,
+                                env,
+                                tb,
+                                h,
+                                [],
+                            );
+                        return out;
+                    }
                     const out: any[] = [];
                     for (const c of n.children)
                         out.push(yield* task.eval(c, env, tb, h, []));
-                    return out;
-                } as any,
-                FORM_SIG,
-            ),
-        },
-        obj: {
-            def: nothing(),
-            run: new Builtin(
-                function* (
-                    task: Task,
-                    env: Env,
-                    tb: any,
-                    h: any,
-                    n: CSTNode<any>,
-                ) {
-                    const out: Record<string, any> = {};
-                    for (const k of n.children)
-                        out[k.children[0]!.children[0]!.text!] =
-                            yield* task.eval(k.children[1]!, env, tb, h, []);
                     return out;
                 } as any,
                 FORM_SIG,
@@ -197,7 +210,7 @@ describe("doargs", () => {
                 ],
                 { tail: [["c", N]] },
             ),
-            [num(1), kw("b", num(2)), num(3)],
+            argsOf("f(1, b: 2, 3)"),
         );
         expect(got).toEqual([1, 2, 3]);
     });
@@ -210,7 +223,7 @@ describe("doargs", () => {
                 ["a", N],
                 ["b", N],
             ]),
-            [num(1), kw("a", num(2))],
+            argsOf("f(1, a: 2)"),
         );
         expect(got).toEqual([2, 1]);
     });
@@ -223,18 +236,18 @@ describe("doargs", () => {
                 ["b", N],
                 ["c", N],
             ]),
-            [track("1"), kw("b", track("2")), track("3")],
+            argsOf("f(x, b: y, z)"),
             order,
         );
-        expect(order).toEqual(["1", "2", "3"]);
-        expect(got).toEqual(["1", "2", "3"]);
+        expect(order).toEqual(["x", "y", "z"]);
+        expect(got).toEqual(["x", "y", "z"]);
     });
 
     test("lazy parameter binds the raw form, unevaluated", () => {
         const order: string[] = [];
-        const form = track("x");
-        const got = callForms(sig([["m", { kind: "lazy" }]]), [form], order);
-        expect(got[0]).toBe(form);
+        const forms = argsOf("f(x)");
+        const got = callForms(sig([["m", { kind: "lazy" }]]), forms, order);
+        expect(got[0]).toBe(forms[0]);
         expect(order).toEqual([]);
     });
 
@@ -250,7 +263,7 @@ describe("doargs", () => {
                 null as any,
                 p.callee as any,
                 undefined,
-                [num(5)],
+                argsOf("f(5)"),
                 false,
             ),
         );
@@ -273,44 +286,45 @@ describe("doargs", () => {
 });
 describe("splat args", () => {
     test("splat expands into the positional middle", () => {
-        const got = callForms(sig([["a", N]], { posRest: "rest" }), [
-            splat(arr(num(1), num(2))),
-            num(3),
-        ]);
+        const got = callForms(
+            sig([["a", N]], { posRest: "rest" }),
+            argsOf("f(...[1, 2], 3)"),
+        );
         expect(got).toEqual([1, [2, 3]]);
     });
 
     test("tail claims from the back around a splat", () => {
         const got = callForms(
             sig([["a", N]], { posRest: "rest", tail: [["z", N]] }),
-            [num(1), splat(arr(num(2), num(3))), num(4)],
+            argsOf("f(1, ...[2, 3], 4)"),
         );
         expect(got).toEqual([1, [2, 3], 4]);
     });
 
     test("keyword splat claims parameters and collects the rest", () => {
-        const got = callForms(sig([["a", N]], { kwRest: "kw" }), [
-            splatKw(obj(kw("a", num(1)), kw("z", num(2)))),
-        ]);
+        const got = callForms(
+            sig([["a", N]], { kwRest: "kw" }),
+            argsOf("f(...:[a: 1, z: 2])"),
+        );
         expect(got).toEqual([1, { z: 2 }]);
     });
 
     test("unfilled optional parameters take their defaults", () => {
         const got = callForms(
             sig([
-                ["a", { kind: "normal", opt: true, defaultForm: num(9) }],
+                ["a", { kind: "normal", opt: true, defaultForm: exprOf("9") }],
                 ["b", { kind: "normal", opt: true }],
             ]),
-            [],
+            argsOf("f()"),
         );
         expect(got).toEqual([9, null]);
     });
 
     test("lazy parameter's default is the default form itself", () => {
-        const form = track("d");
+        const form = exprOf("d");
         const got = callForms(
             sig([["m", { kind: "lazy", opt: true, defaultForm: form }]]),
-            [],
+            argsOf("f()"),
         );
         expect(got[0]).toBe(form);
     });
@@ -319,10 +333,10 @@ describe("splat args", () => {
         const got = callForms(
             sig([
                 ["a", N],
-                ["b", { kind: "normal", opt: true, defaultForm: num(9) }],
+                ["b", { kind: "normal", opt: true, defaultForm: exprOf("9") }],
                 ["c", N],
             ]),
-            [num(1), emptyArg(), num(3)],
+            argsOf("f(1,,3)"),
         );
         expect(got).toEqual([1, 9, 3]);
     });
@@ -342,18 +356,18 @@ describe("splat args", () => {
 describe("errors", () => {
     test("duplicate keyword", () => {
         expect(() =>
-            callForms(sig([["a", N]]), [kw("a", num(1)), kw("a", num(2))]),
+            callForms(sig([["a", N]]), argsOf("f(a: 1, a: 2)")),
         ).toThrow("backolon.call.duplicate_argument");
     });
 
     test("unknown keyword", () => {
-        expect(() => callForms(sig([["a", N]]), [kw("z", num(1))])).toThrow(
+        expect(() => callForms(sig([["a", N]]), argsOf("f(z: 1)"))).toThrow(
             "backolon.call.unknown_keyword",
         );
     });
 
     test("missing required argument", () => {
-        expect(() => callForms(sig([["a", N]]), [])).toThrow(
+        expect(() => callForms(sig([["a", N]]), argsOf("f()"))).toThrow(
             "backolon.call.missing_argument",
         );
     });
@@ -361,7 +375,7 @@ describe("errors", () => {
     test("too many arguments early error", () => {
         const order: string[] = [];
         expect(() =>
-            callForms(sig([["a", N]]), [track("1"), track("2")], order),
+            callForms(sig([["a", N]]), argsOf("f(x, y)"), order),
         ).toThrow("backolon.call.too_many_arguments");
         expect(order).toEqual([]);
     });
@@ -376,5 +390,22 @@ describe("errors", () => {
         expect(() => callValues(sig([["a", N]]), [1, 2])).toThrow(
             "backolon.call.too_many_arguments",
         );
+    });
+
+    test("binding errors carry a parameter frame on the traceback", () => {
+        let caught: unknown;
+        try {
+            callForms(sig([["a", N]]), argsOf("f()"));
+        } catch (e) {
+            caught = e;
+        }
+        expect(caught).toBeInstanceOf(BTypeError);
+        const frame = (caught as BTypeError).traceback?.value;
+        if (frame?.leaf) {
+            expect(frame.kind).toBe(StackEntryKind.PARAMETER);
+            expect(frame.name).toBe("a");
+        } else {
+            expect.unreachable();
+        }
     });
 });

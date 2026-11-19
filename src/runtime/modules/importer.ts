@@ -1,5 +1,5 @@
 import { LinkedList } from "@r47onfire/game-math";
-import { Env } from "..";
+import type { Env } from "../env";
 import { StackTreeNode } from "../../errors";
 import {
     CircularImportError,
@@ -7,7 +7,7 @@ import {
     ModuleNotFoundError,
 } from "../../errors/classes";
 import { handleError, TryCatchHandler } from "../trycatch";
-import { Task, TaskGen } from "../vm";
+import type { Task, TaskGen } from "../vm";
 import { Finder } from "./finder";
 import { JSModule, JSONModule, JSONSourceMap } from "./jsmod";
 import {

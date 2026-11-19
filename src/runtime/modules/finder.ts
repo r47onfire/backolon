@@ -1,9 +1,9 @@
-import { LinkedList } from "@r47onfire/game-math";
+import type { LinkedList } from "@r47onfire/game-math";
 import { parse } from "lib0/json";
-import { StackTreeNode } from "../../errors";
-import { Env } from "../env";
-import { TryCatchHandler } from "../trycatch";
-import { Task, TaskGen } from "../vm";
+import type { StackTreeNode } from "../../errors";
+import type { Env } from "../env";
+import type { TryCatchHandler } from "../trycatch";
+import type { Task, TaskGen } from "../vm";
 import type { Importer } from "./importer";
 import { JSModule, JSONModule, JSONSourceMap } from "./jsmod";
 

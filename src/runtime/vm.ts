@@ -5,9 +5,9 @@ import {
 } from "@r47onfire/game-math";
 import { CSTNode, Memo } from "@r47onfire/nebula";
 import { BaseBackolonError, BTypeError } from "../errors";
-import { StackTreeNode } from "../errors/compress";
-import { Builtin, Signature } from "../obj/builtin_function";
-import { Callable, isWrapper, WrapperClass } from "../obj/protocol";
+import { StackEntryKind, type StackTreeNode, tbAdd } from "../errors/compress";
+import type { Signature } from "../obj/builtin_function";
+import { type Callable, isWrapper, type WrapperClass } from "../obj/protocol";
 import { backolonGrammar } from "../parser";
 import { BackolonAuditEvents } from "./audit";
 import { callValue } from "./call";
@@ -250,7 +250,14 @@ export class Task extends EventDispatcher<TaskEvents> {
             return yield* handleError(
                 this,
                 env,
-                traceback,
+                tbAdd(
+                    form.type ?? undefined,
+                    // a synthetic form's span may not carry a file; the
+                    // frame hash cannot be computed from one of those
+                    form.span?.file !== undefined ? form.span : undefined,
+                    StackEntryKind.SYNTAX,
+                    traceback,
+                ),
                 handlers,
                 new BTypeError("backolon.eval.unknown_cst_type", form),
             );
@@ -279,47 +286,4 @@ export class Task extends EventDispatcher<TaskEvents> {
         }
         return x;
     }
-}
-
-/**
- * Determine a callable's signature: the signature of the callable itself, and
- * of nothing else. A Builtin carries its signature directly; a duck-typed
- * callable is asked through its `__signature__` (itself called through
- * {@link callValue}); anything else with no signature is an error.
- *
- * The lookup deliberately does not unwrap `__call__` layers looking for a
- * signature to borrow: a callable's declared signature is its calling contract,
- * and it is the contract of the exact value the caller named. If that value's
- * `__call__` leads to a callable whose own parameters disagree with the
- * declared signature, the value is simply misdeclared -- the call proceeds
- * under the declared contract, and the implementation receives whatever that
- * produces. A layer that forwards to another callable and wants to be called
- * must declare the resulting signature itself.
- */
-export function* getSignature<P extends Signature>(
-    task: Task,
-    env: Env,
-    traceback: LinkedList<StackTreeNode>,
-    handlers: LinkedList<TryCatchHandler>,
-    callee: Callable<P, any>,
-): TaskGen<P> {
-    if (callee instanceof Builtin) return callee.signature;
-    if (typeof callee?.__signature__ !== "undefined") {
-        return yield* callValue(
-            task,
-            env,
-            traceback,
-            handlers,
-            callee.__signature__,
-            callee,
-            [],
-        );
-    }
-    return (yield* handleError(
-        task,
-        env,
-        traceback,
-        handlers,
-        new BTypeError("backolon.call.no_signature", callee),
-    )) as P;
 }

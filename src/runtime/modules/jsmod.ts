@@ -1,5 +1,5 @@
 import { Module } from "./module";
-import { BackolonVM, TaskGen } from "../vm";
+import type { BackolonVM, TaskGen } from "../vm";
 
 /**
  * Interface for what a Javascript module needs to comply with to be able to be

@@ -1,7 +1,7 @@
-import { CSTNode } from "@r47onfire/nebula";
+import type { CSTNode } from "@r47onfire/nebula";
 import { BTypeError } from "../errors";
-import { Builtin, Signature } from "../obj";
-import { Identifier, objectEntries } from "../utils";
+import { Builtin, type Signature } from "../obj";
+import { type Identifier, objectEntries } from "../utils";
 import { Env } from "./env";
 import { handleError } from "./trycatch";
 export const BLOCK_SIG: Signature<[], "injected", [], never> = {
