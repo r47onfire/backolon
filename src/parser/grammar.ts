@@ -71,12 +71,10 @@ import { objectValues } from "../utils";
  */
 export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
     blank: { def: ignored(rep(false, alt(regex(/\s*/), rule("comment")))) },
-    blank_required: { def: ignored(nonempty(rule("blank"))) },
-    blank_sameline: { def: ignored(sameline(rule("blank_required"))) },
+    blank_required: { def: nonempty(rule("blank")) },
+    blank_sameline: { def: sameline(rule("blank_required")) },
     comment: {
-        def: ignored(
-            tag("comment", alt(rule("block_comment"), rule("line_comment"))),
-        ),
+        def: tag("comment", alt(rule("block_comment"), rule("line_comment"))),
     },
     block_comment: {
         def: seq(
@@ -103,13 +101,13 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             rep(
                 false,
                 seq(
-                    ignored(opt(rule("expr_sep"))),
-                    ignored(opt(rule("blank"))),
+                    opt(rule("expr_sep")),
+                    opt(rule("blank")),
                     ignored(ambient("guard", nothing())),
                     rule("expr"),
                 ),
             ),
-            ignored(opt(rule("expr_sep"))),
+            opt(rule("expr_sep")),
         ),
     },
     toplevel_exprs: { def: nonempty(rule("exprs")) },
@@ -117,8 +115,8 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
         def: rep(
             true,
             seq(
-                ignored(opt(rule("expr_sep"))),
-                ignored(opt(rule("blank"))),
+                opt(rule("expr_sep")),
+                opt(rule("blank")),
                 rule("expr"),
             ),
         ),
@@ -226,7 +224,7 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
                     lookahead(false, kw("keyword", "then")),
                     rule("expr"),
                 ),
-                ignored(opt(rule("blank"))),
+                opt(rule("blank")),
                 ignored(opt(kw("keyword", "then"))),
                 altFirst(rule("if_else"), rule("if_no_else")),
             ),
@@ -235,7 +233,7 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
     if_else: {
         def: seq(
             rule("body_exprs", kw("keyword", "else", "end"), no()),
-            ignored(rule("blank")),
+            rule("blank"),
             kw("keyword", "else"),
             rule("body_exprs", kw("keyword", "end"), yes()),
         ),
@@ -251,7 +249,7 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             rule("blank"),
             kw("keyword", "while"),
             seq(
-                ignored(rule("blank")),
+                rule("blank"),
                 rule("expr"),
                 rule("body_exprs", kw("keyword", "end"), yes()),
             ),
@@ -262,7 +260,7 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             rule("blank"),
             kw("keyword", "for"),
             seq(
-                ignored(rule("blank")),
+                rule("blank"),
                 rule("assignment"),
                 rule("body_exprs", kw("keyword", "end"), yes()),
             ),
@@ -291,9 +289,9 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
     },
     trycatch_handler: {
         def: seq(
-            ignored(rule("blank")),
+            rule("blank"),
             kw("keyword", "catch"),
-            ignored(rule("blank")),
+            rule("blank"),
             bind(
                 "guard",
                 true,
@@ -312,14 +310,14 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
     },
     trycatch_else: {
         def: seq(
-            ignored(rule("blank")),
+            rule("blank"),
             kw("keyword", "else"),
             rule("body_exprs", kw("keyword", "finally", "end"), no()),
         ),
     },
     trycatch_finally: {
         def: seq(
-            ignored(rule("blank")),
+            rule("blank"),
             kw("keyword", "finally"),
             rule("body_exprs", kw("keyword", "end"), no()),
         ),
@@ -373,7 +371,7 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             seq(
                 altFirst(
                     seq(
-                        ignored(rule("blank_sameline")),
+                        rule("blank_sameline"),
                         ignored(ambient("guard", nothing())),
                         rule("expr"),
                     ),
@@ -422,9 +420,9 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             seq(
                 param("operand"),
                 seq(
-                    ignored(opt(rule("blank"))),
+                    opt(rule("blank")),
                     rule("cascade_op"),
-                    ignored(opt(rule("blank"))),
+                    opt(rule("blank")),
                     ignored(lookahead(true, rule("member"))),
                     cut(),
                     bind(
@@ -437,9 +435,9 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
                 rep(
                     false,
                     seq(
-                        ignored(opt(rule("blank"))),
+                        opt(rule("blank")),
                         rule("cascade_op"),
-                        ignored(opt(rule("blank"))),
+                        opt(rule("blank")),
                         ignored(lookahead(true, rule("member"))),
                         cut(),
                         bind(
@@ -737,9 +735,9 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
         def: alt(
             joined(
                 seq(
-                    ignored(opt(rule("blank"))),
+                    opt(rule("blank")),
                     rule("comparison_op"),
-                    ignored(opt(rule("blank"))),
+                    opt(rule("blank")),
                 ),
                 rule("predicate"),
                 true,
@@ -785,9 +783,7 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
     },
     normal_predicate: { def: kw("operator", "is") },
     inverted_predicate: {
-        def: ignored(
-            ssep(rule("blank"), kw("operator", "is"), kw("operator", "not")),
-        ),
+        def: ssep(rule("blank"), kw("operator", "is"), kw("operator", "not")),
     },
 
     // non associative
@@ -959,18 +955,18 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             seq(
                 rule("postfix"),
                 seq(
-                    ignored(opt(rule("blank"))),
+                    opt(rule("blank")),
                     rule("indexing_op"),
-                    ignored(opt(rule("blank"))),
+                    opt(rule("blank")),
                     cut(),
                     rule("member"),
                 ),
                 rep(
                     false,
                     seq(
-                        ignored(opt(rule("blank"))),
+                        opt(rule("blank")),
                         rule("indexing_op"),
-                        ignored(opt(rule("blank"))),
+                        opt(rule("blank")),
                         cut(),
                         rule("member"),
                     ),
@@ -1185,7 +1181,7 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
     },
     ws_comma: { def: seq(rule("blank"), rule("comma"), rule("blank")) },
     empty_collection: { def: alt(rule("empty_list"), rule("empty_map")) },
-    empty_list: { def: ignored(nothing()) },
+    empty_list: { def: nothing() },
     empty_map: { def: op("operator", ":") },
     collection_item: {
         def: altFirst(

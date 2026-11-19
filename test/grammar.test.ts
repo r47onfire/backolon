@@ -1,4 +1,4 @@
-import { CSTNode, describeCombinator, parseToCST } from "@r47onfire/nebula";
+import { CSTNode, alt, describeCombinator, parseToCST, regex, rep, rule } from "@r47onfire/nebula";
 import { condenseCST } from "@r47onfire/nebula/compile";
 import { describe, expect, test } from "bun:test";
 import { backolonGrammar, objectEntries } from "../src";
@@ -392,5 +392,45 @@ describe("error nodes", () => {
         const outer = ast[1] as ASTNode[];
         expect(outer[0]).toBe("add");
         expect((outer[1] as ASTNode[])[0]).toBe("add");
+    });
+});
+
+describe("blank wrappers", () => {
+    const nodeTypes = (node: CSTNode<any>, into = new Set<string>()): Set<string> => {
+        if (node.type !== null) into.add(node.type);
+        for (const child of node.children) nodeTypes(child, into);
+        return into;
+    };
+
+    test("blank_required and blank_sameline produce plain blank nodes", () => {
+        // the wrappers declare no ignoredness (or nodes) of their own:
+        // nonempty/sameline pass blank's node through and the rule call
+        // elides to it, so their positions hold blank nodes whose
+        // droppability is blank's own
+        const types = nodeTypes(parsesFully("let a = 1, b = 2"));
+        expect(types.has("blank_required")).toBe(false);
+        expect(types.has("blank_sameline")).toBe(false);
+        expect(types.has("blank")).toBe(true);
+    });
+
+    test("stripping blank's ignored brings comments back at condense", () => {
+        // what an annotation patch does: remove the ignored(...) from
+        // blank's definition, and nothing else
+        const annotated = {
+            ...backolonGrammar,
+            blank: { def: rep(false, alt(regex(/\s*/), rule("comment"))) },
+        } as typeof backolonGrammar;
+        const src = "a. ## c\n b";
+        const findAll = (node: CSTNode<any>, type: string, into: CSTNode<any>[] = []): CSTNode<any>[] => {
+            if (node.type === type) into.push(node);
+            for (const child of node.children) findAll(child, type, into);
+            return into;
+        };
+        const withIgnored = condenseCST(parse(src));
+        expect(findAll(withIgnored, "comment")).toEqual([]);
+        const withoutIgnored = condenseCST(parseToCST(src, new URL("test:"), 0, "toplevel_exprs", annotated, "exprs"));
+        const comments = findAll(withoutIgnored, "comment");
+        expect(comments.length).toBe(1);
+        expect(leaves(comments[0]!).join("")).toBe("## c\n");
     });
 });
