@@ -40,6 +40,7 @@ export type BackolonErrorMessage =
     | "backolon.call.kw_splat.lazy_computed"
     | "backolon.block.not_a_mapping"
     | "backolon.eval.unknown_cst_type"
+    | "backolon.eval.cst_type_not_runnable"
     | "backolon.import.main_cycle"
     | "backolon.import.circular"
     | "backolon.import.unresolvable"

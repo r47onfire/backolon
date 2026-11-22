@@ -1,11 +1,12 @@
 import type { LinkedList } from "@r47onfire/game-math";
+import { CSTNode } from "@r47onfire/nebula";
 import { parse } from "lib0/json";
 import type { StackTreeNode } from "../../errors";
 import type { Env } from "../env";
 import type { TryCatchHandler } from "../trycatch";
 import type { Task, TaskGen } from "../vm";
 import type { Importer } from "./importer";
-import { JSModule, JSONModule, JSONSourceMap } from "./jsmod";
+import { JSModule } from "./jsmod";
 
 const defaultDecoder = new TextDecoder();
 
@@ -63,7 +64,7 @@ export abstract class Finder {
         traceback: LinkedList<StackTreeNode>,
         handlers: LinkedList<TryCatchHandler>,
         path: URL,
-    ): TaskGen<JSONModule | JSONSourceMap> {
+    ): TaskGen<CSTNode<any>> {
         return parse(yield* this.getText(task, env, traceback, handlers, path));
     }
     /**

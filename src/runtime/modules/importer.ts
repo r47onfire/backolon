@@ -1,15 +1,16 @@
 import { LinkedList } from "@r47onfire/game-math";
-import type { Env } from "../env";
+import { CSTNode } from "@r47onfire/nebula";
 import { StackTreeNode } from "../../errors";
 import {
     CircularImportError,
     ImportError,
     ModuleNotFoundError,
 } from "../../errors/classes";
+import type { Env } from "../env";
 import { handleError, TryCatchHandler } from "../trycatch";
 import type { Task, TaskGen } from "../vm";
 import { Finder } from "./finder";
-import { JSModule, JSONModule, JSONSourceMap } from "./jsmod";
+import { JSModule } from "./jsmod";
 import {
     BackolonSourceModuleLoader,
     JavascriptModuleLoader,
@@ -191,7 +192,7 @@ export class Importer {
         traceback: LinkedList<StackTreeNode>,
         handlers: LinkedList<TryCatchHandler>,
         path: URL,
-    ): TaskGen<JSONModule | JSONSourceMap> {
+    ): TaskGen<CSTNode<any>> {
         return yield* this.#get(
             task,
             env,

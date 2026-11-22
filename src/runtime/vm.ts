@@ -95,7 +95,7 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
     }
     /** A throwaway task evaluating one form, for {@link call}/{@link callAsync}. */
     #callTask(form: CSTNode<any>, env: Env): Task {
-        const task = new Task(this, "call", 0);
+        const task = new Task(this, "__call__", 0);
         task.gen = task.eval(form, env, null, null, []);
         return task;
     }
@@ -232,11 +232,9 @@ export class Task extends EventDispatcher<TaskEvents> {
     /**
      * Evaluate a form: call its grammar entry's run handler through
      * {@link callValue}, then unwrap the result on the way out. A value
-     * carrying an `__unwrap__` is a wrapper; unless it is an instance of one of
-     * the wrapper classes the caller is prepared to receive, it is replaced by
-     * its unwrapped value -- itself called through callValue, since
-     * `__unwrap__` is a {@link Callable} -- and the replacement is checked the
-     * same way, so nested wrappers all come off.
+     * carrying an `__unwrap__` method is a wrapper; unless it is an instance of
+     * one of the wrapper classes the caller is prepared to receive, it is
+     * replaced by its unwrapped value.
      */
     *eval(
         form: CSTNode<any>,
@@ -246,7 +244,7 @@ export class Task extends EventDispatcher<TaskEvents> {
         wrappers: WrapperClass[],
     ): TaskGen<any> {
         const rule = this.grammar[form.type];
-        if (!rule || !rule.run) {
+        if (!rule) {
             return yield* handleError(
                 this,
                 env,
@@ -258,6 +256,20 @@ export class Task extends EventDispatcher<TaskEvents> {
                 ),
                 handlers,
                 new BTypeError("backolon.eval.unknown_cst_type", form),
+            );
+        }
+        if (!rule.run) {
+            return yield* handleError(
+                this,
+                env,
+                tbAdd(
+                    form.type ?? undefined,
+                    form.span,
+                    StackEntryKind.SYNTAX,
+                    traceback,
+                ),
+                handlers,
+                new BTypeError("backolon.eval.cst_type_not_runnable", form),
             );
         }
         let x = yield* callValue(

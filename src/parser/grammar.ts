@@ -114,11 +114,7 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
     toplevel_expr: {
         def: rep(
             true,
-            seq(
-                opt(rule("expr_sep")),
-                opt(rule("blank")),
-                rule("expr"),
-            ),
+            seq(opt(rule("expr_sep")), opt(rule("blank")), rule("expr")),
         ),
     },
     expr: {

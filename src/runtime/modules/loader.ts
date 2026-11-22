@@ -63,23 +63,17 @@ export class JavascriptModuleLoader extends Loader {
 //     match(url: URL): Loader | undefined {
 //         if (url.pathname.endsWith(".bk.json")) return this;
 //     }
-//     async load(vm: BackolonVM, url: URL, module: Module, importer: Importer) {
-//         let { code, sourceMap, files } = await importer.getJSON(url) as JSONModule;
-//         vm.currentEnv = module.global;
-//         const absFiles = files.map(f => new URL(f, url));
-//         // TODO: make the data be sloinked and use sloink to rewrite the tagged indices on load time
-//         if (sourceMap && files) {
-//             absFiles.forEach(f => vm.fileIndex(f));
-//             (importer.getJSON(new URL(sourceMap, url)) as Promise<JSONSourceMap>).then(({ mappings, contents }) => {
-//                 return absFiles.forEach((f, i) => {
-//                     vm.maps[f.href] = mappings[i]!.map(({ 0: start, 1: end }) => new Span(f, start, end));
-//                     return vm.sources[f.href] = new SourceTracker(f, contents[i]!, {});
-//                 });
-//             });
-//         }
-//         pushCommand(vm, OP_set_env, vm.currentEnv);
-//         pushCommand(vm, OP_eval, undefined);
-//         pushData(vm, code);
+//     *load(
+//         task: Task,
+//         env: Env,
+//         module: Module,
+//         traceback: LinkedList<StackTreeNode>,
+//         handlers: LinkedList<TryCatchHandler>,
+//         url: URL,
+//         importer: Importer,
+//     ) {
+//         const code = yield* importer.getJSON(task, env, traceback, handlers, url);
+//         return yield* task.eval(code, module, traceback, handlers, []);
 //     }
 // }
 
