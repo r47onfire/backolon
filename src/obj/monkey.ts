@@ -770,7 +770,7 @@ objectMethod(
         handlers,
         other,
     ) {
-        return this === other;
+        return this === other ? true : NotImplemented;
     }, ONE_ARG_SIG),
 );
 
@@ -778,7 +778,7 @@ objectMethod(
 objectMethod(
     "__ne__",
     new Builtin(function* (this: any, task, env, traceback, handlers, other) {
-        return !(yield* callValue(
+        const result = (yield* callValue(
             task,
             env,
             traceback,
@@ -788,6 +788,7 @@ objectMethod(
             [other],
             true,
         ));
+        return result === NotImplemented ? result : !result;
     }, ONE_ARG_SIG),
 );
 
