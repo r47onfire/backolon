@@ -153,10 +153,9 @@ Number.prototype.__div__ = new Builtin(function* (
                     env,
                     traceback,
                     handlers,
-                    new DivideByZeroError(
-                        "backolon.operator.divide_by_zero",
-                        [this],
-                    ),
+                    new DivideByZeroError("backolon.operator.divide_by_zero", [
+                        this,
+                    ]),
                 );
             }
             return BigInt(this) / other;
@@ -186,10 +185,9 @@ Number.prototype.__rdiv__ = new Builtin(function* (
                     env,
                     traceback,
                     handlers,
-                    new DivideByZeroError(
-                        "backolon.operator.divide_by_zero",
-                        [this],
-                    ),
+                    new DivideByZeroError("backolon.operator.divide_by_zero", [
+                        this,
+                    ]),
                 );
             }
             return other / BigInt(this);
@@ -404,10 +402,7 @@ BigInt.prototype.__div__ = new Builtin(function* (
                 env,
                 traceback,
                 handlers,
-                new BValueError(
-                    "backolon.operator.divide_by_zero",
-                    [this],
-                ),
+                new BValueError("backolon.operator.divide_by_zero", [this]),
             );
         }
         return this / other;
@@ -420,10 +415,7 @@ BigInt.prototype.__div__ = new Builtin(function* (
                     env,
                     traceback,
                     handlers,
-                    new BValueError(
-                        "backolon.operator.divide_by_zero",
-                        [this],
-                    ),
+                    new BValueError("backolon.operator.divide_by_zero", [this]),
                 );
             }
             return this / BigInt(other);
@@ -448,10 +440,7 @@ BigInt.prototype.__rdiv__ = new Builtin(function* (
                 env,
                 traceback,
                 handlers,
-                new BValueError(
-                    "backolon.operator.divide_by_zero",
-                    [other],
-                ),
+                new BValueError("backolon.operator.divide_by_zero", [other]),
             );
         }
         return other / this;
@@ -464,10 +453,9 @@ BigInt.prototype.__rdiv__ = new Builtin(function* (
                     env,
                     traceback,
                     handlers,
-                    new BValueError(
-                        "backolon.operator.divide_by_zero",
-                        [other],
-                    ),
+                    new BValueError("backolon.operator.divide_by_zero", [
+                        other,
+                    ]),
                 );
             }
             return BigInt(other) / this;

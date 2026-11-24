@@ -311,10 +311,9 @@ export function* doargs<P extends Signature>(
                             env,
                             tbParam(key, g.form.span),
                             handlers,
-                            new BTypeError(
-                                "backolon.call.duplicate_argument",
-                                [key],
-                            ),
+                            new BTypeError("backolon.call.duplicate_argument", [
+                                key,
+                            ]),
                         );
                     if (byName[key]!.kind !== "normal")
                         return yield* handleError(

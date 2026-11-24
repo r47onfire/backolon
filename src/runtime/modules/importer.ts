@@ -34,7 +34,7 @@ export class Importer {
             // new JSONModuleLoader(),
             new BackolonSourceModuleLoader(),
         ],
-    ) { }
+    ) {}
     /**
      * Pushes the required opcodes to the stack to load the module at the given
      * URL and leave the {@link Module} on the stack.
@@ -72,10 +72,9 @@ export class Importer {
                         env,
                         traceback,
                         handlers,
-                        new CircularImportError(
-                            "backolon.import.circular",
-                            [culprits],
-                        ),
+                        new CircularImportError("backolon.import.circular", [
+                            culprits,
+                        ]),
                     );
                 }
                 return m;

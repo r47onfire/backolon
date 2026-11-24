@@ -110,6 +110,11 @@ export interface Comparable {
 
 export const NotImplemented = Symbol("NotImplemented");
 
+/**
+ * Runs a binary method handler on the two left and right objects, by first
+ * trying `left.__op__(right)` and then `right.__rop__(left)` and throwing if
+ * neither exists or returns a valid value.
+ */
 export function* runBinaryMethod(
     task: Task,
     env: Env,
@@ -122,9 +127,35 @@ export function* runBinaryMethod(
     const method = `__${op}__`;
     const reflectedMethod = `__r${op}__`;
 
-    let result = left[method] ? yield* callValue(task, env, traceback, handlers, left[method], left, [right], true) : NotImplemented;
+    let result = left?.[method]
+        ? yield* callValue(
+              task,
+              env,
+              traceback,
+              handlers,
+              left[method],
+              left,
+              [right],
+              true,
+          )
+        : NotImplemented;
     if (result != NotImplemented) return result;
-    result = right[reflectedMethod] ? yield* callValue(task, env, traceback, handlers, right[reflectedMethod], right, [left], true) : NotImplemented;
+    result = right?.[reflectedMethod]
+        ? yield* callValue(
+              task,
+              env,
+              traceback,
+              handlers,
+              right[reflectedMethod],
+              right,
+              [left],
+              true,
+          )
+        : NotImplemented;
     if (result != NotImplemented) return result;
-    throw new BTypeError("backolon.operator.wrong_type.binary", [op, left, right]);
+    throw new BTypeError("backolon.operator.wrong_type.binary", [
+        op,
+        left,
+        right,
+    ]);
 }
