@@ -21,7 +21,7 @@ const addGenTask = (
     priority: number,
     gen: TaskGen<any>,
 ): Task => {
-    const task = vm.addTask(
+    const task = vm.addTaskRaw(
         id,
         priority,
         new CSTNode<any>(stubSpan, "dummy"),

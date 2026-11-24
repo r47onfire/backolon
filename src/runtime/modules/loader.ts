@@ -2,6 +2,8 @@ import type { Importer } from "./importer";
 import type { Module } from "./module";
 import type { BackolonVM, Task, TaskGen } from "../vm";
 import { LinkedList } from "@r47onfire/game-math";
+import { parseToCST } from "@r47onfire/nebula";
+import { condenseCST } from "@r47onfire/nebula/compile";
 import type { Env } from "../env";
 import { StackTreeNode } from "../../errors";
 import { TryCatchHandler } from "../trycatch";
@@ -77,6 +79,27 @@ export class JavascriptModuleLoader extends Loader {
 //     }
 // }
 
+/**
+ * Parse `text` as the body of `module` and evaluate it in the module's own
+ * environment. This is the one place source text becomes a running module:
+ * {@link BackolonSourceModuleLoader} calls it with text a finder fetched, and
+ * {@link BackolonVM.startThread} calls it with text supplied directly (a REPL
+ * entry, a /command's code).
+ */
+export function* loadModuleText(
+    task: Task,
+    module: Module,
+    traceback: LinkedList<StackTreeNode>,
+    handlers: LinkedList<TryCatchHandler>,
+    url: URL,
+    text: string,
+): TaskGen<void> {
+    const forms = condenseCST(
+        parseToCST(text, url, 0, "toplevel_exprs", task.grammar, "exprs"),
+    );
+    yield* task.eval(forms, module, traceback, handlers, []);
+}
+
 /** Loader that handles loading Backolon source code */
 export class BackolonSourceModuleLoader extends Loader {
     match(url: URL): Loader | undefined {
@@ -98,6 +121,6 @@ export class BackolonSourceModuleLoader extends Loader {
             handlers,
             url,
         );
-        throw new Error("text");
+        yield* loadModuleText(task, module, traceback, handlers, url, text);
     }
 }

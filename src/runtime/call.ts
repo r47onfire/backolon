@@ -43,15 +43,6 @@ export function* callValue<P extends Signature, R>(
     args: any[],
     computed?: boolean,
 ): TaskGen<R> {
-    if (undefinedToNull(f) === null) {
-        return (yield* handleError(
-            task,
-            env,
-            traceback,
-            handlers,
-            new NotImplementedError("backolon.call.no_handler"),
-        )) as R;
-    }
     const sig = yield* getSignature(task, env, traceback, handlers, f!);
     const finalArgs: any[] = computed
         ? // Conditional hack because Typescript doesn't like boolean to a function that's
@@ -92,7 +83,7 @@ export function* callValue<P extends Signature, R>(
             env,
             traceback,
             handlers,
-            new BTypeError("backolon.call.not_callable", f),
+            new BTypeError("backolon.call.not_callable", [f]),
         )) as R;
     }
 }

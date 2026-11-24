@@ -1,6 +1,6 @@
 import { LinkedList } from "@r47onfire/game-math";
 import { StackTreeNode } from "../errors/compress";
-import type { Env, Task, TaskGen } from "../runtime";
+import { callValue, type Env, type Task, type TaskGen } from "../runtime";
 import { TryCatchHandler } from "../runtime/trycatch";
 import {
     Builtin,
@@ -8,6 +8,7 @@ import {
     ONE_ARG_SIG,
     Signature,
 } from "./builtin_function";
+import { BTypeError } from "../errors";
 
 /** A class of wrappers, as threaded through the evaluation context. */
 export type WrapperClass = abstract new (...args: any[]) => Wrapper;
@@ -86,6 +87,11 @@ export interface Absable {
     __abs__: Callable<typeof NO_ARGS_SIG, any>;
 }
 
+/** A value that can turn itself into a string, e.g. for interpolation. */
+export interface Stringable {
+    __str__: Callable<typeof NO_ARGS_SIG, string>;
+}
+
 export interface ReflectedMathable extends Mathable {
     __radd__: Callable<typeof ONE_ARG_SIG, any>;
     __rsub__: Callable<typeof ONE_ARG_SIG, any>;
@@ -94,10 +100,31 @@ export interface ReflectedMathable extends Mathable {
 }
 
 export interface Comparable {
-    __lt__?: Callable<typeof ONE_ARG_SIG, boolean>;
-    __gt__?: Callable<typeof ONE_ARG_SIG, boolean>;
-    __lte__?: Callable<typeof ONE_ARG_SIG, boolean>;
-    __gte__?: Callable<typeof ONE_ARG_SIG, boolean>;
-    __eq__?: Callable<typeof ONE_ARG_SIG, boolean>;
-    __ne__?: Callable<typeof ONE_ARG_SIG, boolean>;
+    __lt__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
+    __gt__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
+    __lte__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
+    __gte__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
+    __eq__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
+    __ne__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
+}
+
+export const NotImplemented = Symbol("NotImplemented");
+
+export function* runBinaryMethod(
+    task: Task,
+    env: Env,
+    traceback: LinkedList<StackTreeNode>,
+    handlers: LinkedList<TryCatchHandler>,
+    op: string,
+    left: any,
+    right: any,
+) {
+    const method = `__${op}__`;
+    const reflectedMethod = `__r${op}__`;
+
+    let result = left[method] ? yield* callValue(task, env, traceback, handlers, left[method], left, [right], true) : NotImplemented;
+    if (result != NotImplemented) return result;
+    result = right[reflectedMethod] ? yield* callValue(task, env, traceback, handlers, right[reflectedMethod], right, [left], true) : NotImplemented;
+    if (result != NotImplemented) return result;
+    throw new BTypeError("backolon.operator.wrong_type.binary", [op, left, right]);
 }

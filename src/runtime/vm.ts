@@ -8,11 +8,12 @@ import { BaseBackolonError, BTypeError } from "../errors";
 import { StackEntryKind, type StackTreeNode, tbAdd } from "../errors/compress";
 import type { Signature } from "../obj/builtin_function";
 import { type Callable, isWrapper, type WrapperClass } from "../obj/protocol";
-import { backolonGrammar } from "../parser";
 import { BackolonAuditEvents } from "./audit";
+import { backolonGrammar } from "./builtins/grammar";
 import { callValue } from "./call";
 import { Env } from "./env";
 import { Importer } from "./modules/importer";
+import { loadModuleText } from "./modules/loader";
 import { Module } from "./modules/module";
 import { TaskEvents } from "./taskEvents";
 import { handleError, TryCatchHandler } from "./trycatch";
@@ -50,7 +51,7 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
     }
     /** List of tasks, sorted by priority. */
     #tasks: Task[] = [];
-    addTask(
+    addTaskRaw(
         id: string,
         priority: number,
         form: CSTNode<any>,
@@ -66,6 +67,44 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
         this.#tasks.push(t);
         insertionSort(this.#tasks, (t1, t2) => t2.priority - t1.priority);
         return t;
+    }
+    /**
+     * Start a thread running the module at `url` as a main module, and return
+     * the thread. The module is imported as a main module and its body runs on
+     * the new thread; the thread's result is the module.
+     *
+     * If `source` is given, it is the module's source text, used instead of
+     * fetching the file at `url` -- for a REPL or a /command, where the code
+     * has no file behind it but still needs a URL to be a module at.
+     */
+    startThread(url: URL, source?: string): Task {
+        const task = new Task(this, url.href, 0);
+        task.gen = this.#mainTask(task, url, source);
+        this.#tasks.push(task);
+        insertionSort(this.#tasks, (t1, t2) => t2.priority - t1.priority);
+        return task;
+    }
+    /** The generator a {@link startThread} thread runs to load its module. */
+    *#mainTask(
+        task: Task,
+        url: URL,
+        source: string | undefined,
+    ): TaskGen<Module> {
+        if (source !== undefined) {
+            const m = this.createAndCacheModule(url, null);
+            m.addUnshadowableFast("__main__", true);
+            yield* loadModuleText(task, m, null, null, url, source);
+            return m;
+        }
+        return yield* this.importer.loadModule(
+            task,
+            new Env(),
+            null,
+            null,
+            null,
+            url,
+            true,
+        );
     }
     /**
      * Evaluate a form to completion on an ad-hoc task and return its value,
@@ -255,7 +294,7 @@ export class Task extends EventDispatcher<TaskEvents> {
                     traceback,
                 ),
                 handlers,
-                new BTypeError("backolon.eval.unknown_cst_type", form),
+                new BTypeError("backolon.eval.unknown_cst_type", [form]),
             );
         }
         if (!rule.run) {
@@ -269,7 +308,7 @@ export class Task extends EventDispatcher<TaskEvents> {
                     traceback,
                 ),
                 handlers,
-                new BTypeError("backolon.eval.cst_type_not_runnable", form),
+                new BTypeError("backolon.eval.cst_type_not_runnable", [form]),
             );
         }
         let x = yield* callValue(

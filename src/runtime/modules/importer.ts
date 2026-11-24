@@ -34,7 +34,7 @@ export class Importer {
             // new JSONModuleLoader(),
             new BackolonSourceModuleLoader(),
         ],
-    ) {}
+    ) { }
     /**
      * Pushes the required opcodes to the stack to load the module at the given
      * URL and leave the {@link Module} on the stack.
@@ -57,12 +57,12 @@ export class Importer {
                         env,
                         traceback,
                         handlers,
-                        new CircularImportError("backolon.import.circular"),
+                        new CircularImportError("backolon.import.main_cycle"),
                     );
                 }
                 if (m.parent) {
-                    let m2: Module | null | boolean = parent,
-                        culprits: Module[] = [m];
+                    let m2: Module | null | boolean = parent;
+                    const culprits: Module[] = [m];
                     while (m2 instanceof Module && m2 !== m) {
                         culprits.push(m2);
                         m2 = m2.parent;
@@ -74,7 +74,7 @@ export class Importer {
                         handlers,
                         new CircularImportError(
                             "backolon.import.circular",
-                            culprits,
+                            [culprits],
                         ),
                     );
                 }
@@ -115,7 +115,7 @@ export class Importer {
             env,
             traceback,
             handlers,
-            new ModuleNotFoundError("backolon.import.not_found", path),
+            new ModuleNotFoundError("backolon.import.not_found", [path]),
         )) as Module;
     }
     /**
@@ -148,7 +148,7 @@ export class Importer {
             env,
             traceback,
             handlers,
-            new ImportError("backolon.import.unresolvable", path.href),
+            new ImportError("backolon.import.unresolvable", [path]),
         ) as any;
     }
     /** The raw bytes of the file at `path`, via the matching finder. */

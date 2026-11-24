@@ -119,7 +119,7 @@ export function* doargs<P extends Signature>(
                     env,
                     tbParam(name, g.form.span),
                     handlers,
-                    new BTypeError("backolon.call.duplicate_argument", name),
+                    new BTypeError("backolon.call.duplicate_argument", [name]),
                 );
             claimed.add(name);
             g.dest = name;
@@ -130,7 +130,7 @@ export function* doargs<P extends Signature>(
                 env,
                 tbParam(name, g.form.span),
                 handlers,
-                new BTypeError("backolon.call.unknown_keyword", name),
+                new BTypeError("backolon.call.unknown_keyword", [name]),
             );
     }
     // Positional arguments before the first splat anchor to the head
@@ -183,7 +183,7 @@ export function* doargs<P extends Signature>(
                     ? tbParam(undefined, firstTooMany.form.span)
                     : traceback,
                 handlers,
-                new BTypeError("backolon.call.too_many_arguments", args),
+                new BTypeError("backolon.call.too_many_arguments", [args]),
             );
         }
     }
@@ -313,7 +313,7 @@ export function* doargs<P extends Signature>(
                             handlers,
                             new BTypeError(
                                 "backolon.call.duplicate_argument",
-                                key,
+                                [key],
                             ),
                         );
                     if (byName[key]!.kind !== "normal")
@@ -324,7 +324,7 @@ export function* doargs<P extends Signature>(
                             handlers,
                             new BTypeError(
                                 "backolon.call.kw_splat.lazy_computed",
-                                v,
+                                [key],
                             ),
                         );
                     claimed.add(key);
@@ -336,7 +336,7 @@ export function* doargs<P extends Signature>(
                         env,
                         tbParam(key, g.form.span),
                         handlers,
-                        new BTypeError("backolon.call.unknown_keyword", key),
+                        new BTypeError("backolon.call.unknown_keyword", [key]),
                     );
             }
         }
@@ -361,7 +361,7 @@ export function* doargs<P extends Signature>(
                 env,
                 traceback,
                 handlers,
-                new BTypeError("backolon.call.lazy_computed", value),
+                new BTypeError("backolon.call.lazy_computed", [name]),
             );
         bound.set(name, value);
     }
@@ -378,7 +378,7 @@ export function* doargs<P extends Signature>(
             env,
             traceback,
             handlers,
-            new BTypeError("backolon.call.too_many_arguments", args),
+            new BTypeError("backolon.call.too_many_arguments"),
         );
 
     // Whatever is still unfilled falls to its default, processed the same
@@ -395,7 +395,7 @@ export function* doargs<P extends Signature>(
                 // TODO: point to the missing hole if it was given as explicitly missing
                 traceback,
                 handlers,
-                new BTypeError("backolon.call.missing_argument", name),
+                new BTypeError("backolon.call.missing_argument", [name]),
             );
         bound.set(
             name,

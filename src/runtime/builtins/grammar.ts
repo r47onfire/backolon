@@ -1,11 +1,13 @@
 // TODO: this is a massive file and will only get longer. Is there any way to split it up???
 
+import type { LinkedList } from "@r47onfire/game-math";
 import {
     adopt,
     alt,
     altFirst,
     ambient,
     bind,
+    CSTNode,
     cut,
     defineGrammar,
     donate,
@@ -34,8 +36,29 @@ import {
     walkCombinator,
     yes,
 } from "@r47onfire/nebula";
-import type { FormFunc } from "../runtime/vm";
-import { objectValues } from "../utils";
+import { abs } from "lib0/math";
+import {
+    BNameError,
+    BSyntaxError,
+    BTypeError,
+    type StackTreeNode,
+} from "../../errors";
+import { Builtin, type Signature } from "../../obj/builtin_function";
+import type { Stringable } from "../../obj/protocol";
+import { objectValues } from "../../utils";
+import { callValue } from "../call";
+import type { Env } from "../env";
+import { handleError, type TryCatchHandler } from "../trycatch";
+import type { FormFunc, Task, TaskGen } from "../vm";
+import {
+    decimalValue,
+    hexEscape,
+    integerValue,
+    knownEscape,
+    makeFormFunc,
+    numberValue,
+    stringValue,
+} from "./grammar_handlers";
 
 // TODO: add rocket operator => - what precedence? what does it even do?
 // TODO: tweak strong blocks to allow do and begin blocks to be passed to a parameter to an implicit call
@@ -69,7 +92,10 @@ import { objectValues } from "../utils";
  * on `assign_op` -- so `a += b` is not misread as a binary `+` followed by a
  * prefix `=` assignment -- and then cuts to commit the level.
  */
-export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
+export const backolonGrammar = defineGrammar<{
+    run?: FormFunc;
+    pure?: boolean;
+}>({
     blank: { def: ignored(rep(false, alt(regex(/\s*/), rule("comment")))) },
     blank_required: { def: nonempty(rule("blank")) },
     blank_sameline: { def: sameline(rule("blank_required")) },
@@ -109,6 +135,12 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             ),
             opt(rule("expr_sep")),
         ),
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            let result: any = null;
+            for (const form of node.children!)
+                result = yield* task.eval(form, env, traceback, handlers, []);
+            return result;
+        }),
     },
     toplevel_exprs: { def: nonempty(rule("exprs")) },
     toplevel_expr: {
@@ -1067,10 +1099,31 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             rule("strong_block"),
         ),
     },
-    number: { def: tag("number", alt(rule("hex"), rule("bin"), rule("dec"))) },
-    hex: { def: seq(ignored(lit("0x")), cut(), regex(/[a-f0-9]+/i)) },
-    bin: { def: seq(ignored(lit("0b")), cut(), regex(/[01]+/i)) },
-    dec: { def: regex(/((?!0\d)\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?/i) },
+    number: {
+        def: tag("number", alt(rule("hex"), rule("bin"), rule("dec"))),
+        run: makeFormFunc(numberValue),
+    },
+    hex: {
+        def: seq(ignored(lit("0x")), cut(), regex(/[a-f0-9]+/i)),
+        pure: true,
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            return integerValue(leafText(node), 16);
+        }),
+    },
+    bin: {
+        def: seq(ignored(lit("0b")), cut(), regex(/[01]+/i)),
+        pure: true,
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            return integerValue(leafText(node), 2);
+        }),
+    },
+    dec: {
+        def: regex(/((?!0\d)\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?/i),
+        pure: true,
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            return decimalValue(leafText(node));
+        }),
+    },
     string: { def: alt(rule("r_string"), rule("i_string")) },
     r_string: {
         def: seq(
@@ -1079,10 +1132,23 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             rep(false, rule("r_part")),
             ignored(tag("string", lit("'"))),
         ),
+        run: makeFormFunc(stringValue),
     },
     r_part: { def: alt(rule("r_escape"), rule("r_body")) },
-    r_escape: { def: tag("escape", regex(/\\./)) },
-    r_body: { def: tag("string", regex(/[^'\\]+/)) },
+    r_escape: {
+        def: tag("escape", regex(/\\./)),
+        pure: true,
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            return leafText(node).slice(1);
+        }),
+    },
+    r_body: {
+        def: tag("string", regex(/[^'\\]+/)),
+        pure: true,
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            return leafText(node);
+        }),
+    },
     i_string: {
         def: seq(
             ignored(tag("string", lit('"'))),
@@ -1104,6 +1170,7 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             ),
             ignored(tag("string", lit('"'))),
         ),
+        run: makeFormFunc(stringValue),
     },
     i_escape: {
         def: alt(
@@ -1113,9 +1180,21 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             rule("i_U_escape"),
         ),
     },
-    i_known_escape: { def: regex(/./) },
-    i_x_escape: { def: seq(ignored(lit("x")), cut(), regex(/[0-9a-f]{2}/)) },
-    i_u_escape: { def: seq(ignored(lit("u")), cut(), regex(/[0-9a-f]{4}/)) },
+    i_known_escape: {
+        def: regex(/./),
+        pure: true,
+        run: knownEscape,
+    },
+    i_x_escape: {
+        def: seq(ignored(lit("x")), cut(), regex(/[0-9a-f]{2}/)),
+        pure: true,
+        run: hexEscape,
+    },
+    i_u_escape: {
+        def: seq(ignored(lit("u")), cut(), regex(/[0-9a-f]{4}/)),
+        pure: true,
+        run: hexEscape,
+    },
     i_U_escape: {
         def: seq(
             ignored(lit("U")),
@@ -1124,6 +1203,8 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             regex(/[0-9a-f]+/),
             ignored(lit("}")),
         ),
+        pure: true,
+        run: hexEscape,
     },
     i_interpolation: {
         def: seq(
@@ -1132,8 +1213,33 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             bind("guard", false, nothing(), rule("exprs")),
             ignored(tag("escape", lit(")"))),
         ),
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            const value = yield* task.eval(
+                node.children![0]!,
+                env,
+                traceback,
+                handlers,
+                [],
+            );
+            return yield* callValue(
+                task,
+                env,
+                traceback,
+                handlers,
+                (Object(value) as Stringable).__str__,
+                value,
+                [],
+                true,
+            );
+        }),
     },
-    i_body: { def: tag("string", regex(/[^"\\]+/)) },
+    i_body: {
+        def: tag("string", regex(/[^"\\]+/)),
+        pure: true,
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            return leafText(node);
+        }),
+    },
     regex: {
         def: tag(
             "regex",
@@ -1144,12 +1250,18 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
                 regex(/[gimsuvy]*/), // cSpell: ignore gimsuvy
             ),
         ),
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            return new RegExp(leafText(node), node.children![1]!.text!);
+        }),
     },
     boolean: {
         def: seq(
             ignored(nothing()),
             alt(rule("boolean_true"), rule("boolean_false")),
         ),
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            return node.children![0]!.type === "boolean_true";
+        }),
     },
     boolean_true: { def: kw("boolean", "true", "True", "TRUE") },
     boolean_false: { def: kw("boolean", "false", "False", "FALSE") },
@@ -1215,9 +1327,32 @@ export const backolonGrammar = defineGrammar<{ run?: FormFunc }>({
             bind("guard", false, nothing(), rule("exprs")),
             op("punctuation", ")"),
         ),
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            return yield* task.eval(
+                node.children![0]!,
+                env,
+                traceback,
+                handlers,
+                [],
+            );
+        }),
     },
     name: {
         def: tag("name", regex(/[_\p{L}][_\p{L}\p{N}]*/u)),
+        run: makeFormFunc(function* (task, env, traceback, handlers, node) {
+            const name = leafText(node);
+            const { 0: value, 1: exists } = env.get(name);
+            if (!exists) {
+                return yield* handleError(
+                    task,
+                    env,
+                    traceback,
+                    handlers,
+                    new BNameError("backolon.variable.nonexistent", name),
+                );
+            }
+            return value;
+        }),
     },
 });
 
@@ -1250,6 +1385,10 @@ export const all_tags = new Set(
             [] as string[],
         ),
 );
+
+function leafText(node: CSTNode<any>): any {
+    throw new Error("Function not implemented.");
+}
 // console.log({ all_tags });
 // Object.entries(backolonGrammar).forEach(([rule, g]) => {
 //     console.log(`${rule}: ${describeCombinator(Array.isArray(g) ? g[1] : g)}`);

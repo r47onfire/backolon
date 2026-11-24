@@ -1,13 +1,15 @@
 import { LinkedList, LinkedList_toArray } from "@r47onfire/game-math";
 import { compressStackTree, StackTreeNode } from "./compress";
 import { formatStackTraceCompact } from "./format";
-import { BackolonErrorMessage } from "./messages";
+import { BackolonErrorArgs, BackolonErrorMessageKey } from "./messages";
 
 /** Generic base class for an error thrown by a Backolon program. */
-export class BaseBackolonError extends Error {
+export class BaseBackolonError<
+    T extends BackolonErrorMessageKey = BackolonErrorMessageKey,
+> extends Error {
     constructor(
-        message: BackolonErrorMessage,
-        readonly offense?: any,
+        message: T,
+        readonly offense: BackolonErrorArgs[T] = [] as any,
         public traceback: LinkedList<StackTreeNode> = null,
         readonly children: BaseBackolonError[] = [],
         options: ErrorOptions = {},
