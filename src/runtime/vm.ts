@@ -4,7 +4,7 @@ import {
     LinkedList,
 } from "@r47onfire/game-math";
 import { CSTNode, Memo } from "@r47onfire/nebula";
-import { BaseBackolonError, BTypeError } from "../errors";
+import { BaseBackolonError, BTypeError, RuntimeError } from "../errors";
 import { StackEntryKind, type StackTreeNode, tbAdd } from "../errors/compress";
 import type { Signature } from "../obj/builtin_function";
 import { type Callable, isWrapper, type WrapperClass } from "../obj/protocol";
@@ -115,8 +115,8 @@ export class BackolonVM extends EventDispatcher<BackolonAuditEvents> {
     call(form: CSTNode<any>, env: Env): any {
         const task = this.#callTask(form, env);
         task.step();
-        if (!task.done) {
-            throw new Error("call() task didn't finish");
+        while (!task.done) {
+            task.sync();
         }
         return task.result;
     }
@@ -252,6 +252,15 @@ export class Task extends EventDispatcher<TaskEvents> {
         } else {
             this.#park(outcome.value);
         }
+    }
+    /**
+     * Throw an error _into_ the generator, if the generator is supposed to be
+     * sync and yielded instead.
+     */
+    sync() {
+        this.#resumeStatus = ResumeStatus.ERROR_VALUE;
+        this.#resumeValue = new RuntimeError("backolon.eval.async");
+        this.step();
     }
     /** Park the task on a yielded promise until it settles. */
     #park(promise: PromiseLike<any>): void {

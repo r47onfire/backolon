@@ -778,7 +778,7 @@ objectMethod(
 objectMethod(
     "__ne__",
     new Builtin(function* (this: any, task, env, traceback, handlers, other) {
-        const result = (yield* callValue(
+        const result = yield* callValue(
             task,
             env,
             traceback,
@@ -787,7 +787,7 @@ objectMethod(
             this,
             [other],
             true,
-        ));
+        );
         return result === NotImplemented ? result : !result;
     }, ONE_ARG_SIG),
 );

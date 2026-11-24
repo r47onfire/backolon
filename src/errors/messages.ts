@@ -24,6 +24,7 @@ export type BackolonErrorArgs = {
     "backolon.eval.unknown_cst_type": [node: CSTNode<any>];
     "backolon.eval.cst_type_not_runnable": [node: CSTNode<any>];
     "backolon.eval.not_a_cst_node": [obj: any];
+    "backolon.eval.async": [];
     "backolon.string.unknown_escape": [esc: any];
     "backolon.import.main_cycle": [];
     "backolon.import.circular": [culprits: Module[]];
@@ -62,6 +63,8 @@ export const english: Record<BackolonErrorMessageKey, string> = {
     "backolon.eval.unknown_cst_type": "unknown CST node type {0}",
     "backolon.eval.cst_type_not_runnable": "CST type {0} has no implementation",
     "backolon.eval.not_a_cst_node": "cannot run {0} as a CST node",
+    "backolon.eval.async":
+        "attempted an asynchronous operation in a synchronous context",
     "backolon.string.unknown_escape": "unknown escape {0}",
     "backolon.import.main_cycle": "main module imported itself",
     "backolon.import.circular": "circular import from {}", // TODO: how to format a list?
