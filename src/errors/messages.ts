@@ -6,10 +6,11 @@ export type BackolonErrorArgs = {
     "backolon.variable.nonexistent": [name: string];
     "backolon.variable.readonly": [name: string];
     "backolon.variable.unshadowable": [name: string];
-    "backolon.operator.wrong_type.binary": [op: string, left: any, right: any];
+    "backolon.operator.binary.wrong_type": [op: string, left: any, right: any];
     "backolon.operator.divide_by_zero": [left: any, right: any];
-    "backolon.operator.wrong_type.unary": [op: string, obj: any];
-    "backolon.operator.wrong_type.compare": [op: string, left: any, right: any];
+    "backolon.operator.unary.wrong_type": [op: string, obj: any];
+    "backolon.operator.compare.wrong_type": [op: string, left: any, right: any];
+    "backolon.operator.compare.unorderable": [left: any, right: any];
     "backolon.call.no_signature": [obj: any];
     "backolon.call.not_callable": [obj: any];
     "backolon.call.duplicate_argument": [name: Identifier];
@@ -38,13 +39,15 @@ export const english: Record<BackolonErrorMessageKey, string> = {
     "backolon.variable.nonexistent": "variable {0} not found",
     "backolon.variable.readonly": "{0} is a constant",
     "backolon.variable.unshadowable": "{0} is special and cannot be shadowed",
-    "backolon.operator.wrong_type.binary":
+    "backolon.operator.binary.wrong_type":
         "unsupported operation {0} for {1|type} and {2|type}",
     "backolon.operator.divide_by_zero": "attempted division by zero",
-    "backolon.operator.wrong_type.unary":
+    "backolon.operator.unary.wrong_type":
         "unsupported operaton {0} on {1|type}",
-    "backolon.operator.wrong_type.compare":
+    "backolon.operator.compare.wrong_type":
         "cannot compare {1|type} and {2|type}",
+    "backolon.operator.compare.unorderable":
+        "{0|type} and {1|type} can't be ordered",
     "backolon.call.no_signature": "{0|type} is missing a signature",
     "backolon.call.not_callable": "{0|type} is not callable",
     "backolon.call.duplicate_argument": "duplicate keyword argument {0}",

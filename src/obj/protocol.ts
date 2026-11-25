@@ -1,4 +1,4 @@
-import { LinkedList } from "@r47onfire/game-math";
+import { issubclass, LinkedList } from "@r47onfire/game-math";
 import { StackTreeNode } from "../errors/compress";
 import { callValue, type Env, type Task, type TaskGen } from "../runtime";
 import { TryCatchHandler } from "../runtime/trycatch";
@@ -153,124 +153,10 @@ export function* runBinaryMethod(
           )
         : NotImplemented;
     if (result != NotImplemented) return result;
-    throw new BTypeError("backolon.operator.wrong_type.binary", [
+    throw new BTypeError("backolon.operator.binary.wrong_type", [
         op,
         left,
         right,
     ]);
 }
-
-const op2booleans = {
-    lt: [true, false, false],
-    gt: [false, false, true],
-    lte: [true, true, false],
-    gte: [false, true, true],
-    eq: [false, true, false],
-    ne: [true, false, true],
-} satisfies Record<string, [less: boolean, equal: boolean, greater: boolean]>;
-export type ComparisonOp = keyof typeof op2booleans;
-
-/**
- * Compares the two left and right objects and returns true or false according
- * to how they compare.
- *
- * The operands' comparison methods are called in a fixed order -- for each
- * relation, the direct method on the left object, then the mirrored method on
- * the right -- and every answer rules some outcomes out (a true `__lt__`
- * settles it, a false one rules LESS out, a false `__lte__` means GREATER, and
- * so on). The call returns as soon as every outcome still possible maps to the
- * same value, without calling anything further. If every method is missing or
- * answers {@link NotImplemented}, and the outcome is still undecided, the
- * objects cannot be compared and this throws.
- */
-export function* totalOrdering(
-    task: Task,
-    env: Env,
-    traceback: LinkedList<StackTreeNode>,
-    handlers: LinkedList<TryCatchHandler>,
-    left: any,
-    right: any,
-    op: ComparisonOp,
-): TaskGen<boolean> {
-    // Which outcomes have not been ruled out yet.
-    const EQUAL = 1,
-        LESS = 0,
-        GREATER = 2;
-    const possible = [true, true, true] as [boolean, boolean, boolean];
-    const results = op2booleans[op];
-    console.log("Test compare %o %o", op, results);
-    if (!results) throw new Error("undefined comparison op " + op);
-    // The result once every outcome still possible maps to the same
-    // value; undefined while the comparison is still undecided.
-    const decided = (): boolean | undefined => {
-        let result: boolean | undefined;
-        let decided = 0;
-        if (possible[LESS]) {
-            result = results[LESS];
-            decided++;
-        }
-        if (possible[EQUAL]) {
-            result = results[EQUAL];
-            decided++;
-        }
-        if (possible[GREATER]) {
-            result = results[GREATER];
-            decided++;
-        }
-        return decided === 1 ? result : undefined;
-    };
-    const attempts: [
-        receiver: any,
-        method: string,
-        argument: any,
-        impossibleIfTrue: (0 | 1 | 2)[],
-        impossibleIfFalse: (0 | 1 | 2)[],
-    ][] = [
-        [left, "__lt__", right, [EQUAL, GREATER], [LESS]],
-        [right, "__gt__", left, [EQUAL, GREATER], [LESS]],
-        [left, "__gt__", right, [LESS, EQUAL], [GREATER]],
-        [right, "__lt__", left, [LESS, EQUAL], [GREATER]],
-        [left, "__eq__", right, [LESS, GREATER], [EQUAL]],
-        [right, "__eq__", left, [LESS, GREATER], [EQUAL]],
-        [left, "__ne__", right, [EQUAL], [LESS, GREATER]],
-        [right, "__ne__", left, [EQUAL], [LESS, GREATER]],
-        [left, "__lte__", right, [GREATER], [LESS, EQUAL]],
-        [right, "__gte__", left, [GREATER], [LESS, EQUAL]],
-        [left, "__gte__", right, [LESS], [EQUAL, GREATER]],
-        [right, "__lte__", left, [LESS], [EQUAL, GREATER]],
-    ];
-    for (let i = 0; i < attempts.length; i++) {
-        const { 0: obj, 1: name, 2: arg, 3: ifTrue, 4: ifFalse } = attempts[i]!;
-        const answer = decided();
-        if (answer !== undefined) return answer;
-        const method = obj?.[name];
-        if (!method) continue;
-        const result = yield* callValue(
-            task,
-            env,
-            traceback,
-            handlers,
-            method,
-            obj,
-            [arg],
-            true,
-        );
-        if (result === NotImplemented) continue;
-        const chosen = result ? ifTrue : ifFalse;
-        for (let j = 0; j < chosen.length; j++) {
-            possible[chosen[j]!] = false;
-        }
-        if (possible.every((x) => !x)) {
-            // The answers contradict each other
-            break;
-        }
-    }
-    const answer = decided();
-    if (answer !== undefined) return answer;
-    console.log("object %o %o %o", op, left, right);
-    throw new BTypeError("backolon.operator.wrong_type.compare", [
-        op,
-        left,
-        right,
-    ]);
-}
+export type ComparisonOp = "lt" | "gt" | "le" | "ge" | "eq" | "ne";
