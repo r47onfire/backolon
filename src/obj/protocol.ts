@@ -102,8 +102,8 @@ export interface ReflectedMathable extends Mathable {
 export interface Comparable {
     __lt__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
     __gt__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
-    __lte__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
-    __gte__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
+    __le__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
+    __ge__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
     __eq__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
     __ne__?: Callable<typeof ONE_ARG_SIG, boolean | typeof NotImplemented>;
 }
@@ -139,7 +139,7 @@ export function* runBinaryMethod(
               true,
           )
         : NotImplemented;
-    if (result != NotImplemented) return result;
+    if (result !== NotImplemented) return result;
     result = right?.[reflectedMethod]
         ? yield* callValue(
               task,
@@ -152,7 +152,7 @@ export function* runBinaryMethod(
               true,
           )
         : NotImplemented;
-    if (result != NotImplemented) return result;
+    if (result !== NotImplemented) return result;
     throw new BTypeError("backolon.operator.binary.wrong_type", [
         op,
         left,
@@ -160,3 +160,107 @@ export function* runBinaryMethod(
     ]);
 }
 export type ComparisonOp = "lt" | "gt" | "le" | "ge" | "eq" | "ne";
+
+const comparsonMirrors: Record<ComparisonOp, ComparisonOp> = {
+    lt: "gt",
+    gt: "lt",
+    le: "ge",
+    ge: "le",
+    eq: "eq",
+    ne: "ne",
+};
+
+const orderingMethodNames: ComparisonOp[] = ["lt", "gt", "le", "ge"];
+
+/**
+ * Whether the value's type defines any ordering method of its own, as opposed
+ * to inheriting the Object.prototype defaults.
+ */
+const hasOrderingMethod = (obj: any): boolean =>
+    obj !== null &&
+    obj !== undefined &&
+    orderingMethodNames.some(
+        (name, _, __, dunder = `__${name}__`) =>
+            obj[dunder] !== undefined &&
+            obj[dunder] !== (Object.prototype as any)[dunder],
+    );
+
+const safePrototypeOf = (value: any): object | null =>
+    value === null || value === undefined
+        ? null
+        : Reflect.getPrototypeOf(Object(value));
+
+/**
+ * Whether the right's prototype is strictly below the left's prototype in the
+ * prototype chain.
+ */
+const rightIsSubclass = (left: any, right: any): boolean => {
+    const leftProto = safePrototypeOf(left);
+    const rightProto = safePrototypeOf(right);
+    if (leftProto === null || rightProto === null || leftProto === rightProto) {
+        return false;
+    }
+    for (
+        let p = Reflect.getPrototypeOf(rightProto);
+        p !== null;
+        p = Reflect.getPrototypeOf(p)
+    ) {
+        if (p === leftProto) return true;
+    }
+    return false;
+};
+
+/**
+ * Runs a comparison: `left <op> right`.
+ *
+ * A comparison's reflected form is the mirrored method on the right operand
+ * (`__gt__` for `__lt__`, `__eq__` for itself), and it goes first when the
+ * right operand's type is a subclass of the left's.
+ */
+export function* compare(
+    task: Task,
+    env: Env,
+    traceback: LinkedList<StackTreeNode>,
+    handlers: LinkedList<TryCatchHandler>,
+    left: any,
+    right: any,
+    op: ComparisonOp,
+): TaskGen<boolean> {
+    const mirror = comparsonMirrors[op];
+    for (const { 0: obj, 1: name, 2: arg } of rightIsSubclass(left, right)
+        ? [
+              [right, mirror, left],
+              [left, op, right],
+          ]
+        : [
+              [left, op, right],
+              [right, mirror, left],
+          ]) {
+        const method = obj?.[`__${name}__`];
+        if (!method) continue;
+        const result = yield* callValue(
+            task,
+            env,
+            traceback,
+            handlers,
+            method,
+            obj,
+            [arg],
+            true,
+        );
+        if (result !== NotImplemented) return result as boolean;
+    }
+    if (op === "eq") return left === right;
+    if (op === "ne") return left !== right;
+    if (!hasOrderingMethod(left) && !hasOrderingMethod(right)) {
+        throw new BTypeError("backolon.operator.compare.unorderable", [
+            left,
+            right,
+        ]);
+    }
+    throw new BTypeError("backolon.operator.compare.wrong_type", [
+        op,
+        left,
+        right,
+    ]);
+}

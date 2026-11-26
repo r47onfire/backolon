@@ -6,6 +6,7 @@ import {
     ComparisonOp,
     NotImplemented,
     runBinaryMethod,
+    compare,
 } from "../src/obj/protocol";
 import "../src/obj/monkey";
 
@@ -26,6 +27,10 @@ const v = (op: string, left: any, right: any): any =>
 /** Run a unary dunder: unary operations have no reflected form to try. */
 const u = (dunder: any, thisArg: any): any =>
     drive(dunder.run(task, env, null, null, thisArg, []));
+
+/** Run a comparison the way the language does: left <op> right. */
+const cmp = (left: any, right: any, op: ComparisonOp): any =>
+    drive(compare(task, env, null, null, left, right, op));
 
 describe("Number", () => {
     test("add, including the bigint mixing rules", () => {
@@ -78,7 +83,7 @@ describe("Number", () => {
     test("comparisons across the numeric tower", () => {
         expect(v("lt", 5, 10n)).toBeTrue();
         expect(v("lt", 5, true)).toBeFalse();
-        expect(v("gte", 5, 5n)).toBeTrue();
+        expect(v("ge", 5, 5n)).toBeTrue();
         expect(() => v("lt", 5, "a")).toThrow(
             new BTypeError("backolon.operator.binary.wrong_type"),
         );
@@ -184,7 +189,7 @@ describe("String", () => {
 
     test("comparisons are lexicographic, eq is by value", () => {
         expect(v("lt", "abc", "abd")).toBeTrue();
-        expect(v("gte", "abc", "abc")).toBeTrue();
+        expect(v("ge", "abc", "abc")).toBeTrue();
         expect(() => v("lt", "a", 1)).toThrow(
             new BTypeError("backolon.operator.binary.wrong_type"),
         );
@@ -225,14 +230,14 @@ describe("Array", () => {
 });
 
 describe("Object defaults", () => {
-    // test("eq and ne are identity", () => {
-    //     const o = { x: 1 };
-    //     expect(cmp(o, o, "eq")).toBeTrue();
-    //     expect(cmp(o, { x: 1 }, "eq")).toBeFalse();
-    //     expect(cmp(o, { x: 1 }, "ne")).toBeTrue();
-    //     const f = () => 1;
-    //     expect(cmp(f, f, "eq")).toBeTrue();
-    // });
+    test("eq and ne are identity", () => {
+        const o = { x: 1 };
+        expect(cmp(o, o, "eq")).toBeTrue();
+        expect(cmp(o, { x: 1 }, "eq")).toBeFalse();
+        expect(cmp(o, { x: 1 }, "ne")).toBeTrue();
+        const f = () => 1;
+        expect(cmp(f, f, "eq")).toBeTrue();
+    });
 
     test("the Object.prototype methods are not enumerable", () => {
         const keys: string[] = [];
@@ -241,173 +246,174 @@ describe("Object defaults", () => {
     });
 });
 
-// describe("totalOrdering", () => {
-//     const lt = (l: any, r: any) => cmp(l, r, "lt");
-//     const le = (l: any, r: any) => cmp(l, r, "le");
-//     const gt = (l: any, r: any) => cmp(l, r, "gt");
-//     const ge = (l: any, r: any) => cmp(l, r, "ge");
-//     const eq = (l: any, r: any) => cmp(l, r, "eq");
-//     const ne = (l: any, r: any) => cmp(l, r, "ne");
+describe("totalOrdering", () => {
+    const lt = (l: any, r: any) => cmp(l, r, "lt");
+    const le = (l: any, r: any) => cmp(l, r, "le");
+    const gt = (l: any, r: any) => cmp(l, r, "gt");
+    const ge = (l: any, r: any) => cmp(l, r, "ge");
+    const eq = (l: any, r: any) => cmp(l, r, "eq");
+    const ne = (l: any, r: any) => cmp(l, r, "ne");
 
-//     test("answers from the operands' own comparison methods", () => {
-//         expect(lt(5, 10n)).toBeTrue();
-//         expect(lt(5, 5)).toBeFalse();
-//         expect(gt(5, 5)).toBeFalse();
-//         expect(ge(5, 5n)).toBeTrue();
-//         expect(eq(5, 5n)).toBeTrue();
-//         expect(ne(1, "1")).toBeTrue();
-//         expect(lt("abc", "abd")).toBeTrue();
-//         expect(gt("abc", "abd")).toBeFalse();
-//     });
+    test("answers from the operands' own comparison methods", () => {
+        expect(lt(5, 10n)).toBeTrue();
+        expect(lt(5, 5)).toBeFalse();
+        expect(gt(5, 5)).toBeFalse();
+        expect(ge(5, 5n)).toBeTrue();
+        expect(eq(5, 5n)).toBeTrue();
+        expect(ne(1, "1")).toBeTrue();
+        expect(lt("abc", "abd")).toBeTrue();
+        expect(gt("abc", "abd")).toBeFalse();
+    });
 
-//     test("fills in the operators a type did not define", () => {
-//         // a type with only __lt__ and __eq__: every other operator is
-//         // derived by ruling outcomes out
-//         const sortable = (x: number): any => {
-//             const o: any = { x };
-//             o.__lt__ = new Builtin(function* (
-//                 this: any,
-//                 _task,
-//                 _env,
-//                 _traceback,
-//                 _handlers,
-//                 other: any,
-//             ) {
-//                 return typeof other?.x === "number"
-//                     ? this.x < other.x
-//                     : NotImplemented;
-//             }, ONE_ARG_SIG);
-//             o.__eq__ = new Builtin(function* (
-//                 this: any,
-//                 _task,
-//                 _env,
-//                 _traceback,
-//                 _handlers,
-//                 other: any,
-//             ) {
-//                 return typeof other?.x === "number"
-//                     ? this.x === other.x
-//                     : NotImplemented;
-//             }, ONE_ARG_SIG);
-//             return o;
-//         };
-//         expect(lt(sortable(1), sortable(2))).toBeTrue();
-//         // __lt__ alone settles these: the answer needs no __gt__ at all
-//         expect(gt(sortable(1), sortable(2))).toBeFalse();
-//         expect(le(sortable(1), sortable(2))).toBeTrue();
-//         expect(ge(sortable(1), sortable(2))).toBeFalse();
-//         // the reflected __lt__ on the right settles this one
-//         expect(gt(sortable(2), sortable(1))).toBeTrue();
-//         // equality itself is answered by __eq__...
-//         expect(eq(sortable(2), sortable(2))).toBeTrue();
-//         expect(ne(sortable(2), sortable(2))).toBeFalse();
-//         expect(eq(sortable(1), sortable(2))).toBeFalse();
-//         // ...but inside an ordered comparison, both orderings failing
-//         // settles the equality component by elimination
-//         expect(le(sortable(2), sortable(2))).toBeTrue();
-//         expect(ge(sortable(2), sortable(2))).toBeTrue();
-//         expect(ge(sortable(2), sortable(1))).toBeTrue();
-//     });
+    test("fills in the operators a type did not define", () => {
+        // a type with only __lt__ and __eq__: every other operator is
+        // derived by ruling outcomes out
+        const sortable = (x: number): any => ({
+            x,
+            __lt__: new Builtin(function* (
+                this: any,
+                _task,
+                _env,
+                _traceback,
+                _handlers,
+                other: any,
+            ) {
+                return typeof other?.x === "number"
+                    ? this.x < other.x
+                    : NotImplemented;
+            }, ONE_ARG_SIG),
+            __eq__: new Builtin(function* (
+                this: any,
+                _task,
+                _env,
+                _traceback,
+                _handlers,
+                other: any,
+            ) {
+                return typeof other?.x === "number"
+                    ? this.x === other.x
+                    : NotImplemented;
+            }, ONE_ARG_SIG),
+        });
+        expect(lt(sortable(1), sortable(2))).toBeTrue();
+        // __lt__ alone settles these: the answer needs no __gt__ at all
+        expect(gt(sortable(1), sortable(2))).toBeFalse();
+        expect(le(sortable(1), sortable(2))).toBeTrue();
+        expect(ge(sortable(1), sortable(2))).toBeFalse();
+        // the reflected __lt__ on the right settles this one
+        expect(gt(sortable(2), sortable(1))).toBeTrue();
+        // equality itself is answered by __eq__...
+        expect(eq(sortable(2), sortable(2))).toBeTrue();
+        expect(ne(sortable(2), sortable(2))).toBeFalse();
+        expect(eq(sortable(1), sortable(2))).toBeFalse();
+        // ...but inside an ordered comparison, both orderings failing
+        // settles the equality component by elimination
+        expect(le(sortable(2), sortable(2))).toBeTrue();
+        expect(ge(sortable(2), sortable(2))).toBeTrue();
+        expect(ge(sortable(2), sortable(1))).toBeTrue();
+    });
 
-//     test("the right operand's methods answer when the left has none", () => {
-//         // a type with only __gt__: a comparison against a plain object
-//         // is answered by the mirrored call, right.__gt__(left)
-//         const gtOnly = (x: number): any => {
-//             const o: any = { x };
-//             o.__gt__ = new Builtin(function* (
-//                 this: any,
-//                 _task,
-//                 _env,
-//                 _traceback,
-//                 _handlers,
-//                 other: any,
-//             ) {
-//                 return typeof other?.x === "number"
-//                     ? this.x > other.x
-//                     : NotImplemented;
-//             }, ONE_ARG_SIG);
-//             return o;
-//         };
-//         expect(lt({ x: 0 }, gtOnly(1))).toBeTrue();
-//         expect(lt({ x: 1 }, gtOnly(0))).toBeFalse();
-//     });
+    test("the right operand's methods answer when the left has none", () => {
+        // a type with only __gt__: a comparison against a plain object
+        // is answered by the mirrored call, right.__gt__(left)
+        const gtOnly = (x: number): any => {
+            const o: any = { x };
+            o.__gt__ = new Builtin(function* (
+                this: any,
+                _task,
+                _env,
+                _traceback,
+                _handlers,
+                other: any,
+            ) {
+                return typeof other?.x === "number"
+                    ? this.x > other.x
+                    : NotImplemented;
+            }, ONE_ARG_SIG);
+            return o;
+        };
+        expect(lt({ x: 0 }, gtOnly(1))).toBeTrue();
+        expect(lt({ x: 1 }, gtOnly(0))).toBeFalse();
+    });
 
-//     test("throws when no method can decide the comparison", () => {
-//         expect(() => lt(5, "a")).toThrow(
-//             new BTypeError("backolon.operator.compare.wrong_type"),
-//         );
-//         // plain objects can be equated (identity) but not ordered
-//         const o = { x: 1 };
-//         expect(eq(o, o)).toBeTrue();
-//         expect(eq(o, { x: 1 })).toBeFalse();
-//         expect(() => lt(o, { x: 1 })).toThrow(
-//             new BTypeError("backolon.operator.compare.unorderable"),
-//         );
-//         expect(() => ge(o, { x: 1 })).toThrow(
-//             new BTypeError("backolon.operator.compare.unorderable"),
-//         );
-//     });
+    test("throws when no method can decide the comparison", () => {
+        expect(() => lt(5, "a")).toThrow(
+            new BTypeError("backolon.operator.compare.wrong_type"),
+        );
+        // plain objects can be equated (identity) but not ordered
+        const o = { x: 1 };
+        expect(eq(o, o)).toBeTrue();
+        expect(eq(o, { x: 1 })).toBeFalse();
+        expect(() => lt(o, { x: 1 })).toThrow(
+            new BTypeError("backolon.operator.compare.unorderable"),
+        );
+        expect(() => ge(o, { x: 1 })).toThrow(
+            new BTypeError("backolon.operator.compare.unorderable"),
+        );
+    });
 
-//     test("eq and ne consult only __eq__ and __ne__, and give up to identity", () => {
-//         const calls: string[] = [];
-//         const o: any = { x: 1 };
-//         o.__lt__ = new Builtin(() => {
-//             calls.push("__lt__");
-//             return true;
-//         }, ONE_ARG_SIG);
-//         o.__eq__ = new Builtin(function* (
-//             this: any,
-//             _task,
-//             _env,
-//             _traceback,
-//             _handlers,
-//             other: any,
-//         ) {
-//             return typeof other?.x === "number"
-//                 ? this.x === other.x
-//                 : NotImplemented;
-//         }, ONE_ARG_SIG);
-//         expect(eq(o, { x: 1 })).toBeTrue();
-//         expect(ne(o, { x: 1 })).toBeFalse();
-//         expect(ne(o, { x: 2 })).toBeTrue();
-//         // the ordering methods were never touched
-//         expect(calls).toEqual([]);
-//         // a type whose __eq__ always declines: equality is identity,
-//         // and eq/ne still do not throw
-//         const declines: any = {};
-//         declines.__eq__ = new Builtin(() => NotImplemented, ONE_ARG_SIG);
-//         expect(eq(declines, {})).toBeFalse();
-//         expect(ne(declines, {})).toBeTrue();
-//         expect(eq(declines, declines)).toBeTrue();
-//     });
+    test("eq and ne consult only __eq__ and __ne__, and give up to identity", () => {
+        const calls: string[] = [];
+        const o: any = { x: 1 };
+        o.__lt__ = new Builtin(() => {
+            calls.push("__lt__");
+            return true;
+        }, ONE_ARG_SIG);
+        o.__eq__ = new Builtin(function* (
+            this: any,
+            _task,
+            _env,
+            _traceback,
+            _handlers,
+            other: any,
+        ) {
+            return typeof other?.x === "number"
+                ? this.x === other.x
+                : NotImplemented;
+        }, ONE_ARG_SIG);
+        expect(eq(o, { x: 1 })).toBeTrue();
+        expect(ne(o, { x: 1 })).toBeFalse();
+        expect(ne(o, { x: 2 })).toBeTrue();
+        // the ordering methods were never touched
+        expect(calls).toEqual([]);
+        // a type whose __eq__ always declines: equality is identity,
+        // and eq/ne still do not throw
+        const declines: any = {};
+        declines.__eq__ = new Builtin(() => NotImplemented, ONE_ARG_SIG);
+        expect(eq(declines, {})).toBeFalse();
+        expect(ne(declines, {})).toBeTrue();
+        expect(eq(declines, declines)).toBeTrue();
+    });
 
-//     test("a subclass right operand's reflected methods take priority", () => {
-//         const calls: string[] = [];
-//         const recorder = (label: string, result: boolean) =>
-//             new Builtin(() => {
-//                 calls.push(label);
-//                 return result;
-//             }, ONE_ARG_SIG);
-//         const baseProto: any = {};
-//         baseProto.__lt__ = recorder("base.__lt__", true);
-//         baseProto.__eq__ = recorder("base.__eq__", false);
-//         const subProto: any = Object.create(baseProto);
-//         subProto.__gt__ = recorder("sub.__gt__", true);
-//         subProto.__eq__ = recorder("sub.__eq__", false);
-//         const a: any = Object.create(baseProto);
-//         const b: any = Object.create(subProto);
-//         // b's type is a subclass of a's, so b's reflected __gt__
-//         // answers before a's __lt__ is ever tried
-//         expect(lt(a, b)).toBeTrue();
-//         expect(calls).toEqual(["sub.__gt__"]);
-//         // the other way around the left operand keeps priority: b's
-//         // (inherited) __lt__ answers first
-//         calls.length = 0;
-//         expect(lt(b, a)).toBeTrue();
-//         expect(calls).toEqual(["base.__lt__"]);
-//         // the same priority applies to equality
-//         calls.length = 0;
-//         expect(eq(a, b)).toBeFalse();
-//         expect(calls).toEqual(["sub.__eq__"]);
-//     });
-// });
+    test("a subclass right operand's reflected methods take priority", () => {
+        const calls: string[] = [];
+        const recorder = (label: string, result: boolean) =>
+            new Builtin(() => {
+                calls.push(label);
+                return result;
+            }, ONE_ARG_SIG);
+        class base {
+            __lt__ = recorder("base.__lt__", true);
+            __eq__ = recorder("base.__eq__", false);
+        }
+        class sub extends base {
+            __gt__ = recorder("sub.__gt__", true);
+            __eq__ = recorder("sub.__eq__", false);
+        }
+        const a = new base();
+        const b = new sub();
+        // b's type is a subclass of a's, so b's reflected __gt__
+        // answers before a's __lt__ is ever tried
+        expect(lt(a, b)).toBeTrue();
+        expect(calls).toEqual(["sub.__gt__"]);
+        // the other way around the left operand keeps priority: b's
+        // (inherited) __lt__ answers first
+        calls.length = 0;
+        expect(lt(b, a)).toBeTrue();
+        expect(calls).toEqual(["base.__lt__"]);
+        // the same priority applies to equality
+        calls.length = 0;
+        expect(eq(a, b)).toBeFalse();
+        expect(calls).toEqual(["sub.__eq__"]);
+    });
+});

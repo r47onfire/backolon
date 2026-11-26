@@ -14,6 +14,7 @@ import {
     Callable,
     CallableObject,
     Comparable,
+    ComparisonOp,
     Negateable,
     NotImplemented,
     ReflectedMathable,
@@ -253,7 +254,7 @@ Number.prototype.__gt__ = new Builtin(function* (
     return NotImplemented;
 }, ONE_ARG_SIG);
 
-Number.prototype.__lte__ = new Builtin(function* (
+Number.prototype.__le__ = new Builtin(function* (
     this: number,
     task,
     env,
@@ -268,7 +269,7 @@ Number.prototype.__lte__ = new Builtin(function* (
     return NotImplemented;
 }, ONE_ARG_SIG);
 
-Number.prototype.__gte__ = new Builtin(function* (
+Number.prototype.__ge__ = new Builtin(function* (
     this: number,
     task,
     env,
@@ -516,7 +517,7 @@ BigInt.prototype.__gt__ = new Builtin(function* (
     return NotImplemented;
 }, ONE_ARG_SIG);
 
-BigInt.prototype.__lte__ = new Builtin(function* (
+BigInt.prototype.__le__ = new Builtin(function* (
     this: bigint,
     task,
     env,
@@ -531,7 +532,7 @@ BigInt.prototype.__lte__ = new Builtin(function* (
     return NotImplemented;
 }, ONE_ARG_SIG);
 
-BigInt.prototype.__gte__ = new Builtin(function* (
+BigInt.prototype.__ge__ = new Builtin(function* (
     this: bigint,
     task,
     env,
@@ -644,7 +645,7 @@ String.prototype.__gt__ = new Builtin(function* (
     return NotImplemented;
 }, ONE_ARG_SIG);
 
-String.prototype.__lte__ = new Builtin(function* (
+String.prototype.__le__ = new Builtin(function* (
     this: string,
     task,
     env,
@@ -658,7 +659,7 @@ String.prototype.__lte__ = new Builtin(function* (
     return NotImplemented;
 }, ONE_ARG_SIG);
 
-String.prototype.__gte__ = new Builtin(function* (
+String.prototype.__ge__ = new Builtin(function* (
     this: string,
     task,
     env,
@@ -791,6 +792,155 @@ objectMethod(
         return result === NotImplemented ? result : !result;
     }, ONE_ARG_SIG),
 );
+
+/**
+ * Returns true if the objects are equal (negate=false) or unequal
+ * (negate=true).
+ */
+const testEqual = function* (
+    task: any,
+    env: any,
+    traceback: any,
+    handlers: any,
+    self: any,
+    other: any,
+    negate: boolean,
+) {
+    const method = negate ? self.__ne__ : self.__eq__;
+    const result = yield* callValue(
+        task,
+        env,
+        traceback,
+        handlers,
+        method,
+        self,
+        [other],
+        true,
+    );
+    return result === NotImplemented ? (self === other) !== negate : result;
+};
+
+enum Finish {
+    /** A false value settles it; a true one defers to **ne** */
+    AND_NE,
+    /** A true value settles it; a false one defers to **eq** */
+    OR_EQ,
+    /** No other method needs to be consulted to find the answer */
+    ALL,
+}
+type Derivation = readonly [
+    source: ComparisonOp,
+    negate: boolean,
+    finish: Finish,
+];
+
+/**
+ * How each ordering method is derived from each of the others: [source dunder,
+ * negate the source's answer, how the answer finishes]
+ */
+const derivations: Partial<Record<ComparisonOp, readonly Derivation[]>> = {
+    lt: [
+        ["le", false, Finish.AND_NE] as const,
+        ["gt", true, Finish.AND_NE] as const,
+        ["ge", true, Finish.ALL] as const,
+    ],
+    gt: [
+        ["lt", true, Finish.AND_NE] as const,
+        ["le", true, Finish.ALL] as const,
+        ["ge", false, Finish.AND_NE] as const,
+    ],
+    le: [
+        ["lt", false, Finish.OR_EQ] as const,
+        ["gt", true, Finish.ALL] as const,
+        ["ge", true, Finish.OR_EQ] as const,
+    ],
+    ge: [
+        ["lt", true, Finish.ALL] as const,
+        ["le", true, Finish.OR_EQ] as const,
+        ["gt", false, Finish.OR_EQ] as const,
+    ],
+};
+
+const deriveCompare = function* (
+    task: any,
+    env: any,
+    traceback: any,
+    handlers: any,
+    self: any,
+    other: any,
+    op: ComparisonOp,
+) {
+    for (const { 0: source, 1: negate, 2: finish } of derivations[op]!) {
+        const dunder = `__${source}__`;
+        const method = self[dunder];
+        if (
+            method === undefined ||
+            method === (Object.prototype as any)[dunder]
+        ) {
+            continue;
+        }
+        const result = yield* callValue(
+            task,
+            env,
+            traceback,
+            handlers,
+            method,
+            self,
+            [other],
+            true,
+        );
+        if (result === NotImplemented) continue;
+        const value = negate ? !result : result;
+        if (finish === Finish.ALL) return value;
+        if (finish === Finish.AND_NE) {
+            if (!value) return false;
+            return yield* testEqual(
+                task,
+                env,
+                traceback,
+                handlers,
+                self,
+                other,
+                true,
+            );
+        }
+        if (value) return true;
+        return yield* testEqual(
+            task,
+            env,
+            traceback,
+            handlers,
+            self,
+            other,
+            false,
+        );
+    }
+    return NotImplemented;
+};
+
+for (const method of ["lt", "gt", "le", "ge"] as ComparisonOp[]) {
+    objectMethod(
+        `__${method}__`,
+        new Builtin(function* (
+            this: any,
+            task,
+            env,
+            traceback,
+            handlers,
+            other,
+        ) {
+            return yield* deriveCompare(
+                task,
+                env,
+                traceback,
+                handlers,
+                this,
+                other,
+                method,
+            );
+        }, ONE_ARG_SIG),
+    );
+}
 
 // The default string form of a value: the host's own conversion. Every
 // value inherits it, so anything at all can be interpolated into a string;

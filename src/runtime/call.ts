@@ -127,6 +127,6 @@ export function* getSignature<P extends Signature>(
         env,
         traceback,
         handlers,
-        new BTypeError("backolon.call.no_signature", callee),
+        new BTypeError("backolon.call.no_signature", [callee]),
     )) as P;
 }
