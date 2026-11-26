@@ -5,6 +5,7 @@ import {
     BackolonErrorMessageKey,
     backolonGrammar,
     BackolonVM,
+    BaseBackolonError,
     Importer,
     IndexResolver,
     Module,
@@ -89,9 +90,16 @@ const testTest = (
     name: string,
     fn: (vm: TestVM, out: string[]) => void | Promise<void>,
 ) =>
-    testFn(name, () => {
+    testFn(name, async () => {
         const vm = new TestVM();
-        fn(vm, vm.out);
+        try {
+            await fn(vm, vm.out);
+        } catch (e) {
+            if (e instanceof BaseBackolonError) {
+                console.error("VM Error caught!\n" + e.toString());
+            }
+            throw e;
+        }
     });
 
 /**
@@ -109,27 +117,35 @@ const expectEval = (
     vm.out.length = 0;
 };
 
-const expectEvalError = (vm: TestVM, src: string, error: BackolonErrorMessageKey | RegExp) => {
+const expectEvalError = (
+    vm: TestVM,
+    src: string,
+    error: BackolonErrorMessageKey | RegExp,
+) => {
     expect(() => vm.evalStr(src)).toThrow(error);
 };
 
 describe("modules", () => {
-    testTest(test, "startThread with source runs a module", (vm) => {
+    testTest(test, "startThread with source runs a module", async (vm) => {
         const task = vm.startThread(vfsURL("repl.bk"), "123");
-        vm.waitForAll();
+        await vm.waitForAll();
         expect(task.done).toBeTrue();
         expect(task.result).toBeInstanceOf(Module);
         expect(task.result.parent).toBeNull();
     });
 
-    testTest(test, "startThread loads a module through the finder", (vm) => {
-        main(vm, "123");
-        const task = vm.startThread(MAIN);
-        vm.waitForAll();
-        expect(task.done).toBeTrue();
-        expect(task.result).toBeInstanceOf(Module);
-        expect(task.result.parent).toBeNull();
-    });
+    testTest(
+        test,
+        "startThread loads a module through the finder",
+        async (vm) => {
+            main(vm, "123");
+            const task = vm.startThread(MAIN);
+            await vm.waitForAll();
+            expect(task.done).toBeTrue();
+            expect(task.result).toBeInstanceOf(Module);
+            expect(task.result.parent).toBeNull();
+        },
+    );
 });
 
 describe("eval", () => {
@@ -433,12 +449,7 @@ describe("collections", () => {
     });
     testTest(test, "assigning to list indices", (vm) => {
         expectEval(vm, "let x = [1, 2, 3]; x.(1) = 42; x", [1, 42, 3], []);
-        expectEval(
-            vm,
-            "let x = [1, 2, 3]; x.(1) = x.(2); x",
-            [1, 3, 3],
-            [],
-        );
+        expectEval(vm, "let x = [1, 2, 3]; x.(1) = x.(2); x", [1, 3, 3], []);
     });
     testTest(test, "getting length", (vm) => {
         expectEval(vm, "let x = [1, 2, 3]; #x", 3, []);
@@ -474,9 +485,13 @@ describe("homoiconicity", () => {
         testTest(test, "quote of block", (vm) => {
             expect(vm.evalStr("`(ok bye)")).toBeInstanceOf(Builtin);
         });
-        testTest(test, "quote of thing that already evaluates to itself", (vm) => {
-            expectEval(vm, "`1", 1, []);
-        });
+        testTest(
+            test,
+            "quote of thing that already evaluates to itself",
+            (vm) => {
+                expectEval(vm, "`1", 1, []);
+            },
+        );
         testTest(test, "double quoting", (vm) => {
             expect(vm.evalStr("``(ok)")).toBeInstanceOf(Builtin);
         });
@@ -499,7 +514,11 @@ describe("homoiconicity", () => {
             );
         });
         testTest(test, "too many quotes error", (vm) => {
-            expectEvalError(vm, "{{{$$$$x}}}", "backolon.eval.quasiquote.too_many_unquotes");
+            expectEvalError(
+                vm,
+                "{{{$$$$x}}}",
+                "backolon.eval.quasiquote.too_many_unquotes",
+            );
         });
         testTest(test, "quotes at end error", (vm) => {
             expectEvalError(vm, "{$}", /stray quotes/);
