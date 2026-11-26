@@ -62,7 +62,8 @@ export const makeFormFunc = (
  * The text a leaf form wraps: a name's identifier, a number's digits, a string
  * part's characters -- always the leaf's one text child.
  */
-const leafText = (node: CSTNode<any>): string => node.children![0]!.text!;
+export const leafText = (node: CSTNode<any>): string =>
+    node.children![0]!.text!;
 
 const pureValueCache = new WeakMap<CSTNode<any>, any>();
 
@@ -181,7 +182,7 @@ export const knownEscape = makeFormFunc(
                 env,
                 traceback,
                 handlers,
-                new BSyntaxError("backolon.string.unknown_escape", ch),
+                new BSyntaxError("backolon.string.unknown_escape", [ch]),
             );
         }
         return decoded;

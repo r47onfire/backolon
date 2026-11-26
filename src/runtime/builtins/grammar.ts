@@ -1,13 +1,11 @@
 // TODO: this is a massive file and will only get longer. Is there any way to split it up???
 
-import type { LinkedList } from "@r47onfire/game-math";
 import {
     adopt,
     alt,
     altFirst,
     ambient,
     bind,
-    CSTNode,
     cut,
     defineGrammar,
     donate,
@@ -36,25 +34,18 @@ import {
     walkCombinator,
     yes,
 } from "@r47onfire/nebula";
-import { abs } from "lib0/math";
-import {
-    BNameError,
-    BSyntaxError,
-    BTypeError,
-    type StackTreeNode,
-} from "../../errors";
-import { Builtin, type Signature } from "../../obj/builtin_function";
+import { BNameError } from "../../errors";
 import type { Stringable } from "../../obj/protocol";
 import { objectValues } from "../../utils";
 import { callValue } from "../call";
-import type { Env } from "../env";
-import { handleError, type TryCatchHandler } from "../trycatch";
-import type { FormFunc, Task, TaskGen } from "../vm";
+import { handleError } from "../trycatch";
+import type { FormFunc } from "../vm";
 import {
     decimalValue,
     hexEscape,
     integerValue,
     knownEscape,
+    leafText,
     makeFormFunc,
     numberValue,
     stringValue,
@@ -1348,7 +1339,7 @@ export const backolonGrammar = defineGrammar<{
                     env,
                     traceback,
                     handlers,
-                    new BNameError("backolon.variable.nonexistent", name),
+                    new BNameError("backolon.variable.nonexistent", [name]),
                 );
             }
             return value;
@@ -1385,10 +1376,6 @@ export const all_tags = new Set(
             [] as string[],
         ),
 );
-
-function leafText(node: CSTNode<any>): any {
-    throw new Error("Function not implemented.");
-}
 // console.log({ all_tags });
 // Object.entries(backolonGrammar).forEach(([rule, g]) => {
 //     console.log(`${rule}: ${describeCombinator(Array.isArray(g) ? g[1] : g)}`);
