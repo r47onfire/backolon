@@ -360,6 +360,11 @@ describe("conditionals", () => {
             "2",
         ]);
     });
+    testTest(test, "inline torture test", (vm) => {
+        expectEval(vm, "0?1:2?3:4", 3, []);
+        expectEval(vm, "1?2?3:4:5", 3, []);
+        expectEval(vm, "let x = 1?2:3; x", 2, []);
+    });
 });
 describe("operators", () => {
     testTest(test, "add", (vm) => {
@@ -412,6 +417,37 @@ describe("collections", () => {
     testTest(test, "collections with dynamic values", (vm) => {
         expectEval(vm, "let x = 4; [x, x + 1, x + 2]", [4, 5, 6], []);
     });
+    testTest(test.todo, "self-referential collections", (vm) => {
+        expectEval(vm, "let x = [0]; x.(0) = x; print x", undefined, [
+            "#0=[#0#]",
+        ]);
+    });
+    testTest(test, "indexing lists", (vm) => {
+        expectEval(vm, "[1, 2, 3].(2)", 3, []);
+        expectEval(vm, "[[1, 2], [3, 4]].(1).(1)", 4, []);
+        expectEval(vm, "let x = 1; [x, x + 1, x + 2].(x)", 2, []);
+    });
+    testTest(test, "indexing maps", (vm) => {
+        expectEval(vm, "[1: 2, 3: 4].(3)", 4, []);
+        expectEval(vm, "[1: 2, 3: 4].(4)", undefined, []);
+    });
+    testTest(test, "assigning to list indices", (vm) => {
+        expectEval(vm, "let x = [1, 2, 3]; x.(1) = 42; x", [1, 42, 3], []);
+        expectEval(
+            vm,
+            "let x = [1, 2, 3]; x.(1) = x.(2); x",
+            [1, 3, 3],
+            [],
+        );
+    });
+    testTest(test, "getting length", (vm) => {
+        expectEval(vm, "let x = [1, 2, 3]; #x", 3, []);
+        expectEval(vm, "let x = [1: 2, 2: 3, 3: 4]; #x", 3, []);
+        expectEval(vm, "let x = 'hello'; #x", 5, []);
+    });
+    testTest(test, "mixed list and map items are an error", (vm) => {
+        expectEvalError(vm, "[1, 2, 3: 4]", "backolon.eval.mixed_list_and_map");
+    });
 });
 describe("string interpolation", () => {
     testTest(test, "string into string", (vm) => {
@@ -432,4 +468,123 @@ describe("string interpolation", () => {
             );
         },
     );
+});
+describe("homoiconicity", () => {
+    describe("quoting", () => {
+        testTest(test, "quote of block", (vm) => {
+            expect(vm.evalStr("`(ok bye)")).toBeInstanceOf(Builtin);
+        });
+        testTest(test, "quote of thing that already evaluates to itself", (vm) => {
+            expectEval(vm, "`1", 1, []);
+        });
+        testTest(test, "double quoting", (vm) => {
+            expect(vm.evalStr("``(ok)")).toBeInstanceOf(Builtin);
+        });
+        testTest(test, "quoting name", (vm) => {
+            expectEval(vm, "`name", "name", []);
+        });
+    });
+    describe("templating", () => {
+        testTest(test, "interpolation into blocks", (vm) => {
+            const y = vm.evalStr("let x = print; let y = {$x 2}; y(); y");
+            expect(y).toBeInstanceOf(Builtin);
+            expect(vm.out).toEqual(["2"]);
+        });
+        testTest(test, "multi-level templating", (vm) => {
+            expectEval(
+                vm,
+                "let x = 1; print {print $x {print $y 2}}",
+                undefined,
+                ["(print 1 {print $y 2})"],
+            );
+        });
+        testTest(test, "too many quotes error", (vm) => {
+            expectEvalError(vm, "{{{$$$$x}}}", "backolon.eval.quasiquote.too_many_unquotes");
+        });
+        testTest(test, "quotes at end error", (vm) => {
+            expectEvalError(vm, "{$}", /stray quotes/);
+        });
+    });
+    describe("eval", () => {
+        testTest(test, "simple eval in original environment", (vm) => {
+            expectEval(vm, "let x = `(print 1); x()", undefined, ["1"]);
+        });
+        testTest(test, "eval in constructed environment", (vm) => {
+            expectEval(
+                vm,
+                "let x = `(say 1); x [say: fn(x) print x, x end]",
+                undefined,
+                ["1 1"],
+            );
+        });
+        testTest(test.todo, "concatenation of blocks", (vm) => {
+            expectEval(vm, "eval `(1 +) + `(2)", 3, []);
+        });
+    });
+    testTest(test, "implicit keys", (vm) => {
+        expectEval(vm, "let x = 1; let y = 2; [`x:, `y:]", { x: 1, y: 2 }, []);
+    });
+});
+describe("recursion stress tests with memoization", () => {
+    const MEMOIZE =
+        "let memoize = fn(f) let cache = [:]; fn(x) x in cache ? cache.(x) : (cache.(x) = f(x)) end end";
+    const MEMOIZE_F = (f: (a: number) => number) => {
+        const cache: Record<string, number> = {};
+        return (a: number) => (cache["" + a] ??= f(a));
+    };
+    testTest(test, "A000142 (factorial)", (vm) => {
+        const x = 100;
+        const factorial = (a: number): number =>
+            a > 1 ? a * factorial(a - 1) : 1;
+        expectEval(
+            vm,
+            `let factorial = fn(a) a > 1 ? a * factorial(a - 1) : 1 end; factorial ${x}`,
+            factorial(x),
+            [],
+        );
+    });
+    testTest(test, "A000045 (Fibonacci sequence)", (vm) => {
+        const x = 100;
+        const fibonacci = MEMOIZE_F((a) =>
+            a < 2 ? a : fibonacci(a - 1) + fibonacci(a - 2),
+        );
+        expectEval(
+            vm,
+            `${MEMOIZE}; let fibonacci = memoize fn(a) a < 2 ? a : fibonacci(a - 1) + fibonacci(a - 2) end; fibonacci ${x}`,
+            fibonacci(x),
+            [],
+        );
+    });
+    testTest(test, "A005185 (Hofstadter 'Q' sequence)", (vm) => {
+        const x = 80;
+        const q = MEMOIZE_F((a) =>
+            a < 3 ? 1 : q(a - q(a - 1)) + q(a - q(a - 2)),
+        );
+        expectEval(
+            vm,
+            `${MEMOIZE}; let q = memoize fn(a) a < 3 ? 1 : q(a - q(a - 1)) + q(a - q(a - 2)) end; q ${x}`,
+            q(x),
+            [],
+        );
+    });
+    testTest(test, "A063510", (vm) => {
+        const x = 65536;
+        const A063510 = (a: number): number =>
+            a < 2 ? 1 : 1 + A063510((a ** 0.5) | 0);
+        expectEval(
+            vm,
+            "let f = fn(a) a < 2 ? 1 : f((a ** .5) | 0) + 1 end; f 65536",
+            A063510(x),
+            [],
+        );
+    });
+    testTest(test, "list building via splat", (vm) => {
+        const x = 8;
+        expectEval(
+            vm,
+            `let f = fn(a, n) n > 0 ? f(a, n - 1) + f(a, n - 1) : [a] end; f 1 ${x}`,
+            new Array(2 ** x).fill(1),
+            [],
+        );
+    });
 });
